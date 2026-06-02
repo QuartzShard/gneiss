@@ -108,6 +108,7 @@ fn regen_sys() -> Result<()> {
 
         let mut mapped = map_bindgen_to_shimmed(bindings, &vendor, platform)?;
         mapped.attrs = vec![
+            syn::parse_quote!(#![doc = " SPDX-License-Identifier: Apache-2.0"]),
             syn::parse_quote!(#![doc = " This module is generated from `pebble.h` by bindgen + a shim-mapping step in the `regen-sys` xtask. Do not hand-edit"]),
         ];
         // lib.rs uses `#[cfg_attr(feature = "<plat>", path = "<plat>.rs")]` to
