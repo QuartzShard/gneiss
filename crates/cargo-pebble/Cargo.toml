@@ -1,0 +1,26 @@
+[package]
+name              = "cargo-pebble"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[[bin]]
+name = "cargo-pebble"
+path = "src/main.rs"
+
+[dependencies]
+pebble-types = { workspace = true, features = ["clap", "serde"] }
+clap       = { version = "4", features = ["derive"] }
+color-eyre = "0.6"
+object     = "0.32"
+zip        = "0.6"
+serde      = { version = "1", features = ["derive"] }
+serde_json = "1"
+log = "0.4.29"
+env_logger = "0.11.10"
+toml = "1.1.2"
+uuid = { version = "1", features = ["v4", "serde"] }
+syn.workspace = true
+prettyplease = "0.2.37"
+cargo_metadata = "0.23.1"

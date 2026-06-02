@@ -1,0 +1,17 @@
+[package]
+name              = "gneiss"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[lib]
+
+[dependencies]
+pebble-sys    = { workspace = true }
+gneiss-macros = { workspace = true }
+linkme        = { workspace = true }
+
+[features]
+default = ["alloc"]
+alloc   = []

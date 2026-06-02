@@ -1,0 +1,42 @@
+[workspace]
+resolver = "3"
+members = [
+    "crates/pebble-types",
+    "crates/pebble-sys",
+    "crates/gneiss",
+    "crates/gneiss-macros",
+    "crates/cargo-pebble",
+    "xtask",
+]
+exclude = ["examples"]
+
+[workspace.package]
+version    = "0.1.0"
+edition    = "2024"
+license    = "MPL-2.0"
+repository = "https://codeberg.org/quartzshard/gneiss"
+
+[workspace.dependencies]
+# Internal
+pebble-types  = { path = "crates/pebble-types",  version = "0.1.0" }
+pebble-sys    = { path = "crates/pebble-sys",    version = "0.1.0" }
+gneiss-macros = { path = "crates/gneiss-macros", version = "0.1.0" }
+cargo-pebble  = { path = "crates/cargo-pebble",  version = "0.1.0" }
+
+# External — single source of truth so versions don't drift across crates
+linkme        = { version = "0.3", default-features = false }
+syn           = { version = "2", features = ["full", "extra-traits"] }
+quote         = "1"
+proc-macro2   = "1"
+
+# release/dev are left at Cargo defaults — every workspace member builds for
+# the host (xtask, cargo-pebble, and library unit tests). Firmware artifacts
+# select `fw` explicitly via `--profile fw`.
+[profile.fw]
+inherits        = "release"
+opt-level       = "z"
+lto             = "fat"
+codegen-units   = 1
+panic           = "abort"
+strip           = "symbols"
+overflow-checks = false

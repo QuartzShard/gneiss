@@ -1,0 +1,18 @@
+[package]
+name              = "pebble-types"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description       = "Shared types across the pebble-sys / cargo-pebble / xtask crates"
+
+[lib]
+
+[features]
+clap  = ["dep:clap"]
+serde = ["dep:serde"]
+
+[dependencies]
+clap  = { version = "4", features = ["derive"], optional = true }
+serde = { version = "1", features = ["derive"], optional = true }
+strum = { version = "0.28.0", default-features = false, features = ["derive"] }
