@@ -43,6 +43,11 @@ fn main() {
 
     let platform = select_platform();
     let cfg = platform.config();
+    assert_eq!(
+        std::env::var("TARGET").expect("No target"),
+        platform.app_target_triple(),
+        "pebble apps must build against the v7m ABI"
+    );
 
     let template = std::fs::read_to_string(in_dir.join("pebble_app_rs.ld.template"))
         .expect("Cannot read linker template");
