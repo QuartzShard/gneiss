@@ -157,34 +157,146 @@ impl<T> ::core::cmp::PartialEq for __BindgenUnionField<T> {
     }
 }
 impl<T> ::core::cmp::Eq for __BindgenUnionField<T> {}
-pub const FONT_KEY_FONT_FALLBACK_INTERNAL: &[u8; 35] = b"RESOURCE_ID_FONT_FALLBACK_INTERNAL\0";
-pub const FONT_KEY_GOTHIC_18_BOLD: &[u8; 27] = b"RESOURCE_ID_GOTHIC_18_BOLD\0";
-pub const FONT_KEY_GOTHIC_24: &[u8; 22] = b"RESOURCE_ID_GOTHIC_24\0";
-pub const FONT_KEY_GOTHIC_09: &[u8; 22] = b"RESOURCE_ID_GOTHIC_09\0";
-pub const FONT_KEY_GOTHIC_14: &[u8; 22] = b"RESOURCE_ID_GOTHIC_14\0";
-pub const FONT_KEY_GOTHIC_14_BOLD: &[u8; 27] = b"RESOURCE_ID_GOTHIC_14_BOLD\0";
-pub const FONT_KEY_GOTHIC_18: &[u8; 22] = b"RESOURCE_ID_GOTHIC_18\0";
-pub const FONT_KEY_GOTHIC_24_BOLD: &[u8; 27] = b"RESOURCE_ID_GOTHIC_24_BOLD\0";
-pub const FONT_KEY_GOTHIC_28: &[u8; 22] = b"RESOURCE_ID_GOTHIC_28\0";
-pub const FONT_KEY_GOTHIC_28_BOLD: &[u8; 27] = b"RESOURCE_ID_GOTHIC_28_BOLD\0";
-pub const FONT_KEY_BITHAM_30_BLACK: &[u8; 28] = b"RESOURCE_ID_BITHAM_30_BLACK\0";
-pub const FONT_KEY_BITHAM_42_BOLD: &[u8; 27] = b"RESOURCE_ID_BITHAM_42_BOLD\0";
-pub const FONT_KEY_BITHAM_42_LIGHT: &[u8; 28] = b"RESOURCE_ID_BITHAM_42_LIGHT\0";
-pub const FONT_KEY_BITHAM_42_MEDIUM_NUMBERS: &[u8; 37] = b"RESOURCE_ID_BITHAM_42_MEDIUM_NUMBERS\0";
-pub const FONT_KEY_BITHAM_34_MEDIUM_NUMBERS: &[u8; 37] = b"RESOURCE_ID_BITHAM_34_MEDIUM_NUMBERS\0";
-pub const FONT_KEY_BITHAM_34_LIGHT_SUBSET: &[u8; 35] = b"RESOURCE_ID_BITHAM_34_LIGHT_SUBSET\0";
-pub const FONT_KEY_BITHAM_18_LIGHT_SUBSET: &[u8; 35] = b"RESOURCE_ID_BITHAM_18_LIGHT_SUBSET\0";
-pub const FONT_KEY_ROBOTO_CONDENSED_21: &[u8; 32] = b"RESOURCE_ID_ROBOTO_CONDENSED_21\0";
-pub const FONT_KEY_ROBOTO_BOLD_SUBSET_49: &[u8; 34] = b"RESOURCE_ID_ROBOTO_BOLD_SUBSET_49\0";
-pub const FONT_KEY_DROID_SERIF_28_BOLD: &[u8; 32] = b"RESOURCE_ID_DROID_SERIF_28_BOLD\0";
-pub const FONT_KEY_LECO_20_BOLD_NUMBERS: &[u8; 33] = b"RESOURCE_ID_LECO_20_BOLD_NUMBERS\0";
-pub const FONT_KEY_LECO_26_BOLD_NUMBERS_AM_PM: &[u8; 39] = b"RESOURCE_ID_LECO_26_BOLD_NUMBERS_AM_PM\0";
-pub const FONT_KEY_LECO_32_BOLD_NUMBERS: &[u8; 33] = b"RESOURCE_ID_LECO_32_BOLD_NUMBERS\0";
-pub const FONT_KEY_LECO_36_BOLD_NUMBERS: &[u8; 33] = b"RESOURCE_ID_LECO_36_BOLD_NUMBERS\0";
-pub const FONT_KEY_LECO_38_BOLD_NUMBERS: &[u8; 33] = b"RESOURCE_ID_LECO_38_BOLD_NUMBERS\0";
-pub const FONT_KEY_LECO_42_NUMBERS: &[u8; 28] = b"RESOURCE_ID_LECO_42_NUMBERS\0";
-pub const FONT_KEY_LECO_28_LIGHT_NUMBERS: &[u8; 34] = b"RESOURCE_ID_LECO_28_LIGHT_NUMBERS\0";
-pub const FONT_KEY_FONT_FALLBACK: &[u8; 26] = b"RESOURCE_ID_FONT_FALLBACK\0";
+#[allow(unsafe_code)]
+pub const FONT_KEY_FONT_FALLBACK_INTERNAL: &::core::ffi::CStr = unsafe {
+    ::core::ffi::CStr::from_bytes_with_nul_unchecked(
+        b"RESOURCE_ID_FONT_FALLBACK_INTERNAL\0",
+    )
+};
+#[allow(unsafe_code)]
+pub const FONT_KEY_GOTHIC_18_BOLD: &::core::ffi::CStr = unsafe {
+    ::core::ffi::CStr::from_bytes_with_nul_unchecked(b"RESOURCE_ID_GOTHIC_18_BOLD\0")
+};
+#[allow(unsafe_code)]
+pub const FONT_KEY_GOTHIC_24: &::core::ffi::CStr = unsafe {
+    ::core::ffi::CStr::from_bytes_with_nul_unchecked(b"RESOURCE_ID_GOTHIC_24\0")
+};
+#[allow(unsafe_code)]
+pub const FONT_KEY_GOTHIC_09: &::core::ffi::CStr = unsafe {
+    ::core::ffi::CStr::from_bytes_with_nul_unchecked(b"RESOURCE_ID_GOTHIC_09\0")
+};
+#[allow(unsafe_code)]
+pub const FONT_KEY_GOTHIC_14: &::core::ffi::CStr = unsafe {
+    ::core::ffi::CStr::from_bytes_with_nul_unchecked(b"RESOURCE_ID_GOTHIC_14\0")
+};
+#[allow(unsafe_code)]
+pub const FONT_KEY_GOTHIC_14_BOLD: &::core::ffi::CStr = unsafe {
+    ::core::ffi::CStr::from_bytes_with_nul_unchecked(b"RESOURCE_ID_GOTHIC_14_BOLD\0")
+};
+#[allow(unsafe_code)]
+pub const FONT_KEY_GOTHIC_18: &::core::ffi::CStr = unsafe {
+    ::core::ffi::CStr::from_bytes_with_nul_unchecked(b"RESOURCE_ID_GOTHIC_18\0")
+};
+#[allow(unsafe_code)]
+pub const FONT_KEY_GOTHIC_24_BOLD: &::core::ffi::CStr = unsafe {
+    ::core::ffi::CStr::from_bytes_with_nul_unchecked(b"RESOURCE_ID_GOTHIC_24_BOLD\0")
+};
+#[allow(unsafe_code)]
+pub const FONT_KEY_GOTHIC_28: &::core::ffi::CStr = unsafe {
+    ::core::ffi::CStr::from_bytes_with_nul_unchecked(b"RESOURCE_ID_GOTHIC_28\0")
+};
+#[allow(unsafe_code)]
+pub const FONT_KEY_GOTHIC_28_BOLD: &::core::ffi::CStr = unsafe {
+    ::core::ffi::CStr::from_bytes_with_nul_unchecked(b"RESOURCE_ID_GOTHIC_28_BOLD\0")
+};
+#[allow(unsafe_code)]
+pub const FONT_KEY_BITHAM_30_BLACK: &::core::ffi::CStr = unsafe {
+    ::core::ffi::CStr::from_bytes_with_nul_unchecked(b"RESOURCE_ID_BITHAM_30_BLACK\0")
+};
+#[allow(unsafe_code)]
+pub const FONT_KEY_BITHAM_42_BOLD: &::core::ffi::CStr = unsafe {
+    ::core::ffi::CStr::from_bytes_with_nul_unchecked(b"RESOURCE_ID_BITHAM_42_BOLD\0")
+};
+#[allow(unsafe_code)]
+pub const FONT_KEY_BITHAM_42_LIGHT: &::core::ffi::CStr = unsafe {
+    ::core::ffi::CStr::from_bytes_with_nul_unchecked(b"RESOURCE_ID_BITHAM_42_LIGHT\0")
+};
+#[allow(unsafe_code)]
+pub const FONT_KEY_BITHAM_42_MEDIUM_NUMBERS: &::core::ffi::CStr = unsafe {
+    ::core::ffi::CStr::from_bytes_with_nul_unchecked(
+        b"RESOURCE_ID_BITHAM_42_MEDIUM_NUMBERS\0",
+    )
+};
+#[allow(unsafe_code)]
+pub const FONT_KEY_BITHAM_34_MEDIUM_NUMBERS: &::core::ffi::CStr = unsafe {
+    ::core::ffi::CStr::from_bytes_with_nul_unchecked(
+        b"RESOURCE_ID_BITHAM_34_MEDIUM_NUMBERS\0",
+    )
+};
+#[allow(unsafe_code)]
+pub const FONT_KEY_BITHAM_34_LIGHT_SUBSET: &::core::ffi::CStr = unsafe {
+    ::core::ffi::CStr::from_bytes_with_nul_unchecked(
+        b"RESOURCE_ID_BITHAM_34_LIGHT_SUBSET\0",
+    )
+};
+#[allow(unsafe_code)]
+pub const FONT_KEY_BITHAM_18_LIGHT_SUBSET: &::core::ffi::CStr = unsafe {
+    ::core::ffi::CStr::from_bytes_with_nul_unchecked(
+        b"RESOURCE_ID_BITHAM_18_LIGHT_SUBSET\0",
+    )
+};
+#[allow(unsafe_code)]
+pub const FONT_KEY_ROBOTO_CONDENSED_21: &::core::ffi::CStr = unsafe {
+    ::core::ffi::CStr::from_bytes_with_nul_unchecked(
+        b"RESOURCE_ID_ROBOTO_CONDENSED_21\0",
+    )
+};
+#[allow(unsafe_code)]
+pub const FONT_KEY_ROBOTO_BOLD_SUBSET_49: &::core::ffi::CStr = unsafe {
+    ::core::ffi::CStr::from_bytes_with_nul_unchecked(
+        b"RESOURCE_ID_ROBOTO_BOLD_SUBSET_49\0",
+    )
+};
+#[allow(unsafe_code)]
+pub const FONT_KEY_DROID_SERIF_28_BOLD: &::core::ffi::CStr = unsafe {
+    ::core::ffi::CStr::from_bytes_with_nul_unchecked(
+        b"RESOURCE_ID_DROID_SERIF_28_BOLD\0",
+    )
+};
+#[allow(unsafe_code)]
+pub const FONT_KEY_LECO_20_BOLD_NUMBERS: &::core::ffi::CStr = unsafe {
+    ::core::ffi::CStr::from_bytes_with_nul_unchecked(
+        b"RESOURCE_ID_LECO_20_BOLD_NUMBERS\0",
+    )
+};
+#[allow(unsafe_code)]
+pub const FONT_KEY_LECO_26_BOLD_NUMBERS_AM_PM: &::core::ffi::CStr = unsafe {
+    ::core::ffi::CStr::from_bytes_with_nul_unchecked(
+        b"RESOURCE_ID_LECO_26_BOLD_NUMBERS_AM_PM\0",
+    )
+};
+#[allow(unsafe_code)]
+pub const FONT_KEY_LECO_32_BOLD_NUMBERS: &::core::ffi::CStr = unsafe {
+    ::core::ffi::CStr::from_bytes_with_nul_unchecked(
+        b"RESOURCE_ID_LECO_32_BOLD_NUMBERS\0",
+    )
+};
+#[allow(unsafe_code)]
+pub const FONT_KEY_LECO_36_BOLD_NUMBERS: &::core::ffi::CStr = unsafe {
+    ::core::ffi::CStr::from_bytes_with_nul_unchecked(
+        b"RESOURCE_ID_LECO_36_BOLD_NUMBERS\0",
+    )
+};
+#[allow(unsafe_code)]
+pub const FONT_KEY_LECO_38_BOLD_NUMBERS: &::core::ffi::CStr = unsafe {
+    ::core::ffi::CStr::from_bytes_with_nul_unchecked(
+        b"RESOURCE_ID_LECO_38_BOLD_NUMBERS\0",
+    )
+};
+#[allow(unsafe_code)]
+pub const FONT_KEY_LECO_42_NUMBERS: &::core::ffi::CStr = unsafe {
+    ::core::ffi::CStr::from_bytes_with_nul_unchecked(b"RESOURCE_ID_LECO_42_NUMBERS\0")
+};
+#[allow(unsafe_code)]
+pub const FONT_KEY_LECO_28_LIGHT_NUMBERS: &::core::ffi::CStr = unsafe {
+    ::core::ffi::CStr::from_bytes_with_nul_unchecked(
+        b"RESOURCE_ID_LECO_28_LIGHT_NUMBERS\0",
+    )
+};
+#[allow(unsafe_code)]
+pub const FONT_KEY_FONT_FALLBACK: &::core::ffi::CStr = unsafe {
+    ::core::ffi::CStr::from_bytes_with_nul_unchecked(b"RESOURCE_ID_FONT_FALLBACK\0")
+};
 pub const __bool_true_false_are_defined: u32 = 1;
 pub const true_: u32 = 1;
 pub const false_: u32 = 0;
@@ -196,6 +308,7 @@ pub const UUID_STRING_BUFFER_LENGTH: u32 = 39;
 pub const APP_MESSAGE_INBOX_SIZE_MINIMUM: u32 = 124;
 pub const APP_MESSAGE_OUTBOX_SIZE_MINIMUM: u32 = 636;
 pub const kModdableCreationFlagLogInstrumentation: u32 = 1;
+pub const kModdableCreationFlagDebug: u32 = 2;
 pub const PERSIST_DATA_MAX_LENGTH: u32 = 256;
 pub const PERSIST_STRING_MAX_LENGTH: u32 = 256;
 pub const SMARTSTRAP_TIMEOUT_DEFAULT: u32 = 250;
@@ -5200,6 +5313,17 @@ pub const AppLaunchReason_APP_LAUNCH_SMARTSTRAP: AppLaunchReason = 7;
 ! is recommended to only handle the cases that the app needs to know about,
 ! rather than trying to handle all possible launch reasons.*/
 pub type AppLaunchReason = ::core::ffi::c_uint;
+///!< App was not launched via Quick Launch
+pub const AppQuickLaunchAction_APP_QUICK_LAUNCH_ACTION_NONE: AppQuickLaunchAction = 0;
+///!< User held a single button
+pub const AppQuickLaunchAction_APP_QUICK_LAUNCH_ACTION_HOLD: AppQuickLaunchAction = 1;
+///!< User tapped a button (single click)
+pub const AppQuickLaunchAction_APP_QUICK_LAUNCH_ACTION_TAP: AppQuickLaunchAction = 2;
+///!< User held a button combination
+pub const AppQuickLaunchAction_APP_QUICK_LAUNCH_ACTION_COMBO: AppQuickLaunchAction = 3;
+/**! Details about how an app was quick launched.
+! Returned by \ref app_launch_get_quick_launch_action.*/
+pub type AppQuickLaunchAction = ::core::ffi::c_uint;
 /**! Provides the method used to launch the current application.
 ! @return The method or reason the current application was launched*/
 /** launch_reason

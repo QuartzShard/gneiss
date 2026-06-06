@@ -164,6 +164,8 @@ typedef enum {
 // sdk.major:0x5 .minor:0x60 -- Add persist_get_max_size() for runtime persist storage capacity (rev 99)
 // sdk.major:0x5 .minor:0x61 -- Add speaker_is_muted() for system-wide speaker mute query (rev 100)
 // sdk.major:0x5 .minor:0x62 -- Add backlight_service_subscribe/unsubscribe for backlight on/off events (rev 101)
+// sdk.major:0x5 .minor:0x63 -- Export launch_button() (rev 102)
+// sdk.major:0x5 .minor:0x64 -- Add kModdableCreationFlagDebug (rev 103)
 
 #define PROCESS_INFO_CURRENT_SDK_VERSION_MAJOR 0x5
 #define PROCESS_INFO_CURRENT_SDK_VERSION_MINOR 0x56

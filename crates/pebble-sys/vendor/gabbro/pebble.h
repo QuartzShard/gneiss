@@ -2865,6 +2865,11 @@ void app_event_loop(void);
 //! @see ModdableCreationRecord
 #define kModdableCreationFlagLogInstrumentation  (1 << 0)
 
+//! Flag to enable XS debugging using xsbug.
+//! Should be used in combination with pebble build --debug
+//! @see ModdableCreationRecord
+#define kModdableCreationFlagDebug  (1 << 1)
+
 //! Configuration record for creating a Moddable XS virtual machine.
 //! Used with moddable_createMachine() to customize the JS runtime.
 //! Set recordSize to sizeof(ModdableCreationRecord) for version compatibility.
@@ -3306,6 +3311,15 @@ typedef enum {
   APP_LAUNCH_SMARTSTRAP,  //!< App launched by a smartstrap
 } AppLaunchReason;
 
+//! Details about how an app was quick launched.
+//! Returned by \ref app_launch_get_quick_launch_action.
+typedef enum {
+  APP_QUICK_LAUNCH_ACTION_NONE = 0,   //!< App was not launched via Quick Launch
+  APP_QUICK_LAUNCH_ACTION_HOLD,       //!< User held a single button
+  APP_QUICK_LAUNCH_ACTION_TAP,        //!< User tapped a button (single click)
+  APP_QUICK_LAUNCH_ACTION_COMBO,      //!< User held a button combination
+} AppQuickLaunchAction;
+
 //! Provides the method used to launch the current application.
 //! @return The method or reason the current application was launched
 AppLaunchReason launch_reason(void);
@@ -3315,6 +3329,15 @@ AppLaunchReason launch_reason(void);
 //! on a pin.
 //! @return The argument passed to the app, or 0 if the app wasn't launched from a Launch App action
 uint32_t launch_get_args(void);
+
+//! Get the button id used to launch the app.
+//! Only valid if the launch reason is APP_LAUNCH_USER or APP_LAUNCH_QUICK_LAUNCH.
+ButtonId launch_button(void);
+
+//! Get the action that was used to quick launch the app.
+//! @return The \ref AppQuickLaunchAction used to launch the app, or
+//! APP_QUICK_LAUNCH_ACTION_NONE if the app was not launched via Quick Launch.
+AppQuickLaunchAction launch_get_quick_launch_action(void);
 
 //! @} // group LaunchReason
 

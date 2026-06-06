@@ -158,6 +158,8 @@
 #define _PBL_API_EXISTS_wakeup_query
 #define _PBL_API_EXISTS_launch_reason
 #define _PBL_API_EXISTS_launch_get_args
+#define _PBL_API_EXISTS_launch_button
+#define _PBL_API_EXISTS_launch_get_quick_launch_action
 #define _PBL_API_EXISTS_exit_reason_set
 #define _PBL_API_EXISTS_app_glance_add_slice
 #define _PBL_API_EXISTS_app_glance_reload

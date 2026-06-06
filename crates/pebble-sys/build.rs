@@ -2,21 +2,22 @@ use std::{env::var, path::PathBuf};
 
 use pebble_types::Platform;
 
+const FEATURES: &[(&str, Platform)] = &[
+    ("CARGO_FEATURE_APLITE", Platform::Aplite),
+    ("CARGO_FEATURE_BASALT", Platform::Basalt),
+    ("CARGO_FEATURE_CHALK", Platform::Chalk),
+    ("CARGO_FEATURE_DIORITE", Platform::Diorite),
+    ("CARGO_FEATURE_EMERY", Platform::Emery),
+    ("CARGO_FEATURE_FLINT", Platform::Flint),
+    ("CARGO_FEATURE_GABBRO", Platform::Gabbro),
+];
+
 /// Pick the target platform. Prefer mutually-exclusive Cargo features; fall
 /// back to the `PBL_PLATFORM` env var so `cargo xtask` flows (and anything
 /// else not driven through `cargo build --features <plat>`) keep working.
 /// `mutually_exclusive_features` only enforces at lib compile time — build.rs
 /// runs first, so do the check here too.
 fn select_platform() -> Platform {
-    const FEATURES: &[(&str, Platform)] = &[
-        ("CARGO_FEATURE_APLITE", Platform::Aplite),
-        ("CARGO_FEATURE_BASALT", Platform::Basalt),
-        ("CARGO_FEATURE_CHALK", Platform::Chalk),
-        ("CARGO_FEATURE_DIORITE", Platform::Diorite),
-        ("CARGO_FEATURE_EMERY", Platform::Emery),
-        ("CARGO_FEATURE_FLINT", Platform::Flint),
-        ("CARGO_FEATURE_GABBRO", Platform::Gabbro),
-    ];
     let enabled: Vec<Platform> = FEATURES
         .iter()
         .filter_map(|(env, p)| var(env).ok().map(|_| *p))
@@ -44,7 +45,7 @@ fn main() {
     let platform = select_platform();
     let cfg = platform.config();
     assert_eq!(
-        std::env::var("TARGET").expect("No target"),
+        var("TARGET").expect("No target"),
         platform.app_target_triple(),
         "pebble apps must build against the v7m ABI"
     );
@@ -60,15 +61,7 @@ fn main() {
     std::fs::write(out_dir.join("pebble_app.ld"), resolved)
         .expect("Failed to write resolved linker script");
 
-    for (env, _) in [
-        ("CARGO_FEATURE_APLITE", ()),
-        ("CARGO_FEATURE_BASALT", ()),
-        ("CARGO_FEATURE_CHALK", ()),
-        ("CARGO_FEATURE_DIORITE", ()),
-        ("CARGO_FEATURE_EMERY", ()),
-        ("CARGO_FEATURE_FLINT", ()),
-        ("CARGO_FEATURE_GABBRO", ()),
-    ] {
+    for (env, _) in FEATURES {
         println!("cargo:rerun-if-env-changed={env}");
     }
     println!("cargo:rerun-if-env-changed=PBL_PLATFORM");

@@ -12,49 +12,52 @@ SECTIONS
 	{
 		KEEP(*(.pbl_header))
 
-} > APP
+	} > APP
 
-/* -- DO NOT ADD ANY NEW SECTIONS HERE AND DO NOT CHANGE THE ALIGNMENT -- */
-/* The GNU build ID is tacked to the end of the PebbleProcessInfo struct: */
-.note.gnu.build-id ALIGN(1) : {
-	PROVIDE(BUILD_ID = .);
-	KEEP(*(.note.gnu.build-id))
-} > APP
+	/* -- DO NOT ADD ANY NEW SECTIONS HERE AND DO NOT CHANGE THE ALIGNMENT -- */
+	/* The GNU build ID is tacked to the end of the PebbleProcessInfo struct: */
+	.note.gnu.build-id ALIGN(1) : {
+		PROVIDE(BUILD_ID = .);
+		KEEP(*(.note.gnu.build-id))
+	} > APP
 
-.pbl_dispatch : ALIGN(4) {
-	KEEP(*(.pbl_dispatch.code))
-	. = ALIGN(4);
-	KEEP(*(.pbl_dispatch.data))
-} > APP
+	.pbl_dispatch : ALIGN(4) {
+		KEEP(*(.pbl_dispatch.code))
+		. = ALIGN(4);
+		KEEP(*(.pbl_dispatch.data))
+	} > APP
 
-.text :
-{
-	*(.text)
-		*(.text.*)
-		*(.rodata)
-		*(.rodata*)
-} > APP
+	.text :
+	{
+		*(.text)
+			*(.text.*)
+			*(.rodata)
+			*(.rodata*)
+	} > APP
 
 
-  .data :
-  {
-	  KEEP(*(.data))
-		  *(.data.*)
-} > APP
+	  .data :
+	  {
+		  KEEP(*(.data))
+			  *(.data.*)
+	} > APP
 
-.bss :
-{
-	*(.bss)
-		*(.bss.*)
-} > APP
+	.bss :
+	{
+		*(.bss)
+			*(.bss.*)
+	} > APP
 
-DISCARD :
-{
-	libc.a ( * )
-	libm.a ( * )
-	libgcc.a ( * )
-	*(.eh_frame)
-}
+	/* Proper DISCARD syntax, upstream is just a junk section */
+	/DISCARD/ :
+	{
+		libc.a ( * )
+		libm.a ( * )
+		libgcc.a ( * )
+		*(.eh_frame)
+		*(.ARM.exidx*)
+		*(.ARM.extab*)
+	}
 }
 
 /* vim:filetype=ld */
