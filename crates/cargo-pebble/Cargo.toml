@@ -10,7 +10,9 @@ name = "cargo-pebble"
 path = "src/main.rs"
 
 [dependencies]
-pebble-types = { workspace = true, features = ["clap", "serde"] }
+bytemuck = { workspace = true }
+unix-time = { workspace = true, default-features = true }
+pebble-types = { workspace = true, features = ["manifest_types"] }
 clap       = { version = "4", features = ["derive"] }
 color-eyre = "0.6"
 object     = "0.32"
@@ -24,3 +26,5 @@ uuid = { version = "1", features = ["v4", "serde"] }
 syn.workspace = true
 prettyplease = "0.2.37"
 cargo_metadata = "0.23.1"
+toml_edit = { version = "0.25.12", features = ["serde"] }
+chrono = "0.4.45"
