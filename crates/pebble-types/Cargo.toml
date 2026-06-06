@@ -9,10 +9,16 @@ description       = "Shared types across the pebble-sys / cargo-pebble / xtask c
 [lib]
 
 [features]
-clap  = ["dep:clap"]
-serde = ["dep:serde"]
+std   = []
+manifest_types = ["std", "serde"]
+
+clap  = ["dep:clap", "std"]
+serde = ["dep:serde", "std", "unix-time/serde", "uuid/serde"]
 
 [dependencies]
+bytemuck = { workspace = true, features = ["derive"] }
 clap  = { version = "4", features = ["derive"], optional = true }
 serde = { version = "1", features = ["derive"], optional = true }
 strum = { version = "0.28.0", default-features = false, features = ["derive"] }
+unix-time = { workspace=true, optional = true }
+uuid = { version = "1.23.2", default-features = false, optional = true}

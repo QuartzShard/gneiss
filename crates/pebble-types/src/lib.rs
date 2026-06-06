@@ -3,14 +3,38 @@
 // `serde` defaults on for the host consumers and don't try to thread that needle.
 // pebble-sys and other no_std consumers should depend on pebble-types without
 // features — that path stays no_std.
-#![cfg_attr(not(any(feature = "clap", feature = "serde")), no_std)]
+#![cfg_attr(not(feature = "std"), no_std)]
+#![allow(incomplete_features)]
+#![feature(generic_const_exprs)]
 
 use core::fmt;
 
 mod config;
+pub mod header;
+#[cfg(feature = "std")]
+pub mod stm_crc32;
+
+#[cfg(feature = "manifest_types")]
+pub mod manifest;
+#[cfg(feature = "manifest_types")]
+pub mod pbpack;
+// Shut up, clippy! We don't care that bindgen outputs messy code
+#[allow(
+	non_camel_case_types,
+	dead_code,
+	non_upper_case_globals,
+	unnecessary_transmutes,
+	non_snake_case,
+	unsafe_op_in_unsafe_fn,
+	clippy::suspicious_doc_comments,
+	clippy::useless_transmute,
+	clippy::transmute_int_to_bool,
+	clippy::upper_case_acronyms
+)]
+mod pebble_process_info;
 pub use config::{
-    Capabilities, Display, DisplayShape, PLATFORM_APLITE, PLATFORM_BASALT, PLATFORM_CHALK,
-    PLATFORM_DIORITE, PLATFORM_EMERY, PLATFORM_FLINT, PLATFORM_GABBRO, PlatformConfig,
+	Capabilities, Display, DisplayShape, PLATFORM_APLITE, PLATFORM_BASALT, PLATFORM_CHALK,
+	PLATFORM_DIORITE, PLATFORM_EMERY, PLATFORM_FLINT, PLATFORM_GABBRO, PlatformConfig,
 };
 
 /// Application target platforms, by the internal name. Aliased to the hardware
@@ -20,62 +44,74 @@ pub use config::{
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(feature = "serde", serde(rename_all = "lowercase"))]
 pub enum Platform {
-    /// Pebble Time 2. Marked as default because @quarzshard has one
-    #[default]
-    // Point of interest: Emery was also the target name for the ill-fated 2016 Time 2, codename
-    // "robert". We don't claim support for it here because building against the modern SDK would
-    // almost certainly crash your original Time 2 dev hardware, if you somehow happened to have
-    // it. If you do, please get in touch, I'd love to chat!
-    #[cfg_attr(feature = "clap", value(alias = "obelix"))]
-    Emery,
-    /// Pebble 2 Duo
-    #[cfg_attr(feature = "clap", value(alias = "asterix"))]
-    Flint,
-    /// Pebble Round 2
-    #[cfg_attr(feature = "clap", value(alias = "getafix"))]
-    Gabbro,
-    /// Pebble Classic / Steel
-    #[cfg_attr(feature = "clap", value(aliases = ["tintin", "bianca"]))]
-    Aplite,
-    /// Pebble Time / Time Steel
-    #[cfg_attr(feature = "clap", value(alias = "snowy"))]
-    Basalt,
-    /// Pebble Time Round
-    #[cfg_attr(feature = "clap", value(alias = "spalding"))]
-    Chalk,
-    /// Pebble 2
-    #[cfg_attr(feature = "clap", value(alias = "silk"))]
-    Diorite,
+	/// Pebble Time 2. Marked as default because @quarzshard has one
+	#[default]
+	// Point of interest: Emery was also the target name for the ill-fated 2016 Time 2, codename
+	// "robert". We don't claim support for it here because building against the modern SDK would
+	// almost certainly crash your original Time 2 dev hardware, if you somehow happened to have
+	// it. If you do, please get in touch, I'd love to chat!
+	#[cfg_attr(feature = "clap", value(alias = "obelix"))]
+	Emery,
+	/// Pebble 2 Duo
+	#[cfg_attr(feature = "clap", value(alias = "asterix"))]
+	Flint,
+	/// Pebble Round 2
+	#[cfg_attr(feature = "clap", value(alias = "getafix"))]
+	Gabbro,
+	/// Pebble Classic / Steel
+	#[cfg_attr(feature = "clap", value(aliases = ["tintin", "bianca"]))]
+	Aplite,
+	/// Pebble Time / Time Steel
+	#[cfg_attr(feature = "clap", value(alias = "snowy"))]
+	Basalt,
+	/// Pebble Time Round
+	#[cfg_attr(feature = "clap", value(alias = "spalding"))]
+	Chalk,
+	/// Pebble 2
+	#[cfg_attr(feature = "clap", value(alias = "silk"))]
+	Diorite,
 }
 
 impl Platform {
-    /// `rustc`/LLVM target triple for compiling Pebble *app* code. Universal
-    /// across all platforms: apps run inside the OS sandbox and only ever see
-    /// the cortex-m3/thumbv7m ABI, regardless of the underlying SoC (the new
-    /// SF32LB52x-based boards still expose a thumbv7m app ABI through the
-    /// syscall trampoline).
-    pub const fn app_target_triple(self) -> &'static str {
-        "thumbv7m-none-eabi"
-    }
+	/// Name of the custom `rustc` target spec for compiling Pebble *app* code,
+	/// i.e. the stem of the vendored `thumbv7m-pebble.json` (which `cargo-pebble
+	/// new` drops into the app root). Universal across all platforms: apps run
+	/// inside the OS sandbox and only ever see the cortex-m3/thumbv7m ABI,
+	/// regardless of the underlying SoC (the new SF32LB52x-based boards still
+	/// expose a thumbv7m app ABI through the syscall trampoline).
+	///
+	/// It is a custom spec rather than the stock `thumbv7m-none-eabi` so that
+	/// `relocation-model = pic` is baked into the target itself — that way
+	/// `-Zbuild-std` rebuilds `core`/`alloc` PIC too, not just app crates. A
+	/// non-PIC `core` would materialise absolute addresses inline in `.text`
+	/// (via `movw`/`movt`), which the loader's reloc table — harvested only
+	/// from `.rel.data` + `.got` — cannot fix up at load time. The LLVM target
+	/// stays `thumbv7m-none-eabi`, so this is the same ABI, not a new one.
+	///
+	/// Build scripts see this exact string in `$TARGET` (cargo uses the JSON
+	/// file stem), which `pebble-sys/build.rs` asserts against.
+	pub const fn app_target_triple(self) -> &'static str {
+		"thumbv7m-pebble"
+	}
 
-    /// Lowercase canonical name (matches `Display` and `serde` representation).
-    pub const fn as_str(self) -> &'static str {
-        match self {
-            Platform::Emery => "emery",
-            Platform::Flint => "flint",
-            Platform::Gabbro => "gabbro",
-            Platform::Aplite => "aplite",
-            Platform::Basalt => "basalt",
-            Platform::Chalk => "chalk",
-            Platform::Diorite => "diorite",
-        }
-    }
+	/// Lowercase canonical name (matches `Display` and `serde` representation).
+	pub const fn as_str(self) -> &'static str {
+		match self {
+			Platform::Emery => "emery",
+			Platform::Flint => "flint",
+			Platform::Gabbro => "gabbro",
+			Platform::Aplite => "aplite",
+			Platform::Basalt => "basalt",
+			Platform::Chalk => "chalk",
+			Platform::Diorite => "diorite",
+		}
+	}
 }
 
 impl fmt::Display for Platform {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(self.as_str())
-    }
+	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+		f.write_str(self.as_str())
+	}
 }
 
 /// Returned when a string does not name a known platform or alias.
@@ -83,28 +119,29 @@ impl fmt::Display for Platform {
 pub struct UnknownPlatform;
 
 impl fmt::Display for UnknownPlatform {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str("not a known platform or hardware alias")
-    }
+	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+		f.write_str("not a known platform or hardware alias")
+	}
 }
 
 impl core::error::Error for UnknownPlatform {}
 
 impl core::str::FromStr for Platform {
-    type Err = UnknownPlatform;
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        // Match the canonical lowercase names and the clap-side hardware aliases
-        // so a single source of truth covers both `clap` arg parsing and any
-        // ad-hoc `s.parse()` callers (e.g. pebble-sys's build script).
-        match s {
-            "emery" | "obelix" => Ok(Self::Emery),
-            "flint" | "asterix" => Ok(Self::Flint),
-            "gabbro" | "getafix" => Ok(Self::Gabbro),
-            "aplite" | "tintin" | "bianca" => Ok(Self::Aplite),
-            "basalt" | "snowy" => Ok(Self::Basalt),
-            "chalk" | "spalding" => Ok(Self::Chalk),
-            "diorite" | "silk" => Ok(Self::Diorite),
-            _ => Err(UnknownPlatform),
-        }
-    }
+	type Err = UnknownPlatform;
+
+	fn from_str(s: &str) -> Result<Self, Self::Err> {
+		// Match the canonical lowercase names and the clap-side hardware aliases
+		// so a single source of truth covers both `clap` arg parsing and any
+		// ad-hoc `s.parse()` callers (e.g. pebble-sys's build script).
+		match s {
+			"emery" | "obelix" => Ok(Self::Emery),
+			"flint" | "asterix" => Ok(Self::Flint),
+			"gabbro" | "getafix" => Ok(Self::Gabbro),
+			"aplite" | "tintin" | "bianca" => Ok(Self::Aplite),
+			"basalt" | "snowy" => Ok(Self::Basalt),
+			"chalk" | "spalding" => Ok(Self::Chalk),
+			"diorite" | "silk" => Ok(Self::Diorite),
+			_ => Err(UnknownPlatform),
+		}
+	}
 }
