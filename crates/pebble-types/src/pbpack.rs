@@ -120,6 +120,27 @@ impl PbPack {
 		buf
 	}
 
+	pub fn from_bytes(val: Vec<u8>) -> Option<Self> {
+		if val.len() < size_of::<Self>() - size_of::<Vec<u8>>() {
+			None
+		} else {
+			let manifest: PackManifest = *bytemuck::from_bytes(&val[..size_of::<PackManifest>()]);
+			let table: PackTable = *bytemuck::from_bytes(
+				&val[size_of::<PackManifest>()..size_of::<PackManifest>() + size_of::<PackTable>()],
+			);
+			let content = val[size_of::<PackManifest>() + size_of::<PackTable>()..].to_vec();
+			if content.len() as u32 == table.0.iter().map(|row| row.length).sum::<u32>() {
+				Some(PbPack {
+					manifest,
+					table,
+					content,
+				})
+			} else {
+				None
+			}
+		}
+	}
+
 	pub fn manifest(&self) -> PackManifest {
 		self.manifest
 	}

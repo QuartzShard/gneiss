@@ -261,18 +261,16 @@ dependencies = [
 name = "cargo-pebble"
 version = "0.1.0"
 dependencies = [
- "bytemuck",
  "cargo_metadata",
- "chrono",
  "clap",
  "color-eyre",
  "env_logger",
  "log",
- "object 0.32.2",
+ "pebble-build",
  "pebble-types",
  "prettyplease",
+ "proc-macro2",
  "serde",
- "serde_json",
  "syn",
  "toml",
  "toml_edit",
@@ -1067,10 +1065,27 @@ dependencies = [
 ]
 
 [[package]]
+name = "pebble-build"
+version = "0.1.0"
+dependencies = [
+ "bytemuck",
+ "cargo_metadata",
+ "color-eyre",
+ "log",
+ "object 0.32.2",
+ "pebble-types",
+ "serde",
+ "serde_json",
+ "unix-time",
+ "uuid",
+]
+
+[[package]]
 name = "pebble-sys"
 version = "0.1.0"
 dependencies = [
  "mutually_exclusive_features",
+ "pebble-build",
  "pebble-types",
 ]
 

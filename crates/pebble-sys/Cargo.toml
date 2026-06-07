@@ -10,6 +10,7 @@ repository.workspace = true
 
 [build-dependencies]
 pebble-types = { workspace = true }
+pebble-build = { workspace = true }
 
 [dependencies]
 pebble-types = { workspace = true }

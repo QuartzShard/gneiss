@@ -4,7 +4,11 @@ use std::{
 	process::Command,
 };
 
-use color_eyre::{Result, eyre::Context};
+use color_eyre::{
+	Result,
+	eyre::{Context, OptionExt},
+};
+use pebble_build::{PebbleMetadata, Resource};
 use pebble_types::Platform;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -63,6 +67,7 @@ impl NewProject {
 			self.platform
 		);
 		std::fs::create_dir_all(&path.join("src"))?;
+		std::fs::create_dir_all(&path.join("resources"))?;
 		self.cargo_toml(&path)
 			.wrap_err("Failed to write Cargo.toml")?;
 		self.cargo_config(&path)
@@ -71,6 +76,7 @@ impl NewProject {
 			.wrap_err("Failed to write rust-toolchain.toml")?;
 		self.main_rs(&path)
 			.wrap_err("Failed to write src/main.rs")?;
+		self.build_rs(&path).wrap_err("Failed to write build.rs")?;
 		Ok(())
 	}
 
@@ -125,10 +131,15 @@ impl NewProject {
 	}
 
 	fn cargo_toml(&self, path: &Path) -> Result<()> {
+		let resources = BTreeMap::from_iter(vec![("EXAMPLE".to_string(), Resource::Raw {
+			file:             "data.bin".into(),
+			target_platforms: vec![Platform::Emery],
+		})]);
 		let metadata = Metadata {
 			pebble: PebbleMetadata {
-				uuid:      Uuid::new_v4(),
+				uuid: Uuid::new_v4(),
 				watchface: matches!(self.app_type, AppType::Watchface),
+				resources,
 			},
 		};
 		let package = Package {
@@ -148,6 +159,15 @@ impl NewProject {
 			path:     self.dep_path.canonicalize()?,
 			features: vec![],
 		});
+		let build_dependencies =
+			BTreeMap::from_iter([("pebble-build".to_string(), Dependency::Path {
+				path:     self
+					.dep_path
+					.parent()
+					.ok_or_eyre("no parent")?
+					.join("pebble-build"),
+				features: vec![],
+			})]);
 		// One feature per target platform, each forwarding to the SDK dep, so
 		// `cargo build --features emery` selects the board.
 		let features: BTreeMap<String, Vec<String>> = self
@@ -158,6 +178,7 @@ impl NewProject {
 		let manifest = PebbleCargoManifest {
 			package,
 			dependencies,
+			build_dependencies,
 			features,
 			profile: Profiles::default(),
 		};
@@ -173,16 +194,20 @@ impl NewProject {
 		decor.set_prefix(format!(
 			"{prev}# authors[0] used as the watch-menu \"company\"\n"
 		));
+
 		std::fs::write(&path.join("Cargo.toml"), doc.to_string())?;
 
 		Ok(())
 	}
 
 	fn main_rs(&self, path: &Path) -> Result<()> {
-		let (includes, main): (syn::Stmt, syn::ItemFn) = if self.sys_only {
+		let (includes, main): (proc_macro2::TokenStream, syn::ItemFn) = if self.sys_only {
 			(
 				syn::parse_quote!(
 					use pebble_sys::*;
+					mod resources {
+						include!(concat!(env!("OUT_DIR"), "/resources.rs"));
+					}
 				),
 				syn::parse_quote! {
 
@@ -240,6 +265,18 @@ impl NewProject {
 		std::fs::write(path.join("src/main.rs"), prettyplease::unparse(&main))
 			.wrap_err("Cannot write main.rs")
 	}
+
+	fn build_rs(&self, path: &Path) -> Result<()> {
+		let build: syn::File = syn::parse_quote! {
+			use pebble_build;
+
+			fn main() {
+				pebble_build::gen_resource_declarations().expect("Resource codegen failure");
+			}
+		};
+		std::fs::write(path.join("build.rs"), prettyplease::unparse(&build))
+			.wrap_err("Cannot write build.rs")
+	}
 }
 
 #[derive(Debug, Clone, Copy, clap::ValueEnum)]
@@ -271,12 +308,14 @@ pub struct PebbleBuild {
 
 /// A generated watchapp `Cargo.toml`.
 #[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "kebab-case")]
 pub struct PebbleCargoManifest {
-	pub package:      Package,
-	pub dependencies: BTreeMap<String, Dependency>,
+	pub package:            Package,
+	pub dependencies:       BTreeMap<String, Dependency>,
+	pub build_dependencies: BTreeMap<String, Dependency>,
 	/// `[features]` — one entry per platform, each forwarding to the SDK dep.
-	pub features:     BTreeMap<String, Vec<String>>,
-	pub profile:      Profiles,
+	pub features:           BTreeMap<String, Vec<String>>,
+	pub profile:            Profiles,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -294,15 +333,6 @@ pub struct Package {
 #[derive(Debug, Clone, Serialize)]
 pub struct Metadata {
 	pub pebble: PebbleMetadata,
-}
-
-/// Contents of `[package.metadata.pebble]` — written by `new`, read back by
-/// `build`.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct PebbleMetadata {
-	pub uuid:      Uuid,
-	#[serde(default)]
-	pub watchface: bool,
 }
 
 /// A single `[dependencies]` entry.

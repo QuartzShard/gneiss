@@ -6,7 +6,8 @@ members = [
     "crates/gneiss",
     "crates/gneiss-macros",
     "crates/cargo-pebble",
-    "xtask",
+    "crates/pebble-build",
+	"xtask",
 ]
 exclude = ["examples"]
 
@@ -19,6 +20,7 @@ repository = "https://codeberg.org/quartzshard/gneiss"
 [workspace.dependencies]
 # Internal
 pebble-types  = { path = "crates/pebble-types",  version = "0.1.0" }
+pebble-build  = { path = "crates/pebble-build",  version = "0.1.0" }
 pebble-sys    = { path = "crates/pebble-sys",    version = "0.1.0" }
 gneiss-macros = { path = "crates/gneiss-macros", version = "0.1.0" }
 

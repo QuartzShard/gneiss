@@ -1,0 +1,18 @@
+[package]
+name = "pebble-build"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+pebble-types = { workspace = true, features = ["manifest_types"] }
+bytemuck = { workspace = true }
+unix-time = { workspace = true, default-features = true }
+color-eyre = "0.6"
+object = "0.32"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+log = "0.4.29"
+uuid = { version = "1", features = ["serde"] }
+cargo_metadata = "0.23.1"

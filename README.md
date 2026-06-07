@@ -9,6 +9,7 @@ Gneiss (pronounced "nice") is a collection of crates that aim to provide a "pure
 | cargo-pebble | Project templating and Build tool for producing loadable `.pbw`, like `pebble-tool` for rust | MVP |
 | pebble-sys | FFI surface for calling pebbleOS "syscalls" without linking `pebble.a`, generated from the upstream SDK by the `xtask` | MVP |
 | pebble-types | Shared definitions of the pebble platforms, etc. `no-std` for use in pebble-sys | MVP |
+| pebble-build | Build-time utilities | MVP |
 
 This project is very early stage, so don't expect to be running anything on your watch just yet. The roadmap is, broadly:
  - ~~`cargo-pebble` build producing a valid, loadable `.pbw` archive, proving that `pebble-sys` generates valid syscall shims and this can work at all.~~ DONE: You can now "Write it in Rust™"
