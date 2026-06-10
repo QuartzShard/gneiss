@@ -157,7 +157,7 @@ pub fn package_platform(
 	platform: Platform,
 	pbpack: &PbPack,
 	timestamp: Instant,
-) -> Result<(Vec<u8>, String)> {
+) -> Result<(Vec<u8>, String, u16)> {
 	let (elf, relocations) = read_elf(elf_bytes)?;
 	let (bin_size, mut bin_buf) = objcopy(&elf)?;
 	let pbl_header = build_pbl_header(
@@ -184,7 +184,7 @@ pub fn package_platform(
 		crc(&pbpack_bytes),
 		timestamp,
 	))?;
-	Ok((bin_buf, manifest))
+	Ok((bin_buf, manifest, pbl_header.virtual_size))
 }
 
 /// Root `appinfo.json` for the bundle — app identity + the list of bundled

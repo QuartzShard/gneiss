@@ -48,6 +48,14 @@ fn build_elf(
 	Ok((elf, out_dir))
 }
 
+fn bytes_readable(val: usize) -> String {
+	match val {
+		1000000.. => format!("{}.{}MB", val / 1000000, (val % 10000000) / 1000),
+		1000..1000000 => format!("{}.{}KB", val / 1000, val % 1000),
+		_ => format!("{val} B"),
+	}
+}
+
 #[derive(Debug, Clone, clap::Parser)]
 /// Build your Pebble app project
 pub struct BuildProject {
@@ -93,7 +101,7 @@ impl BuildProject {
 			.ok_or_eyre("PbPack Malformed")?;
 			let pbpack_bytes = pbpack.as_bytes();
 
-			let (bin_buf, manifest) = package_platform(
+			let (bin_buf, manifest, virt_size) = package_platform(
 				&elf_bytes,
 				&pkg,
 				&pbl_metadata,
@@ -111,6 +119,17 @@ impl BuildProject {
 				FileOptions::default(),
 			)?;
 			pbw.write_all(&pbpack_bytes)?;
+
+			log::info!(
+				"{platform} space usge:\n\
+                    -> RAM (static): {} / {}, {} left for heap\n\
+                    -> Flash: {} binary, {} resources",
+				bytes_readable(virt_size as usize),
+				bytes_readable(platform.config().max_app_memory_size as usize),
+				bytes_readable((platform.config().max_app_memory_size - virt_size as u32) as usize),
+				bytes_readable(bin_buf.len()),
+				bytes_readable(pbpack_bytes.len()),
+			);
 		}
 		pbw.finish()?;
 		log::info!("Success! App bundle written at {bundle_path}");

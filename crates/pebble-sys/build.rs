@@ -1,7 +1,6 @@
 use std::{env::var, path::PathBuf};
 
 use pebble_build::{FEATURES, select_platform};
-use pebble_types::Platform;
 
 fn main() {
 	let in_dir = PathBuf::from(var("CARGO_MANIFEST_DIR").expect("No in dir"));

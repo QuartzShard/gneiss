@@ -41,10 +41,6 @@ enum PalettisedImage {
 		bytes: Vec<u8>,
 		size:  Resolution,
 	},
-	ColourRaw {
-		bytes: Vec<u8>,
-		size:  Resolution,
-	},
 	ColourPalettised {
 		indices:   Vec<u8>,
 		size:      Resolution,
@@ -67,12 +63,12 @@ enum GBitMapFormat {
 impl From<&PalettisedImage> for GBitMapFormat {
 	fn from(value: &PalettisedImage) -> Self {
 		match value {
-			PalettisedImage::ColourRaw { .. } => Self::Raw8Bit,
 			PalettisedImage::Monochrome { .. } => Self::Raw1Bit,
 			PalettisedImage::ColourPalettised { bit_depth, .. } => match bit_depth {
 				1 => Self::Palette1Bit,
 				2 => Self::Palette2Bit,
 				4 => Self::Palette4Bit,
+				8 => Self::Raw8Bit,
 				_ => panic!("Invalid palette bit depth"),
 			},
 		}
@@ -114,24 +110,11 @@ fn quantise_image(file: &std::path::PathBuf, platform: Platform) -> Result<Quant
 			palette,
 		}
 	} else {
-		// (Width (px) / 8 (px/byte)) rounded up to nearest word
 		let bytes = img
 			.to_luma8()
 			.as_bytes()
 			.iter()
 			.map(|px| *px >> 7)
-			// required for Chunks<'>, Not dividing clean
-			.collect::<Vec<_>>()
-			.chunks(img.width() as usize)
-			.flat_map(|row| {
-				row.chunks(32).flat_map(|pxs| {
-					let mut word: u32 = 0;
-					for (i, px) in pxs.iter().enumerate() {
-						word |= (*px as u32) << i;
-					}
-					word.to_le_bytes()
-				})
-			})
 			.collect();
 		QuantisedImage::Monochrome {
 			bytes,
@@ -161,11 +144,7 @@ fn palettise(img: QuantisedImage) -> Result<PalettisedImage> {
 				1..=2 => 1,
 				0 => bail!("No colours?"),
 			};
-			if bit_depth == 8 {
-				PalettisedImage::ColourRaw { bytes, size }
-			} else {
-				map_palette(bytes, size, palette, bit_depth)
-			}
+			map_palette(bytes, size, palette, bit_depth)
 		}
 	})
 }
@@ -191,8 +170,68 @@ fn map_palette(
 }
 
 pub(crate) fn process_png(file: &std::path::PathBuf, platform: Platform) -> Result<Vec<u8>> {
-	let _img = palettise(quantise_image(file, platform)?)?;
-	todo!();
+	let (indices, size, palette, bit_depth) = match palettise(quantise_image(file, platform)?)? {
+		PalettisedImage::ColourPalettised {
+			indices,
+			size,
+			palette,
+			bit_depth,
+		} => (indices, size, palette, bit_depth),
+		PalettisedImage::Monochrome { bytes, size } => (bytes, size, vec![0xC0, 0xFF], 1),
+	};
+
+	let packed = pack_msb_first(indices, size, bit_depth);
+
+	let plte: Vec<u8> = palette
+		.iter()
+		.flat_map(|px| [((px >> 4) & 3) * 85, ((px >> 2) & 3) * 85, (px & 3) * 85])
+		.collect();
+
+	// tRNS may be shorter than PLTE; the sort puts opaque entries last, so trailing
+	// fully-opaque alphas are dropped (entries past tRNS are treated as opaque)
+	let trns: Vec<u8> = palette
+		.iter()
+		.map(|px| ((px >> 6) & 3) * 85)
+		.filter(|alpha| *alpha < 255)
+		.collect();
+
+	let depth = match bit_depth {
+		1 => png::BitDepth::One,
+		2 => png::BitDepth::Two,
+		4 => png::BitDepth::Four,
+		8 => png::BitDepth::Eight,
+		_ => bail!("Invalid palette bit depth"),
+	};
+
+	let mut out = Vec::new();
+	let mut encoder = png::Encoder::new(&mut out, size.x, size.y);
+	encoder.set_color(png::ColorType::Indexed);
+	encoder.set_depth(depth);
+	encoder.set_palette(plte);
+	if !trns.is_empty() {
+		encoder.set_trns(trns);
+	}
+	encoder.set_compression(png::Compression::High);
+	let mut writer = encoder.write_header()?;
+	writer.write_image_data(&packed)?;
+	writer.finish()?;
+	Ok(out)
+}
+
+fn pack_msb_first(indices: Vec<u8>, size: Pair<u32>, bit_depth: u8) -> Vec<u8> {
+	let packed: Vec<u8> = indices
+		.chunks(size.x as usize)
+		.flat_map(|row| {
+			row.chunks(8 / bit_depth as usize).map(|pxs| {
+				let mut byte = 0u8;
+				for (i, px) in pxs.iter().enumerate() {
+					byte |= px << (8 - (i + 1) * bit_depth as usize);
+				}
+				byte
+			})
+		})
+		.collect();
+	packed
 }
 
 #[derive(Debug, Clone, Copy, Pod, Zeroable)]
@@ -215,33 +254,43 @@ pub(crate) fn process_bitmap(file: &std::path::PathBuf, platform: Platform) -> R
 	let format = GBitMapFormat::from(&img);
 	let (bytes, size, palette, row_size_bytes) = match img {
 		PalettisedImage::Monochrome { bytes, size } => {
-			(bytes, size, None, (size.x.div_ceil(32) * 4) as u16)
+			let packed: Vec<u8> = bytes
+				.chunks(size.x as usize)
+				.flat_map(|row| {
+					row.chunks(32).flat_map(|pxs| {
+						let mut word: u32 = 0;
+						for (i, px) in pxs.iter().enumerate() {
+							word |= (*px as u32) << i;
+						}
+						word.to_le_bytes()
+					})
+				})
+				.collect();
+			(packed, size, None, (size.x.div_ceil(32) * 4) as u16)
 		}
-		PalettisedImage::ColourRaw { bytes, size } => (bytes, size, None, size.x as u16),
 		PalettisedImage::ColourPalettised {
 			indices,
 			size,
 			palette,
 			bit_depth,
-		} => {
-			let indices_packed = indices
-				.chunks(size.x as usize)
-				.flat_map(|row| {
-					row.chunks(8 / bit_depth as usize).map(|pxs| {
-						let mut packed = 0;
-						for (i, px) in pxs.iter().enumerate() {
-							packed |= px << (8 - (i + 1) * bit_depth as usize)
-						}
-						packed
-					})
-				})
-				.collect();
+		} if bit_depth < 8 => {
+			let indices_packed = pack_msb_first(indices, size, bit_depth);
 			(
 				indices_packed,
 				size,
 				Some((palette, bit_depth)),
 				(size.x * bit_depth as u32).div_ceil(8) as u16,
 			)
+		}
+		// This needs to be un-palettised back to raw 8bit
+		PalettisedImage::ColourPalettised {
+			indices,
+			size,
+			palette,
+			..
+		} => {
+			let bytes = indices.iter().map(|i| palette[*i as usize]).collect();
+			(bytes, size, None, size.x as u16)
 		}
 	};
 	let header = PebbleBitmapHeader {

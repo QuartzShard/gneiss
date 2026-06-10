@@ -26,7 +26,7 @@ Clone the repo and build `cargo-pebble`, then stick it somewhere on your path (o
 
 `cargo pebble build emery <other platforms>` to build your application bundle, which you can use the usual `pebble install --phone <ip> ./target/thumb7m-pebble/release/<name>.pbw` to sideload on to your watch (after enabling dev connection in the app).
 
-Resources must be declared in Cargo.toml, an example is provided in the template. These can currently be of type raw (no processing performed, copied as-is) and bitmap (Any `image` supported image -> .pbi bitmap image)
+Resources must be declared in Cargo.toml, an example is provided in the template. These can currently be of type raw (no processing performed, copied as-is) and bitmap/png (Any `image` supported image -> .pbi bitmap image or indexed PNG)
 
 Happy programming!
 
