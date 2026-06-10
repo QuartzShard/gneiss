@@ -1,12 +1,7 @@
 //! Host-side build logic for Pebble apps: turn a compiled app ELF into its
 //! per-platform `.bin` + `manifest.json`, and assemble the bundle's `appinfo`.
-
-use std::{
-	borrow::Borrow,
-	collections::BTreeMap,
-	env::{self, var},
-	path::PathBuf,
-};
+#![feature(iter_array_chunks)]
+use std::{borrow::Borrow, collections::BTreeMap, env::var, path::PathBuf};
 
 use cargo_metadata::MetadataCommand;
 use color_eyre::eyre::{Context, OptionExt, Result};
@@ -15,6 +10,7 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 mod build_pbw;
+mod pbl_image;
 pub use build_pbw::{app_info, package_platform};
 
 pub const FEATURES: &[(&str, Platform)] = &[
@@ -63,12 +59,19 @@ pub struct PebbleMetadata {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(tag = "type", rename_all = "lowercase")]
-pub enum Resource {
-	Raw {
-		file:             PathBuf,
-		target_platforms: Vec<Platform>,
-	},
+pub struct Resource {
+	#[serde(rename = "type")]
+	pub res_type:         ResourceType,
+	pub file:             PathBuf,
+	pub target_platforms: Vec<Platform>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum ResourceType {
+	Raw,
+	Png,
+	Bitmap,
 }
 pub fn read_pbl_metadata() -> Result<
 	(
@@ -99,7 +102,7 @@ pub fn gen_resource_declarations() -> Result<()> {
 	}
 	let in_dir = PathBuf::from(var("CARGO_MANIFEST_DIR")?);
 
-	let (cargo_meta, pkg, pbl_metadata) = read_pbl_metadata()?;
+	let (_cargo_meta, pkg, pbl_metadata) = read_pbl_metadata()?;
 
 	println!(
 		"cargo:rerun-if-changed={}",
@@ -111,18 +114,17 @@ pub fn gen_resource_declarations() -> Result<()> {
 	let mut pos = 0;
 	let mut resources = Vec::with_capacity(pbl_metadata.resources.len());
 	for (name, resource) in pbl_metadata.resources.iter() {
-		let bytes = match resource {
-			Resource::Raw {
-				file,
-				target_platforms,
-			} if target_platforms.contains(&platform) => {
-				let path = in_dir.join("resources").join(file);
-				println!("cargo:rerun-if-changed={}", path.display());
-				std::fs::read(&path)
-					.wrap_err_with(|| format!("Resource Missing! {}", path.display()))?
-			}
-			// Not for this platform
-			_ => continue,
+		if !resource.target_platforms.contains(&platform) {
+			continue;
+		};
+
+		let path = in_dir.join("resources").join(&resource.file);
+		println!("cargo:rerun-if-changed={}", path.display());
+		let bytes = match resource.res_type {
+			ResourceType::Raw => std::fs::read(&path)
+				.wrap_err_with(|| format!("Resource Missing! {}", path.display()))?,
+			ResourceType::Png => pbl_image::process_png(&path, platform)?,
+			ResourceType::Bitmap => pbl_image::process_bitmap(&path, platform)?,
 		};
 		pos += 1;
 		resource_rs.push_str(&format!("pub const {name}: u32 = {pos};\n"));

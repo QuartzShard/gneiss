@@ -22,7 +22,7 @@ fn find_symbol(elf: &object::File<'_>, name: &str) -> Result<u32> {
 }
 
 fn write_cstr_field(field: &mut [std::ffi::c_char], name: &str) -> Result<()> {
-	let len = name.as_bytes().len();
+	let len = name.len();
 	if len >= field.len() {
 		bail!(
 			"{name:?} is {} bytes too long for the buffer",

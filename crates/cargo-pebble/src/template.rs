@@ -8,7 +8,7 @@ use color_eyre::{
 	Result,
 	eyre::{Context, OptionExt},
 };
-use pebble_build::{PebbleMetadata, Resource};
+use pebble_build::{PebbleMetadata, Resource, ResourceType};
 use pebble_types::Platform;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -131,9 +131,10 @@ impl NewProject {
 	}
 
 	fn cargo_toml(&self, path: &Path) -> Result<()> {
-		let resources = BTreeMap::from_iter(vec![("EXAMPLE".to_string(), Resource::Raw {
+		let resources = BTreeMap::from_iter(vec![("EXAMPLE".to_string(), Resource {
 			file:             "data.bin".into(),
 			target_platforms: vec![Platform::Emery],
+			res_type:         ResourceType::Raw,
 		})]);
 		let metadata = Metadata {
 			pebble: PebbleMetadata {

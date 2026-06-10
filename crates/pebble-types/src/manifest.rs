@@ -160,6 +160,7 @@ impl<'m> PebbleAppInfo<'m> {
 	/// boilerplate (native, non-JS, no capabilities, no resources). The four
 	/// name fields all take `name`; override by struct literal if you need
 	/// distinct short/long/display names.
+	#[allow(clippy::too_many_arguments)]
 	pub fn new(
 		uuid: Uuid,
 		name: &'m str,
