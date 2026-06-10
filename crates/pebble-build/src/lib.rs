@@ -72,6 +72,7 @@ pub enum ResourceType {
 	Raw,
 	Png,
 	Bitmap,
+	Pbi,
 }
 pub fn read_pbl_metadata() -> Result<
 	(
@@ -125,6 +126,7 @@ pub fn gen_resource_declarations() -> Result<()> {
 				.wrap_err_with(|| format!("Resource Missing! {}", path.display()))?,
 			ResourceType::Png => pbl_image::process_png(&path, platform)?,
 			ResourceType::Bitmap => pbl_image::process_bitmap(&path, platform)?,
+			ResourceType::Pbi => pbl_image::check_bitmap(&path)?,
 		};
 		pos += 1;
 		resource_rs.push_str(&format!("pub const {name}: u32 = {pos};\n"));

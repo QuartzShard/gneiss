@@ -1,6 +1,6 @@
 use std::collections::{BTreeMap, BTreeSet};
 
-use bytemuck::{Pod, Zeroable};
+use bytemuck::{Pod, Zeroable, pod_read_unaligned};
 use color_eyre::eyre::{OptionExt, Result, bail};
 use image::EncodableLayout;
 use pebble_types::Platform;
@@ -313,4 +313,71 @@ pub(crate) fn process_bitmap(file: &std::path::PathBuf, platform: Platform) -> R
 		buf.extend_from_slice(&palette_padded);
 	};
 	Ok(buf)
+}
+
+pub(crate) fn check_bitmap(file: &std::path::PathBuf) -> Result<Vec<u8>> {
+	let img = std::fs::read(file)?;
+	let header_len = size_of::<PebbleBitmapHeader>();
+	if img.len() < header_len {
+		bail!("PBI smaller than its header ({} < {header_len} bytes)", img.len());
+	}
+	// Vec data isn't guaranteed aligned for the header's u16 fields
+	let header: PebbleBitmapHeader = pod_read_unaligned(&img[..header_len]);
+
+	let info = header.info_flags;
+	if info & 1 != 0 {
+		bail!("PBI is_heap_allocated bit set; must be 0 for a stored bitmap");
+	}
+	if (info >> 6) & 0x3F != 0 {
+		bail!("PBI reserved info_flags bits are set");
+	}
+	let version = info >> 12;
+	if version != 1 {
+		bail!("Unexpected PBI version {version} (expected 1)");
+	}
+
+	let format = (info >> 1) & 0x1F;
+	let bit_depth: usize = match format {
+		0 | 2 => 1,
+		3 => 2,
+		4 => 4,
+		1 | 5 => 8,
+		other => bail!("Unknown PBI format {other}"),
+	};
+
+	let w = header.bounds.size.x;
+	let h = header.bounds.size.y;
+	if w <= 0 || h <= 0 {
+		bail!("Non-positive PBI bounds ({w}x{h})");
+	}
+	let (w, h) = (w as usize, h as usize);
+
+	// 8-bit circular stores rows out-of-line; its geometry isn't a flat stride
+	if format == 5 {
+		return Ok(img);
+	}
+
+	// legacy 1-bit pads rows to a word, the palettised/8-bit formats to a byte
+	let stride = if format == 0 {
+		w.div_ceil(32) * 4
+	} else {
+		(w * bit_depth).div_ceil(8)
+	};
+	if header.row_size_bytes as usize != stride {
+		bail!(
+			"PBI row_size_bytes {} != {stride} expected for {w}px @ {bit_depth}bpp",
+			header.row_size_bytes
+		);
+	}
+
+	let palette_bytes = if matches!(format, 2 | 3 | 4) { 1 << bit_depth } else { 0 };
+	let expected = header_len + stride * h + palette_bytes;
+	if img.len() != expected {
+		bail!(
+			"PBI is {} bytes; header + {stride}x{h} + {palette_bytes} palette = {expected}",
+			img.len()
+		);
+	}
+
+	Ok(img)
 }
