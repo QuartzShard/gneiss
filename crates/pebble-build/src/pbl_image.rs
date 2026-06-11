@@ -49,6 +49,7 @@ enum PalettisedImage {
 	},
 }
 
+#[derive(strum::FromRepr)]
 #[repr(u8)]
 // We want to match the upstream SDK here
 #[allow(clippy::enum_variant_names)]
@@ -58,6 +59,18 @@ enum GBitMapFormat {
 	Palette1Bit,
 	Palette2Bit,
 	Palette4Bit,
+	Circular8Bit,
+}
+
+impl GBitMapFormat {
+	pub fn bit_depth(&self) -> usize {
+		match self {
+			GBitMapFormat::Raw1Bit | GBitMapFormat::Palette1Bit => 1,
+			GBitMapFormat::Palette2Bit => 2,
+			GBitMapFormat::Palette4Bit => 4,
+			GBitMapFormat::Raw8Bit | GBitMapFormat::Circular8Bit => 8,
+		}
+	}
 }
 
 impl From<&PalettisedImage> for GBitMapFormat {
@@ -317,9 +330,13 @@ pub(crate) fn process_bitmap(file: &std::path::PathBuf, platform: Platform) -> R
 
 pub(crate) fn check_bitmap(file: &std::path::PathBuf) -> Result<Vec<u8>> {
 	let img = std::fs::read(file)?;
+
 	let header_len = size_of::<PebbleBitmapHeader>();
 	if img.len() < header_len {
-		bail!("PBI smaller than its header ({} < {header_len} bytes)", img.len());
+		bail!(
+			"PBI smaller than its header ({} < {header_len} bytes)",
+			img.len()
+		);
 	}
 	// Vec data isn't guaranteed aligned for the header's u16 fields
 	let header: PebbleBitmapHeader = pod_read_unaligned(&img[..header_len]);
@@ -336,14 +353,11 @@ pub(crate) fn check_bitmap(file: &std::path::PathBuf) -> Result<Vec<u8>> {
 		bail!("Unexpected PBI version {version} (expected 1)");
 	}
 
-	let format = (info >> 1) & 0x1F;
-	let bit_depth: usize = match format {
-		0 | 2 => 1,
-		3 => 2,
-		4 => 4,
-		1 | 5 => 8,
-		other => bail!("Unknown PBI format {other}"),
-	};
+	let format_bits = ((info >> 1) & 0x1F) as u8;
+	let format = GBitMapFormat::from_repr(format_bits)
+		.ok_or_eyre(format!("Unknown GBitmapFormat {format_bits}"))?;
+
+	let bit_depth = format.bit_depth();
 
 	let w = header.bounds.size.x;
 	let h = header.bounds.size.y;
@@ -352,13 +366,13 @@ pub(crate) fn check_bitmap(file: &std::path::PathBuf) -> Result<Vec<u8>> {
 	}
 	let (w, h) = (w as usize, h as usize);
 
-	// 8-bit circular stores rows out-of-line; its geometry isn't a flat stride
-	if format == 5 {
+	// circular stores rows out-of-line; its geometry isn't a flat stride
+	if matches!(format, GBitMapFormat::Circular8Bit) {
 		return Ok(img);
 	}
 
 	// legacy 1-bit pads rows to a word, the palettised/8-bit formats to a byte
-	let stride = if format == 0 {
+	let stride = if matches!(format, GBitMapFormat::Raw1Bit) {
 		w.div_ceil(32) * 4
 	} else {
 		(w * bit_depth).div_ceil(8)
@@ -370,7 +384,14 @@ pub(crate) fn check_bitmap(file: &std::path::PathBuf) -> Result<Vec<u8>> {
 		);
 	}
 
-	let palette_bytes = if matches!(format, 2 | 3 | 4) { 1 << bit_depth } else { 0 };
+	let palette_bytes = if matches!(
+		format,
+		GBitMapFormat::Palette1Bit | GBitMapFormat::Palette2Bit | GBitMapFormat::Palette4Bit
+	) {
+		1 << bit_depth
+	} else {
+		0
+	};
 	let expected = header_len + stride * h + palette_bytes;
 	if img.len() != expected {
 		bail!(

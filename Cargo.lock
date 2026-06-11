@@ -1479,6 +1479,7 @@ dependencies = [
  "png",
  "serde",
  "serde_json",
+ "strum",
  "unix-time",
  "uuid",
 ]

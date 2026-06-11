@@ -31,6 +31,16 @@ syn           = { version = "2", features = ["full", "extra-traits"] }
 quote         = "1"
 proc-macro2   = "1"
 unix-time	  = { version = "0.1.5", default-features = false }
+strum         = { version = "0.28.0", default-features = false, features = ["derive"] }
+cargo_metadata = "0.23.1"
+clap           = { version = "4", features = ["derive"] }
+color-eyre     = "0.6"
+env_logger     = "0.11.10"
+log            = "0.4.29"
+prettyplease   = "0.2.37"
+serde          = { version = "1", features = ["derive"] }
+serde_json     = "1"
+uuid           = { version = "1", default-features = false }
 
 # release/dev are left at Cargo defaults — every workspace member builds for
 # the host (xtask, cargo-pebble, and library unit tests). Firmware artifacts
