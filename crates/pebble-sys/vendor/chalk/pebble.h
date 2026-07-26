@@ -429,6 +429,13 @@ typedef enum PlatformType {
 //! @addtogroup EventService
 //! @{
 
+//! @addtogroup AlarmService
+//! @{
+
+#define alarm_service_peek_next(...) (0)
+
+//! @} // group AlarmService
+
 //! @addtogroup ConnectionService
 //! \brief Determine what the Pebble watch is connected to
 //!
@@ -7712,7 +7719,7 @@ MenuLayer *simple_menu_layer_get_menu_layer(SimpleMenuLayer *simple_menu);
   /*diorite*/ 30, \
   /*emery*/ 34, \
   /*flint*/ 30, \
-  /*gabbro*/ 34)
+  /*gabbro*/ 40)
 
 //! The maximum number of action bar items.
 #define NUM_ACTION_BAR_ITEMS 3
@@ -8518,6 +8525,16 @@ typedef struct {
   uint32_t num_notes;
   const SpeakerSample *sample;
 } SpeakerTrack;
+
+//! Maximum number of notes in a single speaker_play_notes() call.
+#define SPEAKER_MAX_NOTES 256
+
+//! Maximum number of parallel tracks in a single speaker_play_tracks() call.
+#define SPEAKER_MAX_TRACKS 4
+
+//! Maximum total sample-data bytes across all tracks in one speaker_play_tracks()
+//! call.
+#define SPEAKER_MAX_SAMPLE_BYTES_TOTAL (16 * 1024)
 
 #define speaker_play_notes(...) (0)
 

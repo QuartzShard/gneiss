@@ -19,3 +19,6 @@ cargo_metadata = { workspace = true }
 image = "0.25.10"
 png = "0.18.1"
 strum = { workspace = true }
+freetype-rs = { version = "0.38.0", features = ["bundled"] }
+regex = "1.12.4"
+

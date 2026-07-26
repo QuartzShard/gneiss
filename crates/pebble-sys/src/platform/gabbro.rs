@@ -329,6 +329,9 @@ pub const SMARTSTRAP_RAW_DATA_ATTRIBUTE_ID: u32 = 0;
 pub const ANIMATION_NORMALIZED_MIN: u32 = 0;
 pub const ANIMATION_NORMALIZED_MAX: u32 = 65535;
 pub const NUM_ACTION_BAR_ITEMS: u32 = 3;
+pub const SPEAKER_MAX_NOTES: u32 = 256;
+pub const SPEAKER_MAX_TRACKS: u32 = 4;
+pub const SPEAKER_MAX_SAMPLE_BYTES_TOTAL: u32 = 16384;
 pub const TZ_LEN: u32 = 6;
 pub const SECONDS_PER_MINUTE: u32 = 60;
 pub const MINUTES_PER_HOUR: u32 = 60;
@@ -753,6 +756,21 @@ pub const PlatformType_PlatformTypeGabbro: PlatformType = 6;
 /**! @addtogroup Platform
 ! @{*/
 pub type PlatformType = ::core::ffi::c_uint;
+/**! Peek at the next scheduled, enabled alarm.
+! @param timestamp_out Must point to a valid `time_t`. If an enabled alarm
+!        exists, it is set to the UTC time at which that alarm fires.
+! @return true if at least one enabled alarm is scheduled, false otherwise.*/
+/** alarm_service_peek_next
+  -> Added in 105
+gneiss: Vtable Slot 657, Offset 2628*/
+#[unsafe(naked)]
+#[unsafe(link_section = ".text.alarm_service_peek_next")]
+pub unsafe extern "C" fn alarm_service_peek_next(timestamp_out: *mut time_t) -> bool {
+    core::arch::naked_asm!(
+        "push  {{r0-r3}}", "ldr   r1, =2628", "b     {resolver}", resolver = sym crate
+        ::shim::jump_to_pbl_function,
+    )
+}
 /**! @addtogroup ConnectionService
 ! \brief Determine what the Pebble watch is connected to
 !
@@ -15760,7 +15778,7 @@ fn bindgen_test_layout_SpeakerTrack() {
 }
 /**! Play a sequence of notes on the speaker.
 ! @param notes Array of SpeakerNote structs defining the melody
-! @param num_notes Number of notes in the array
+! @param num_notes Number of notes in the array (max SPEAKER_MAX_NOTES)
 ! @param volume Playback volume (0-100)
 ! @return true if playback started successfully*/
 /** speaker_play_notes
@@ -15780,7 +15798,7 @@ pub unsafe extern "C" fn speaker_play_notes(
 }
 /**! Play N monophonic tracks in parallel, mixed (polyphony).
 ! @param tracks Array of track descriptors (notes + optional sample).
-! @param num_tracks Number of tracks. Must be >= 1 and <= 4.
+! @param num_tracks Number of tracks. Must be >= 1 and <= SPEAKER_MAX_TRACKS.
 ! @param volume Playback volume (0-100).
 ! @return true if playback started successfully.*/
 /** speaker_play_tracks

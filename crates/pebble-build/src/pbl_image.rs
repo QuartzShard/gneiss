@@ -1,4 +1,8 @@
-use std::collections::{BTreeMap, BTreeSet};
+use std::{
+	collections::{BTreeMap, BTreeSet},
+	ops::Div,
+	path::Path,
+};
 
 use bytemuck::{Pod, Zeroable, pod_read_unaligned};
 use color_eyre::eyre::{OptionExt, Result, bail};
@@ -89,10 +93,10 @@ impl From<&PalettisedImage> for GBitMapFormat {
 }
 
 // Map ARGB8 to ARGB2
-fn quantise_image(file: &std::path::PathBuf, platform: Platform) -> Result<QuantisedImage> {
+fn quantise_image(file: &Path, platform: Platform) -> Result<QuantisedImage> {
 	let img = image::open(file)?;
-	let mut palette = BTreeSet::new();
 
+	let mut palette = BTreeSet::new();
 	Ok(if platform.config().capabilities.color {
 		let bytes = img
 			.to_rgba8()
@@ -182,7 +186,7 @@ fn map_palette(
 	}
 }
 
-pub(crate) fn process_png(file: &std::path::PathBuf, platform: Platform) -> Result<Vec<u8>> {
+pub(crate) fn process_png(file: &Path, platform: Platform) -> Result<Vec<u8>> {
 	let (indices, size, palette, bit_depth) = match palettise(quantise_image(file, platform)?)? {
 		PalettisedImage::ColourPalettised {
 			indices,
@@ -262,7 +266,7 @@ struct BitmapBounds {
 	size:   Pair<i16>,
 }
 
-pub(crate) fn process_bitmap(file: &std::path::PathBuf, platform: Platform) -> Result<Vec<u8>> {
+pub(crate) fn process_bitmap(file: &Path, platform: Platform) -> Result<Vec<u8>> {
 	let img = palettise(quantise_image(file, platform)?)?;
 	let format = GBitMapFormat::from(&img);
 	let (bytes, size, palette, row_size_bytes) = match img {
@@ -328,7 +332,7 @@ pub(crate) fn process_bitmap(file: &std::path::PathBuf, platform: Platform) -> R
 	Ok(buf)
 }
 
-pub(crate) fn check_bitmap(file: &std::path::PathBuf) -> Result<Vec<u8>> {
+pub(crate) fn check_bitmap(file: &Path) -> Result<Vec<u8>> {
 	let img = std::fs::read(file)?;
 
 	let header_len = size_of::<PebbleBitmapHeader>();

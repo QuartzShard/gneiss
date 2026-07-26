@@ -10,8 +10,11 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 mod build_pbw;
+mod pbl_font;
 mod pbl_image;
 pub use build_pbw::{app_info, package_platform};
+
+use crate::pbl_font::FontSettings;
 
 pub const FEATURES: &[(&str, Platform)] = &[
 	("CARGO_FEATURE_APLITE", Platform::Aplite),
@@ -60,19 +63,20 @@ pub struct PebbleMetadata {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Resource {
-	#[serde(rename = "type")]
-	pub res_type:         ResourceType,
 	pub file:             PathBuf,
 	pub target_platforms: Vec<Platform>,
+	#[serde(flatten)]
+	pub res:              ResourceType,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
+#[serde(rename_all = "lowercase", tag = "type")]
 pub enum ResourceType {
 	Raw,
 	Png,
 	Bitmap,
 	Pbi,
+	Font(FontSettings),
 }
 pub fn read_pbl_metadata() -> Result<
 	(
@@ -121,12 +125,15 @@ pub fn gen_resource_declarations() -> Result<()> {
 
 		let path = in_dir.join("resources").join(&resource.file);
 		println!("cargo:rerun-if-changed={}", path.display());
-		let bytes = match resource.res_type {
+		let bytes = match resource.res.clone() {
 			ResourceType::Raw => std::fs::read(&path)
 				.wrap_err_with(|| format!("Resource Missing! {}", path.display()))?,
 			ResourceType::Png => pbl_image::process_png(&path, platform)?,
 			ResourceType::Bitmap => pbl_image::process_bitmap(&path, platform)?,
 			ResourceType::Pbi => pbl_image::check_bitmap(&path)?,
+			ResourceType::Font(settings) => {
+				pbl_font::process_font(&path, name, platform, settings)?
+			}
 		};
 		pos += 1;
 		resource_rs.push_str(&format!("pub const {name}: u32 = {pos};\n"));

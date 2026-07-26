@@ -277,6 +277,13 @@ typedef enum PlatformType {
 //! @addtogroup EventService
 //! @{
 
+//! @addtogroup AlarmService
+//! @{
+
+#define alarm_service_peek_next(...) (0)
+
+//! @} // group AlarmService
+
 //! @addtogroup ConnectionService
 //! \brief Determine what the Pebble watch is connected to
 //!

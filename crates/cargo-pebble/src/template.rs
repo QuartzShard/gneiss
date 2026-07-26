@@ -134,7 +134,7 @@ impl NewProject {
 		let resources = BTreeMap::from_iter(vec![("EXAMPLE".to_string(), Resource {
 			file:             "data.bin".into(),
 			target_platforms: vec![Platform::Emery],
-			res_type:         ResourceType::Raw,
+			res:              ResourceType::Raw,
 		})]);
 		let metadata = Metadata {
 			pebble: PebbleMetadata {

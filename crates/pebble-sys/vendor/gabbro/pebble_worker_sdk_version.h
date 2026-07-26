@@ -14,6 +14,7 @@
 #define _PBL_API_EXISTS_clock_to_timestamp
 #define _PBL_API_EXISTS_clock_is_timezone_set
 #define _PBL_API_EXISTS_clock_get_timezone
+#define _PBL_API_EXISTS_alarm_service_peek_next
 #define _PBL_API_EXISTS_connection_service_peek_pebble_app_connection
 #define _PBL_API_EXISTS_connection_service_peek_pebblekit_connection
 #define _PBL_API_EXISTS_connection_service_subscribe

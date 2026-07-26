@@ -431,6 +431,17 @@ typedef enum PlatformType {
 //! @addtogroup EventService
 //! @{
 
+//! @addtogroup AlarmService
+//! @{
+
+//! Peek at the next scheduled, enabled alarm.
+//! @param timestamp_out Must point to a valid `time_t`. If an enabled alarm
+//!        exists, it is set to the UTC time at which that alarm fires.
+//! @return true if at least one enabled alarm is scheduled, false otherwise.
+bool alarm_service_peek_next(time_t *timestamp_out);
+
+//! @} // group AlarmService
+
 //! @addtogroup ConnectionService
 //! \brief Determine what the Pebble watch is connected to
 //!
@@ -7741,7 +7752,7 @@ MenuLayer *simple_menu_layer_get_menu_layer(SimpleMenuLayer *simple_menu);
   /*diorite*/ 30, \
   /*emery*/ 34, \
   /*flint*/ 30, \
-  /*gabbro*/ 34)
+  /*gabbro*/ 40)
 
 //! The maximum number of action bar items.
 #define NUM_ACTION_BAR_ITEMS 3
@@ -8552,16 +8563,26 @@ typedef struct {
   const SpeakerSample *sample;
 } SpeakerTrack;
 
+//! Maximum number of notes in a single speaker_play_notes() call.
+#define SPEAKER_MAX_NOTES 256
+
+//! Maximum number of parallel tracks in a single speaker_play_tracks() call.
+#define SPEAKER_MAX_TRACKS 4
+
+//! Maximum total sample-data bytes across all tracks in one speaker_play_tracks()
+//! call.
+#define SPEAKER_MAX_SAMPLE_BYTES_TOTAL (16 * 1024)
+
 //! Play a sequence of notes on the speaker.
 //! @param notes Array of SpeakerNote structs defining the melody
-//! @param num_notes Number of notes in the array
+//! @param num_notes Number of notes in the array (max SPEAKER_MAX_NOTES)
 //! @param volume Playback volume (0-100)
 //! @return true if playback started successfully
 bool speaker_play_notes(const SpeakerNote *notes, uint32_t num_notes, uint8_t volume);
 
 //! Play N monophonic tracks in parallel, mixed (polyphony).
 //! @param tracks Array of track descriptors (notes + optional sample).
-//! @param num_tracks Number of tracks. Must be >= 1 and <= 4.
+//! @param num_tracks Number of tracks. Must be >= 1 and <= SPEAKER_MAX_TRACKS.
 //! @param volume Playback volume (0-100).
 //! @return true if playback started successfully.
 bool speaker_play_tracks(const SpeakerTrack *tracks, uint32_t num_tracks, uint8_t volume);

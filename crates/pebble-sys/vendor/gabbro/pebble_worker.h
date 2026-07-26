@@ -277,6 +277,17 @@ typedef enum PlatformType {
 //! @addtogroup EventService
 //! @{
 
+//! @addtogroup AlarmService
+//! @{
+
+//! Peek at the next scheduled, enabled alarm.
+//! @param timestamp_out Must point to a valid `time_t`. If an enabled alarm
+//!        exists, it is set to the UTC time at which that alarm fires.
+//! @return true if at least one enabled alarm is scheduled, false otherwise.
+bool alarm_service_peek_next(time_t *timestamp_out);
+
+//! @} // group AlarmService
+
 //! @addtogroup ConnectionService
 //! \brief Determine what the Pebble watch is connected to
 //!
