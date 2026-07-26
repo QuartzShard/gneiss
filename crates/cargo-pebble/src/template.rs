@@ -68,6 +68,10 @@ impl NewProject {
 		);
 		std::fs::create_dir_all(&path.join("src"))?;
 		std::fs::create_dir_all(&path.join("resources"))?;
+		std::fs::write(
+			path.join("resources/icon.png"),
+			include_bytes!("../default_icon.png"),
+		)?;
 		self.cargo_toml(&path)
 			.wrap_err("Failed to write Cargo.toml")?;
 		self.cargo_config(&path)
@@ -131,10 +135,10 @@ impl NewProject {
 	}
 
 	fn cargo_toml(&self, path: &Path) -> Result<()> {
-		let resources = BTreeMap::from_iter(vec![("EXAMPLE".to_string(), Resource {
-			file:             "data.bin".into(),
-			target_platforms: vec![Platform::Emery],
-			res:              ResourceType::Raw,
+		let resources = BTreeMap::from_iter(vec![("APP_ICON".to_string(), Resource {
+			file:             "icon.png".into(),
+			target_platforms: self.platform.clone(),
+			res:              ResourceType::Icon,
 		})]);
 		let metadata = Metadata {
 			pebble: PebbleMetadata {

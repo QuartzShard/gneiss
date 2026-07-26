@@ -4,7 +4,7 @@
 use std::{borrow::Borrow, collections::BTreeMap, env::var, path::PathBuf};
 
 use cargo_metadata::MetadataCommand;
-use color_eyre::eyre::{Context, OptionExt, Result};
+use color_eyre::eyre::{Context, OptionExt, Result, bail};
 use pebble_types::{Platform, pbpack::PbPack};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -12,6 +12,7 @@ use uuid::Uuid;
 mod build_pbw;
 mod pbl_font;
 mod pbl_image;
+mod pbl_vibe;
 pub use build_pbw::{app_info, package_platform};
 
 use crate::pbl_font::FontSettings;
@@ -78,6 +79,27 @@ pub enum ResourceType {
 	Pbi,
 	Font(FontSettings),
 	Pbf,
+	/// A menu icon: processed as a bitmap, at most one per app, and its
+	/// resource index is wired into the app header automatically
+	Icon,
+	Vibe,
+}
+
+/// Resource index of the app's `icon` resource in this platform's pack, if
+/// declared. Bails on more than one
+pub fn icon_index(meta: &PebbleMetadata, platform: Platform) -> Result<Option<u32>> {
+	let mut icon = None;
+	let mut pos = 0;
+	for resource in meta.resources.values() {
+		if !resource.target_platforms.contains(&platform) {
+			continue;
+		}
+		pos += 1;
+		if matches!(resource.res, ResourceType::Icon) && icon.replace(pos).is_some() {
+			bail!("Multiple `icon` resources declared, at most one allowed");
+		}
+	}
+	Ok(icon)
 }
 pub fn read_pbl_metadata() -> Result<
 	(
@@ -115,6 +137,8 @@ pub fn gen_resource_declarations() -> Result<()> {
 		pkg.manifest_path.join("Cargo.toml")
 	);
 	let platform = select_platform();
+	// Fail icon duplication at codegen time rather than at packaging
+	icon_index(&pbl_metadata, platform)?;
 
 	let mut resource_rs = String::from("// Generated consts for accessing declared resources\n");
 	let mut pos = 0;
@@ -136,9 +160,15 @@ pub fn gen_resource_declarations() -> Result<()> {
 				pbl_font::process_font(&path, name, platform, settings)?
 			}
 			ResourceType::Pbf => pbl_font::check_font(&path)?,
+			ResourceType::Icon => pbl_image::process_bitmap(&path, platform)?,
+			ResourceType::Vibe => pbl_vibe::process_vibe(&path)?,
 		};
 		pos += 1;
-		resource_rs.push_str(&format!("pub const {name}: u32 = {pos};\n"));
+		// Not all resources are referenced from app code; icons in particular
+		// are consumed by the packaging step
+		resource_rs.push_str(&format!(
+			"#[allow(dead_code)]\npub const {name}: u32 = {pos};\n"
+		));
 		resources.push(bytes);
 	}
 	let resources: Vec<&[u8]> = resources.iter().map(Borrow::borrow).collect();

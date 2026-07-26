@@ -123,8 +123,7 @@ fn build_pbl_header(
 			.map(String::as_str)
 			.unwrap_or("anonymous"),
 	)?;
-	// TODO: Resources
-	pbl_header.icon_resource_id = 0;
+	pbl_header.icon_resource_id = crate::icon_index(pbl_metadata, platform)?.unwrap_or(0);
 	pbl_header.sym_table_addr = find_symbol(&elf, "pbl_table_addr")?;
 	pbl_header.flags =
 		pbl_metadata.watchface as u32 | (platform.config().process_info_platform_bit as u32) << 6;
@@ -176,7 +175,24 @@ pub fn package_platform(
 	bin_buf.reserve(relocations.len() * 4);
 	bin_buf.extend(relocations.iter().flat_map(|word| word.to_le_bytes()));
 
+	let config = platform.config();
+	if bin_buf.len() > config.max_app_binary_size as usize {
+		bail!(
+			"App binary is {} bytes, over the {} {} byte limit",
+			bin_buf.len(),
+			platform,
+			config.max_app_binary_size
+		);
+	}
 	let pbpack_bytes = pbpack.as_bytes();
+	if pbpack_bytes.len() > config.max_resources_size as usize {
+		bail!(
+			"Resource pack is {} bytes, over the {} {} byte limit",
+			pbpack_bytes.len(),
+			platform,
+			config.max_resources_size
+		);
+	}
 	let manifest = serde_json::to_string_pretty(&PebbleAppManifest::new(
 		bin_buf.len() as u64,
 		crc(&bin_buf),

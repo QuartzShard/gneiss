@@ -121,7 +121,7 @@ impl PbPack {
 	}
 
 	pub fn from_bytes(val: Vec<u8>) -> Option<Self> {
-		if val.len() < size_of::<Self>() - size_of::<Vec<u8>>() {
+		if val.len() < size_of::<PackManifest>() + size_of::<PackTable>() {
 			None
 		} else {
 			let manifest: PackManifest = *bytemuck::from_bytes(&val[..size_of::<PackManifest>()]);
@@ -129,7 +129,15 @@ impl PbPack {
 				&val[size_of::<PackManifest>()..size_of::<PackManifest>() + size_of::<PackTable>()],
 			);
 			let content = val[size_of::<PackManifest>() + size_of::<PackTable>()..].to_vec();
-			if content.len() as u32 == table.0.iter().map(|row| row.length).sum::<u32>() {
+			// Deduplicated rows share an offset, so lengths can't just be summed;
+			// content must end exactly where the furthest-reaching row does
+			let extent = table
+				.0
+				.iter()
+				.map(|row| row.offset as u64 + row.length as u64)
+				.max()
+				.unwrap_or(0);
+			if content.len() as u64 == extent {
 				Some(PbPack {
 					manifest,
 					table,
@@ -147,5 +155,28 @@ impl PbPack {
 
 	pub fn table(&self) -> PackTable {
 		self.table
+	}
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+
+	#[test]
+	fn round_trips() {
+		for resources in [
+			vec![],
+			vec![b"hello".as_slice(), b"world!"],
+			// Identical blobs share one copy in content but keep separate table rows
+			vec![b"same".as_slice(), b"same", b"other"],
+		] {
+			let pack = PbPack::new(&resources);
+			let back = PbPack::from_bytes(pack.as_bytes()).expect("round trip");
+			assert_eq!({ back.manifest.num_files }, resources.len() as u32);
+			for (res, row) in resources.iter().zip(back.table.0.iter()) {
+				let (offset, length) = (row.offset as usize, row.length as usize);
+				assert_eq!(&back.content[offset..offset + length], *res);
+			}
+		}
 	}
 }
