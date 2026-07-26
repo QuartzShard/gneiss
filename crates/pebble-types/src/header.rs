@@ -70,7 +70,9 @@ const fn uuid_from_array(value: [u8; 16]) -> PblUUID {
 }
 pub const DEFAULT_HEADER: PebbleProcessInfo = PebbleProcessInfo {
 	// bytestrings are [u8] in Rust (UTF-8), but core::ffi::c_char is sometimes i8
-	header:             unsafe { core::mem::transmute(*b"PBLAPP\0\0") },
+	header:             unsafe {
+		core::mem::transmute::<[u8; 8], [core::ffi::c_char; 8]>(*b"PBLAPP\0\0")
+	},
 	struct_version:     CURRENT_HEADER_VERSION,
 	sdk_version:        CURRENT_SDK_VERSION,
 	process_version:    Version { major: 0, minor: 0 },

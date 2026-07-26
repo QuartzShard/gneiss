@@ -215,10 +215,10 @@ fn get_font_size(settings: &FontSettings, name: &str) -> Option<u16> {
 fn name_height(name: &str) -> Option<u16> {
 	let re = Regex::new("[0-9]+").expect("Valid regex");
 	re.find(name)
-		.map(|needle| needle.as_str().parse::<u16>().ok())
-		.flatten()
+		.and_then(|needle| needle.as_str().parse::<u16>().ok())
 }
 
+#[allow(clippy::type_complexity)]
 /// Filter the font by Regex and alllowlist, Returning a list of (Codepoint, Index) and a list of
 /// (Glyph index), deduplicating multiple codepoints that resolve to the same glyph
 ///
@@ -392,7 +392,7 @@ fn compress_rle4(bits: impl Iterator<Item = bool>) -> (Vec<u8>, usize) {
 			(c1 as u8) << 3 | (r1 - 1) | (c2 as u8) << 7 | (r2 - 1) << 4
 		})
 		.collect();
-	while packed.len() % 4 != 0 {
+	while !packed.len().is_multiple_of(4) {
 		packed.push(0);
 	}
 	(packed, num_units)
