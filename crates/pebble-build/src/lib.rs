@@ -77,6 +77,7 @@ pub enum ResourceType {
 	Bitmap,
 	Pbi,
 	Font(FontSettings),
+	Pbf,
 }
 pub fn read_pbl_metadata() -> Result<
 	(
@@ -134,6 +135,7 @@ pub fn gen_resource_declarations() -> Result<()> {
 			ResourceType::Font(settings) => {
 				pbl_font::process_font(&path, name, platform, settings)?
 			}
+			ResourceType::Pbf => pbl_font::check_font(&path)?,
 		};
 		pos += 1;
 		resource_rs.push_str(&format!("pub const {name}: u32 = {pos};\n"));
