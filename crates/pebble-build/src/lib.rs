@@ -160,7 +160,7 @@ pub fn gen_resource_declarations() -> Result<()> {
 				pbl_font::process_font(&path, name, platform, settings)?
 			}
 			ResourceType::Pbf => pbl_font::check_font(&path)?,
-			ResourceType::Icon => pbl_image::process_bitmap(&path, platform)?,
+			ResourceType::Icon => pbl_image::process_icon(&path, platform)?,
 			ResourceType::Vibe => pbl_vibe::process_vibe(&path)?,
 		};
 		pos += 1;

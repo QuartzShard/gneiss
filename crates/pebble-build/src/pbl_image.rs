@@ -265,6 +265,26 @@ struct BitmapBounds {
 	size:   Pair<i16>,
 }
 
+/// PebbleOS's launcher glance loader rejects app icons above this size
+/// (`ATTRIBUTE_ICON_TINY_SIZE_PX` in `app_glance_structured.h`) — but only
+/// after fully decoding them into a heap-allocated bitmap first. An
+/// oversized icon still causes that transient allocation on every launcher
+/// row draw, which is enough to crash the launcher when the app's row
+/// scrolls into view. Enforce the cap at build time instead.
+const MAX_ICON_SIZE: u32 = 25;
+
+pub(crate) fn process_icon(file: &Path, platform: Platform) -> Result<Vec<u8>> {
+	let (w, h) = image::image_dimensions(file)?;
+	if w > MAX_ICON_SIZE || h > MAX_ICON_SIZE {
+		bail!(
+			"Icon is {w}x{h}, but app icons must be at most {MAX_ICON_SIZE}x{MAX_ICON_SIZE} \
+			 (PebbleOS's launcher glance loader rejects anything larger, but not before \
+			 fully decoding it — an oversized icon can crash the launcher)"
+		);
+	}
+	process_bitmap(file, platform)
+}
+
 pub(crate) fn process_bitmap(file: &Path, platform: Platform) -> Result<Vec<u8>> {
 	let img = palettise(quantise_image(file, platform)?)?;
 	let format = GBitMapFormat::from(&img);
