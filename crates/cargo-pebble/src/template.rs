@@ -275,8 +275,8 @@ impl NewProject {
 		let build: syn::File = syn::parse_quote! {
 			use pebble_build;
 
-			fn main() {
-				pebble_build::gen_resource_declarations().expect("Resource codegen failure");
+			fn main() -> pebble_build::color_eyre::eyre::Result<()> {
+				pebble_build::gen_resource_declarations()
 			}
 		};
 		std::fs::write(path.join("build.rs"), prettyplease::unparse(&build))

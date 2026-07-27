@@ -1,11 +1,11 @@
 use std::{
 	fs::create_dir_all,
 	io::{BufReader, Write},
-	process::{Command, Stdio},
+	process::{Command, Stdio, exit},
 };
 
 use cargo_metadata::{Message, MetadataCommand, PackageId, camino::Utf8PathBuf};
-use color_eyre::eyre::{Context, OptionExt, Result, bail};
+use color_eyre::eyre::{Context, OptionExt, Result};
 use pebble_build::{PebbleMetadata, app_info, package_platform, read_pbl_metadata};
 use pebble_types::{Platform, pbpack::PbPack};
 use serde::Deserialize;
@@ -43,7 +43,9 @@ fn build_elf(
 		};
 	}
 	if !build.wait()?.success() || !build_ok {
-		bail!("cargo build failed")
+		// `cargo build` already streamed its own error to our inherited stderr;
+		// piling a redundant top-level report on top just adds noise.
+		exit(1);
 	}
 	Ok((elf, out_dir))
 }

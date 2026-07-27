@@ -23,7 +23,15 @@ enum Task {
 }
 
 fn main() -> Result<()> {
-	color_eyre::install()?;
+	let hooks = color_eyre::config::HookBuilder::default();
+	let hooks = if cfg!(debug_assertions) {
+		hooks
+	} else {
+		hooks
+			.display_location_section(false)
+			.display_env_section(false)
+	};
+	hooks.install()?;
 	env_logger::builder()
 		.filter_level(log::LevelFilter::Info)
 		.parse_default_env()

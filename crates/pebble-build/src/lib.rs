@@ -4,6 +4,7 @@
 use std::{borrow::Borrow, collections::BTreeMap, env::var, path::PathBuf};
 
 use cargo_metadata::MetadataCommand;
+pub use color_eyre;
 use color_eyre::eyre::{Context, OptionExt, Result, bail};
 use pebble_types::{Platform, pbpack::PbPack};
 use serde::{Deserialize, Serialize};
