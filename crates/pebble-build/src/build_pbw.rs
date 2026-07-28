@@ -113,7 +113,7 @@ fn build_pbl_header(
 		minor: pkg.version.minor as u8,
 	};
 	pbl_header.load_size = bin_size.try_into().wrap_err("Image too large!")?;
-	pbl_header.offset = find_symbol(&elf, "main")?;
+	pbl_header.offset = find_symbol(&elf, "main")? & !1;
 	pbl_header.crc = crc(&bin_buf[size_of::<PebbleProcessInfo>()..]);
 	write_cstr_field(&mut pbl_header.name, &pkg.name)?;
 	write_cstr_field(
