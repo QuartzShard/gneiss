@@ -65,7 +65,7 @@ fn objcopy(elf: &object::File<'_>) -> Result<(usize, Vec<u8>)> {
 	let loadable: Vec<_> = elf
 		.sections()
 		.filter(|s| {
-			let alloc = matches!(s.flags(), object::SectionFlags::Elf { sh_flags } if sh_flags & SHF_ALLOC as u64 != 0);
+			let alloc = matches!(s.flags(), object::SectionFlags::Elf { sh_flags } if sh_flags & u64::from(SHF_ALLOC) != 0);
 			let bss = matches!(s.kind(), SectionKind::UninitializedData);
 			alloc && !bss
 		})
@@ -88,7 +88,7 @@ fn objcopy(elf: &object::File<'_>) -> Result<(usize, Vec<u8>)> {
 #[allow(clippy::too_many_arguments)]
 fn build_pbl_header(
 	pkg: &cargo_metadata::Package,
-	elf: object::File<'_>,
+	elf: &object::File<'_>,
 	pbl_metadata: &PebbleMetadata,
 	platform: Platform,
 	pbpack: &PbPack,
@@ -113,20 +113,17 @@ fn build_pbl_header(
 		minor: pkg.version.minor as u8,
 	};
 	pbl_header.load_size = bin_size.try_into().wrap_err("Image too large!")?;
-	pbl_header.offset = find_symbol(&elf, "main")? & !1;
+	pbl_header.offset = find_symbol(elf, "main")? & !1;
 	pbl_header.crc = crc(&bin_buf[size_of::<PebbleProcessInfo>()..]);
 	write_cstr_field(&mut pbl_header.name, &pkg.name)?;
 	write_cstr_field(
 		&mut pbl_header.company,
-		pkg.authors
-			.first()
-			.map(String::as_str)
-			.unwrap_or("anonymous"),
+		pkg.authors.first().map_or("anonymous", String::as_str),
 	)?;
 	pbl_header.icon_resource_id = crate::icon_index(pbl_metadata, platform)?.unwrap_or(0);
-	pbl_header.sym_table_addr = find_symbol(&elf, "pbl_table_addr")?;
-	pbl_header.flags =
-		pbl_metadata.watchface as u32 | (platform.config().process_info_platform_bit as u32) << 6;
+	pbl_header.sym_table_addr = find_symbol(elf, "pbl_table_addr")?;
+	pbl_header.flags = u32::from(pbl_metadata.watchface)
+		| u32::from(platform.config().process_info_platform_bit) << 6;
 	pbl_header.num_reloc_entries = relocations.len() as u32;
 	pbl_header.uuid = pbl_metadata.uuid.as_bytes()[..]
 		.try_into()
@@ -136,7 +133,7 @@ fn build_pbl_header(
 	pbl_header.virtual_size = elf
 		.sections()
 		.filter(|s| {
-			matches!(s.flags(), object::SectionFlags::Elf { sh_flags } if sh_flags & SHF_ALLOC as u64 != 0)
+			matches!(s.flags(), object::SectionFlags::Elf { sh_flags } if sh_flags & u64::from(SHF_ALLOC) != 0)
 		})
 		.map(|sec| sec.address() + sec.size())
 		.max()
@@ -161,7 +158,7 @@ pub fn package_platform(
 	let (bin_size, mut bin_buf) = objcopy(&elf)?;
 	let pbl_header = build_pbl_header(
 		pkg,
-		elf,
+		&elf,
 		pbl_metadata,
 		platform,
 		pbpack,
@@ -214,10 +211,7 @@ pub fn app_info(
 	Ok(serde_json::to_string_pretty(&PebbleAppInfo::new(
 		pbl_metadata.uuid,
 		&pkg.name,
-		pkg.authors
-			.first()
-			.map(String::as_str)
-			.unwrap_or("anonymous"),
+		pkg.authors.first().map_or("anonymous", String::as_str),
 		&package_semver,
 		platforms,
 		pbl_metadata.watchface,

@@ -48,8 +48,16 @@ enum PalettisedImage {
 		indices:   Vec<u8>,
 		size:      Resolution,
 		palette:   Vec<u8>,
-		bit_depth: u8,
+		bit_depth: BitDepth,
 	},
+}
+
+#[derive(Copy, Clone)]
+enum BitDepth {
+	One   = 1,
+	Two   = 2,
+	Four  = 4,
+	Eight = 8,
 }
 
 #[derive(strum::FromRepr)]
@@ -81,11 +89,10 @@ impl From<&PalettisedImage> for GBitMapFormat {
 		match value {
 			PalettisedImage::Monochrome { .. } => Self::Raw1Bit,
 			PalettisedImage::ColourPalettised { bit_depth, .. } => match bit_depth {
-				1 => Self::Palette1Bit,
-				2 => Self::Palette2Bit,
-				4 => Self::Palette4Bit,
-				8 => Self::Raw8Bit,
-				_ => panic!("Invalid palette bit depth"),
+				BitDepth::One => Self::Palette1Bit,
+				BitDepth::Two => Self::Palette2Bit,
+				BitDepth::Four => Self::Palette4Bit,
+				BitDepth::Eight => Self::Raw8Bit,
 			},
 		}
 	}
@@ -101,7 +108,7 @@ fn quantise_image(file: &Path, platform: Platform) -> Result<QuantisedImage> {
 			.to_rgba8()
 			.as_bytes()
 			.iter()
-			.map(|px_component| (*px_component as u16 + 42) / 85)
+			.map(|px_component| (u16::from(*px_component) + 42) / 85)
 			// RGBA8: px = [u8;4]; divides clean
 			.array_chunks::<4>()
 			.map(|px| {
@@ -154,22 +161,22 @@ fn palettise(img: QuantisedImage) -> Result<PalettisedImage> {
 			let bit_depth = match palette.len() {
 				// Unreachable for u8, but palette.len() is usize, so
 				256.. => bail!("Too many colours"),
-				17..=255 => 8,
-				5..=16 => 4,
-				3..=4 => 2,
-				1..=2 => 1,
+				17..=255 => BitDepth::Eight,
+				5..=16 => BitDepth::Four,
+				3..=4 => BitDepth::Two,
+				1..=2 => BitDepth::One,
 				0 => bail!("No colours?"),
 			};
-			map_palette(bytes, size, palette, bit_depth)
+			map_palette(&bytes, size, &palette, bit_depth)
 		}
 	})
 }
 
 fn map_palette(
-	bytes: Vec<u8>,
+	bytes: &[u8],
 	size: Resolution,
-	palette: BTreeSet<u8>,
-	bit_depth: u8,
+	palette: &BTreeSet<u8>,
+	bit_depth: BitDepth,
 ) -> PalettisedImage {
 	// Pixel -> index map
 	let palette = BTreeMap::from_iter(palette.iter().enumerate().map(|(i, px)| (*px, i as u8)));
@@ -180,7 +187,7 @@ fn map_palette(
 	PalettisedImage::ColourPalettised {
 		indices,
 		size,
-		palette: palette.keys().cloned().collect(),
+		palette: palette.keys().copied().collect(),
 		bit_depth,
 	}
 }
@@ -193,10 +200,12 @@ pub(crate) fn process_png(file: &Path, platform: Platform) -> Result<Vec<u8>> {
 			palette,
 			bit_depth,
 		} => (indices, size, palette, bit_depth),
-		PalettisedImage::Monochrome { bytes, size } => (bytes, size, vec![0xC0, 0xFF], 1),
+		PalettisedImage::Monochrome { bytes, size } => {
+			(bytes, size, vec![0xC0, 0xFF], BitDepth::One)
+		}
 	};
 
-	let packed = pack_msb_first(indices, size, bit_depth);
+	let packed = pack_msb_first(&indices, size, bit_depth as u8);
 
 	let plte: Vec<u8> = palette
 		.iter()
@@ -212,11 +221,10 @@ pub(crate) fn process_png(file: &Path, platform: Platform) -> Result<Vec<u8>> {
 		.collect();
 
 	let depth = match bit_depth {
-		1 => png::BitDepth::One,
-		2 => png::BitDepth::Two,
-		4 => png::BitDepth::Four,
-		8 => png::BitDepth::Eight,
-		_ => bail!("Invalid palette bit depth"),
+		BitDepth::One => png::BitDepth::One,
+		BitDepth::Two => png::BitDepth::Two,
+		BitDepth::Four => png::BitDepth::Four,
+		BitDepth::Eight => png::BitDepth::Eight,
 	};
 
 	let mut out = Vec::new();
@@ -234,7 +242,7 @@ pub(crate) fn process_png(file: &Path, platform: Platform) -> Result<Vec<u8>> {
 	Ok(out)
 }
 
-fn pack_msb_first(indices: Vec<u8>, size: Pair<u32>, bit_depth: u8) -> Vec<u8> {
+fn pack_msb_first(indices: &[u8], size: Pair<u32>, bit_depth: u8) -> Vec<u8> {
 	let packed: Vec<u8> = indices
 		.chunks(size.x as usize)
 		.flat_map(|row| {
@@ -296,7 +304,7 @@ pub(crate) fn process_bitmap(file: &Path, platform: Platform) -> Result<Vec<u8>>
 					row.chunks(32).flat_map(|pxs| {
 						let mut word: u32 = 0;
 						for (i, px) in pxs.iter().enumerate() {
-							word |= (*px as u32) << i;
+							word |= u32::from(*px) << i;
 						}
 						word.to_le_bytes()
 					})
@@ -309,8 +317,8 @@ pub(crate) fn process_bitmap(file: &Path, platform: Platform) -> Result<Vec<u8>>
 			size,
 			palette,
 			bit_depth,
-		} if bit_depth < 8 => {
-			let indices_packed = pack_msb_first(indices, size, bit_depth);
+		} if (bit_depth as u8) < 8 => {
+			let indices_packed = pack_msb_first(&indices, size, bit_depth as u8);
 			(
 				indices_packed,
 				size,
@@ -331,7 +339,7 @@ pub(crate) fn process_bitmap(file: &Path, platform: Platform) -> Result<Vec<u8>>
 	};
 	let header = PebbleBitmapHeader {
 		row_size_bytes,
-		info_flags: 1 << 12 | ((format as u8) << 1) as u16,
+		info_flags: 1 << 12 | u16::from((format as u8) << 1),
 		bounds: BitmapBounds {
 			origin: Pair { x: 0, y: 0 },
 			size:   Pair::try_map(size).ok_or_eyre("Size does not fit in i16")?,
@@ -344,16 +352,18 @@ pub(crate) fn process_bitmap(file: &Path, platform: Platform) -> Result<Vec<u8>>
 	buf.extend_from_slice(bytemuck::bytes_of(&header));
 	buf.extend_from_slice(&bytes);
 	if let Some((palette, bit_depth)) = palette {
-		let mut palette_padded = vec![0; 1 << bit_depth];
+		let mut palette_padded = vec![0; 1 << (bit_depth as u8)];
 		palette_padded[..palette.len()].copy_from_slice(&palette);
 		buf.extend_from_slice(&palette_padded);
-	};
+	}
 	Ok(buf)
 }
 
 pub(crate) fn check_bitmap(file: &Path) -> Result<Vec<u8>> {
-	let img = std::fs::read(file)?;
+	check_bitmap_bytes(std::fs::read(file)?)
+}
 
+fn check_bitmap_bytes(img: Vec<u8>) -> Result<Vec<u8>> {
 	let header_len = size_of::<PebbleBitmapHeader>();
 	if img.len() < header_len {
 		bail!(
@@ -424,4 +434,73 @@ pub(crate) fn check_bitmap(file: &Path) -> Result<Vec<u8>> {
 	}
 
 	Ok(img)
+}
+
+#[cfg(test)]
+mod tests {
+	use strum::IntoEnumIterator;
+
+	use super::*;
+
+	const ICON: &str = concat!(
+		env!("CARGO_MANIFEST_DIR"),
+		"/../cargo-pebble/default_icon.png"
+	);
+
+	/// ARGB2 -> the RGBA8 that `process_png` writes into PLTE/tRNS.
+	fn argb2_to_rgba(px: u8) -> [u8; 4] {
+		[
+			((px >> 4) & 3) * 85,
+			((px >> 2) & 3) * 85,
+			(px & 3) * 85,
+			((px >> 6) & 3) * 85,
+		]
+	}
+
+	/// Every platform's bit depth must survive `process_icon` -> `check_bitmap`,
+	/// which re-derives stride and palette length from the encoded format.
+	#[test]
+	fn icon_round_trips_through_pbi() -> Result<()> {
+		for platform in Platform::iter() {
+			let pbi = process_icon(Path::new(ICON), platform)?;
+			let checked =
+				check_bitmap_bytes(pbi.clone()).unwrap_or_else(|e| panic!("{platform}: {e}"));
+			assert_eq!(pbi, checked, "{platform}");
+		}
+		Ok(())
+	}
+
+	/// Decode the emitted PNG back and check every pixel against the palette
+	/// entry `palettise` chose for it.
+	#[test]
+	fn icon_round_trips_through_png() -> Result<()> {
+		for platform in Platform::iter() {
+			let encoded = process_png(Path::new(ICON), platform)?;
+
+			let (indices, palette) = match palettise(quantise_image(Path::new(ICON), platform)?)? {
+				PalettisedImage::ColourPalettised {
+					indices, palette, ..
+				} => (indices, palette),
+				PalettisedImage::Monochrome { bytes, .. } => (bytes, vec![0xC0, 0xFF]),
+			};
+
+			let mut decoder = png::Decoder::new(std::io::Cursor::new(&encoded));
+			decoder.set_transformations(png::Transformations::EXPAND);
+			let mut reader = decoder.read_info()?;
+			let mut buf = vec![0; reader.output_buffer_size().expect("output buffer size")];
+			let info = reader.next_frame(&mut buf)?;
+
+			let channels = info.color_type.samples();
+			assert_eq!(
+				buf.len() / channels,
+				indices.len(),
+				"{platform}: pixel count"
+			);
+			for (i, (px, index)) in buf.chunks_exact(channels).zip(&indices).enumerate() {
+				let expect = argb2_to_rgba(palette[*index as usize]);
+				assert_eq!(px, &expect[..channels], "{platform}: pixel {i}");
+			}
+		}
+		Ok(())
+	}
 }

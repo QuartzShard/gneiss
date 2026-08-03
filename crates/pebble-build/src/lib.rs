@@ -1,7 +1,7 @@
 //! Host-side build logic for Pebble apps: turn a compiled app ELF into its
 //! per-platform `.bin` + `manifest.json`, and assemble the bundle's `appinfo`.
 #![feature(iter_array_chunks)]
-use std::{borrow::Borrow, collections::BTreeMap, env::var, path::PathBuf};
+use std::{borrow::Borrow, collections::BTreeMap, env::var, fmt::Write, path::PathBuf};
 
 use cargo_metadata::MetadataCommand;
 pub use color_eyre;
@@ -28,11 +28,11 @@ pub const FEATURES: &[(&str, Platform)] = &[
 	("CARGO_FEATURE_GABBRO", Platform::Gabbro),
 ];
 
-/// Pick the target platform. Prefer mutually-exclusive Cargo features; fall
-/// back to the `PBL_PLATFORM` env var so `cargo xtask` flows (and anything
-/// else not driven through `cargo build --features <plat>`) keep working.
+/// Pick the target platform.
 /// `mutually_exclusive_features` only enforces at lib compile time — build.rs
 /// runs first, so do the check here too.
+/// # Panics
+/// If multiple platforms are enabled by build time, or if the enabled platform is invalid
 pub fn select_platform() -> Platform {
 	let enabled: Vec<Platform> = FEATURES
 		.iter()
@@ -124,7 +124,7 @@ pub fn read_pbl_metadata() -> Result<
 	Ok((cargo_meta, pkg, pbl_metadata))
 }
 
-/// To be called from app's `build.rs`, puts `resources.rs` in OUT_DIR.
+/// To be called from app's `build.rs`, puts `resources.rs` in `OUT_DIR`.
 pub fn gen_resource_declarations() -> Result<()> {
 	for (env, _) in FEATURES {
 		println!("cargo:rerun-if-env-changed={env}");
@@ -144,10 +144,10 @@ pub fn gen_resource_declarations() -> Result<()> {
 	let mut resource_rs = String::from("// Generated consts for accessing declared resources\n");
 	let mut pos = 0;
 	let mut resources = Vec::with_capacity(pbl_metadata.resources.len());
-	for (name, resource) in pbl_metadata.resources.iter() {
+	for (name, resource) in &pbl_metadata.resources {
 		if !resource.target_platforms.contains(&platform) {
 			continue;
-		};
+		}
 
 		let path = in_dir.join("resources").join(&resource.file);
 		println!("cargo:rerun-if-changed={}", path.display());
@@ -158,7 +158,7 @@ pub fn gen_resource_declarations() -> Result<()> {
 			ResourceType::Bitmap => pbl_image::process_bitmap(&path, platform)?,
 			ResourceType::Pbi => pbl_image::check_bitmap(&path)?,
 			ResourceType::Font(settings) => {
-				pbl_font::process_font(&path, name, platform, settings)?
+				pbl_font::process_font(&path, name, platform, &settings)?
 			}
 			ResourceType::Pbf => pbl_font::check_font(&path)?,
 			ResourceType::Icon => pbl_image::process_icon(&path, platform)?,
@@ -167,9 +167,10 @@ pub fn gen_resource_declarations() -> Result<()> {
 		pos += 1;
 		// Not all resources are referenced from app code; icons in particular
 		// are consumed by the packaging step
-		resource_rs.push_str(&format!(
+		let _ = write!(
+			resource_rs,
 			"#[allow(dead_code)]\npub const {name}: u32 = {pos};\n"
-		));
+		);
 		resources.push(bytes);
 	}
 	let resources: Vec<&[u8]> = resources.iter().map(Borrow::borrow).collect();
@@ -177,7 +178,7 @@ pub fn gen_resource_declarations() -> Result<()> {
 	let out = PathBuf::from(var("OUT_DIR")?);
 	std::fs::write(out.join("resources.rs"), &resource_rs)?;
 	std::fs::write(
-		out.join(format!("{}_app_resources.pbpack", platform)),
+		out.join(format!("{platform}_app_resources.pbpack")),
 		pbpack.as_bytes(),
 	)?;
 	Ok(())

@@ -5,6 +5,9 @@ edition.workspace = true
 license.workspace = true
 repository.workspace = true
 
+[lints]
+workspace = true
+
 [dependencies]
 pebble-types = { workspace = true, features = ["manifest_types"] }
 bytemuck = { workspace = true }

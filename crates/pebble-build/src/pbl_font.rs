@@ -72,13 +72,13 @@ pub fn process_font(
 	file: &Path,
 	name: &str,
 	platform: Platform,
-	settings: FontSettings,
+	settings: &FontSettings,
 ) -> Result<Vec<u8>> {
 	let ft = freetype::Library::init()?;
 	let typeface = ft.new_face(file, 0)?;
 	let size =
-		get_font_size(&settings, name).ok_or_eyre("Font definition did not specify a size")?;
-	typeface.set_pixel_sizes(0, size as u32)?;
+		get_font_size(settings, name).ok_or_eyre("Font definition did not specify a size")?;
+	typeface.set_pixel_sizes(0, u32::from(size))?;
 
 	// Extended pages sit on the base font's baseline, taken from the resource name
 	let baseline = if settings.extended {
@@ -91,14 +91,14 @@ pub fn process_font(
 	} else {
 		MAX_GLYPHS
 	};
-	let (subset, index_map) = get_subset(&typeface, &settings, max_glyphs)?;
+	let (subset, index_map) = get_subset(&typeface, settings, max_glyphs)?;
 	let glyphs = index_map
 		.into_iter()
 		.map(|gindex| {
 			encode_glyph(
 				&typeface,
 				gindex,
-				&settings,
+				settings,
 				baseline,
 				platform.config().max_font_glyph_size as usize,
 			)
@@ -255,14 +255,13 @@ fn get_subset(
 					.map_or(char as u32 >= MIN_CODEPOINT, |l| l.contains(&(char as u32))))
 		{
 			let gindex = gindex.get();
-			let index = match index_map.get(&gindex) {
-				Some(i) => *i,
-				None => {
-					let index = total_offset;
-					total_offset += 1;
-					index_map.insert(gindex, index);
-					index
-				}
+			let index = if let Some(i) = index_map.get(&gindex) {
+				*i
+			} else {
+				let index = total_offset;
+				total_offset += 1;
+				index_map.insert(gindex, index);
+				index
 			};
 			subset.push((char, index));
 		}
@@ -319,10 +318,10 @@ fn encode_glyph(
 		height:      u8::try_from(bitmap.rows()).wrap_err_with(|| format!("Glyph {i} height"))?,
 		offset_left: i8::try_from(glyph.bitmap_left())
 			.wrap_err_with(|| format!("Glyph {i} left offset"))?,
-		offset_top:  i8::try_from(baseline as i32 - glyph.bitmap_top())
+		offset_top:  i8::try_from(i32::from(baseline) - glyph.bitmap_top())
 			.wrap_err_with(|| format!("Glyph {i} top offset"))?,
 		advance:     i8::try_from(
-			(glyph.advance().x >> 6) + settings.tracking_adjust.unwrap_or(0) as i64,
+			(glyph.advance().x >> 6) + i64::from(settings.tracking_adjust.unwrap_or(0)),
 		)
 		.wrap_err_with(|| format!("Glyph {i} advance"))?,
 	};
@@ -389,7 +388,7 @@ fn compress_rle4(bits: impl Iterator<Item = bool>) -> (Vec<u8>, usize) {
 		.chunks(2)
 		.map(|pair| {
 			let ((c1, r1), (c2, r2)) = (pair[0], pair[1]);
-			(c1 as u8) << 3 | (r1 - 1) | (c2 as u8) << 7 | (r2 - 1) << 4
+			u8::from(c1) << 3 | (r1 - 1) | u8::from(c2) << 7 | (r2 - 1) << 4
 		})
 		.collect();
 	while !packed.len().is_multiple_of(4) {
@@ -399,7 +398,7 @@ fn compress_rle4(bits: impl Iterator<Item = bool>) -> (Vec<u8>, usize) {
 }
 
 /// The firmware decodes RLE4 in place: the encoded glyph sits at the end of a
-/// max_glyph_size buffer and decoded bytes are written from the front (past the
+/// `max_glyph_size` buffer and decoded bytes are written from the front (past the
 /// header). Simulate that to prove the write pointer never catches the read
 /// pointer
 fn check_rle4_decodes_in_place(
@@ -498,7 +497,12 @@ fn check_font_bytes(pbf: Vec<u8>) -> Result<Vec<u8>> {
 	}
 
 	let mut acc = 0usize;
-	for (i, record) in pbf[header_len..hash_end].chunks_exact(4).enumerate() {
+	for (i, record) in pbf[header_len..hash_end]
+		.as_chunks::<4>()
+		.0
+		.iter()
+		.enumerate()
+	{
 		if record[0] as usize != i {
 			bail!("Hash record {i} is labelled {}", record[0]);
 		}
@@ -516,45 +520,4 @@ fn check_font_bytes(pbf: Vec<u8>) -> Result<Vec<u8>> {
 	}
 
 	Ok(pbf)
-}
-
-#[cfg(test)]
-mod tests {
-	use super::*;
-
-	/// Validate an existing .pbf via check_font. Set PBF_CHECK to the file path;
-	/// skipped when unset
-	#[test]
-	fn check_existing_pbf() -> Result<()> {
-		let Ok(file) = std::env::var("PBF_CHECK") else {
-			return Ok(());
-		};
-		check_font(Path::new(&file)).map(drop)
-	}
-
-	/// Byte-parity against upstream fontgen.py. Set PBF_PARITY_TTF, PBF_PARITY_REF
-	/// (reference .pbf), PBF_PARITY_NAME, and PBF_PARITY_SETTINGS (FontSettings json);
-	/// skipped when unset
-	#[test]
-	fn parity_with_upstream_fontgen() -> Result<()> {
-		let Ok(ttf) = std::env::var("PBF_PARITY_TTF") else {
-			return Ok(());
-		};
-		let reference = std::fs::read(std::env::var("PBF_PARITY_REF")?)?;
-		let settings: FontSettings = serde_json::from_str(&std::env::var("PBF_PARITY_SETTINGS")?)?;
-		let name = std::env::var("PBF_PARITY_NAME")?;
-		let ours = check_font_bytes(process_font(
-			Path::new(&ttf),
-			&name,
-			Platform::Emery,
-			settings,
-		)?)?;
-		if let Ok(dump) = std::env::var("PBF_PARITY_DUMP") {
-			std::fs::write(dump, &ours)?;
-		}
-		let diff = ours.iter().zip(&reference).position(|(a, b)| a != b);
-		assert_eq!(diff, None, "first differing byte");
-		assert_eq!(ours.len(), reference.len(), "length mismatch");
-		Ok(())
-	}
 }

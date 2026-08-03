@@ -42,7 +42,7 @@ impl core::error::Error for PblUUIDError {}
 impl TryFrom<&[u8]> for PblUUID {
 	type Error = PblUUIDError;
 
-	/// Error if value.len() != 16
+	/// Error if `value.len()` != 16
 	fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
 		Ok((*value.as_array::<16>().ok_or(PblUUIDError::WrongSize)?).into())
 	}
@@ -68,8 +68,14 @@ const fn uuid_from_array(value: [u8; 16]) -> PblUUID {
 		byte15: value[15],
 	}
 }
+#[allow(
+	clippy::useless_transmute,
+	reason = "`c_char` is i8 on the host (x86-64) but unsigned on ARM, so this is \
+	          a real reinterpret when linting for the host and a no-op when \
+	          linting for thumbv7m-pebble. Only the latter trips the lint; the \
+	          transmute has to stay for the host build to compile at all."
+)]
 pub const DEFAULT_HEADER: PebbleProcessInfo = PebbleProcessInfo {
-	// bytestrings are [u8] in Rust (UTF-8), but core::ffi::c_char is sometimes i8
 	header:             unsafe {
 		core::mem::transmute::<[u8; 8], [core::ffi::c_char; 8]>(*b"PBLAPP\0\0")
 	},

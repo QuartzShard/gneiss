@@ -55,7 +55,9 @@ pub struct PbPack {
 }
 
 impl PbPack {
-	/// Construct a new PbPack from a list of resource blobs
+	/// Construct a new `PbPack` from a list of resource blobs
+	/// # Panics
+	/// If >255 resources are declared
 	pub fn new(resources: &[&[u8]]) -> PbPack {
 		assert!(
 			resources.len() <= 256,
@@ -78,24 +80,21 @@ impl PbPack {
 			};
 			// Only count if it's new
 			if seen.insert(res) {
-				content_offset += res.len()
-			};
+				content_offset += res.len();
+			}
 		}
 
 		// - Reverse populates offsets and blob, deduplicating if necessary.
 		let mut content = vec![0u8; content_offset];
 		let mut uniq_content: HashMap<&[u8], u32> = HashMap::new();
 		for (res, row) in resources.iter().zip(table.0.iter_mut()).rev() {
-			row.offset = match uniq_content.get(res) {
-				// The exact same blob already exists, just point at that
-				Some(offset) => *offset,
-				// Fill from the back, so that table[-1] is as the highest offset.
-				None => {
-					content_offset -= res.len();
-					let _ = uniq_content.insert(res, content_offset as u32);
-					content[content_offset..content_offset + res.len()].copy_from_slice(res);
-					content_offset as u32
-				}
+			row.offset = if let Some(offset) = uniq_content.get(res) {
+				*offset
+			} else {
+				content_offset -= res.len();
+				let _ = uniq_content.insert(res, content_offset as u32);
+				content[content_offset..content_offset + res.len()].copy_from_slice(res);
+				content_offset as u32
 			};
 		}
 
@@ -120,7 +119,7 @@ impl PbPack {
 		buf
 	}
 
-	pub fn from_bytes(val: Vec<u8>) -> Option<Self> {
+	pub fn from_bytes(val: &[u8]) -> Option<Self> {
 		if val.len() < size_of::<PackManifest>() + size_of::<PackTable>() {
 			None
 		} else {
@@ -134,7 +133,7 @@ impl PbPack {
 			let extent = table
 				.0
 				.iter()
-				.map(|row| row.offset as u64 + row.length as u64)
+				.map(|row| u64::from(row.offset) + u64::from(row.length))
 				.max()
 				.unwrap_or(0);
 			if content.len() as u64 == extent {
@@ -171,7 +170,7 @@ mod tests {
 			vec![b"same".as_slice(), b"same", b"other"],
 		] {
 			let pack = PbPack::new(&resources);
-			let back = PbPack::from_bytes(pack.as_bytes()).expect("round trip");
+			let back = PbPack::from_bytes(&pack.as_bytes()).expect("round trip");
 			assert_eq!({ back.manifest.num_files }, resources.len() as u32);
 			for (res, row) in resources.iter().zip(back.table.0.iter()) {
 				let (offset, length) = (row.offset as usize, row.length as usize);

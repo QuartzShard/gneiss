@@ -53,3 +53,26 @@ codegen-units   = 1
 panic           = "abort"
 strip           = "symbols"
 overflow-checks = false
+
+# Pedantic across the board. The no-panic set is *not* here: a host-side build
+# tool aborting with a message is a fine failure mode, so it lives as crate-root
+# attributes in the crates that ship to the watch (gneiss, pebble-sys,
+# pebble-types). `unwrap_used` is the exception — a bare unwrap gives no message
+# anywhere, so it's denied everywhere; `expect` is the host-side escape hatch.
+[workspace.lints.clippy]
+pedantic    = { level = "warn", priority = -1 }
+unwrap_used = "deny"
+
+struct_excessive_bools   = "allow"
+cast_possible_truncation = "allow"
+cast_precision_loss      = "allow"
+cast_possible_wrap       = "allow"
+cast_sign_loss           = "allow"
+missing_errors_doc       = "allow"
+type_complexity          = "allow"
+too_many_lines           = "allow"
+must_use_candidate		 = "allow"
+
+# TODO: Remove this when eyre stops tripping it
+[workspace.lints.rust]
+semicolon_in_expressions_from_non_local_macros = "allow"

@@ -39,12 +39,6 @@ fn main() -> Result<()> {
 
 /// Invoke bindgen on pebble.h, then map declarations -> shims to remove pebble.a runtime dep
 fn regen_sys() -> Result<()> {
-	let vendor = workspace_root().join("crates/pebble-sys/vendor");
-	// Check we have a vendor snapshot
-	if !std::fs::exists(vendor.join("UPSTREAM"))? {
-		bail!("No vendor snapshot, run `cargo xtask snapshot-vendor` to generate one")
-	}
-
 	// pebble.h #includes a libc surface plus two per-app generated headers that
 	// do not exist at SDK-snapshot time.
 	const STUBS: &[(&str, &str)] = &[
@@ -64,6 +58,12 @@ fn regen_sys() -> Result<()> {
 		("string.h", "#pragma once\n"),
 		("locale.h", "#pragma once\n"),
 	];
+	let vendor = workspace_root().join("crates/pebble-sys/vendor");
+	// Check we have a vendor snapshot
+	if !std::fs::exists(vendor.join("UPSTREAM"))? {
+		bail!("No vendor snapshot, run `cargo xtask snapshot-vendor` to generate one")
+	}
+
 	let resource_inc = clang_resource_dir()?.join("include").display().to_string();
 	let clang_args: Vec<String> = [
 		"--target=arm-none-eabi",
@@ -106,7 +106,7 @@ fn regen_sys() -> Result<()> {
 			.clang_args(clang_args)
 			.generate()?;
 
-		let mut mapped = map_bindgen_to_shimmed(bindings, &vendor, platform)?;
+		let mut mapped = map_bindgen_to_shimmed(&bindings, &vendor, platform)?;
 		mapped.attrs = vec![
 			syn::parse_quote!(#![doc = " SPDX-License-Identifier: Apache-2.0"]),
 			syn::parse_quote!(#![doc = " This module is generated from `pebble.h` by bindgen + a shim-mapping step in the `regen-sys` xtask. Do not hand-edit"]),
@@ -134,8 +134,7 @@ fn regen_sys() -> Result<()> {
 		.generate()?
 		.to_string();
 	bindings = format!(
-		"//! SPDX-License-Identifier: Apache-2.0\n//! Generated from pebble_process_info.h, do not hand-edit\n{}",
-		bindings
+		"//! SPDX-License-Identifier: Apache-2.0\n//! Generated from pebble_process_info.h, do not hand-edit\n#![allow(warnings, clippy::all, clippy::pedantic, clippy::nursery, clippy::restriction)]\n{bindings}"
 	);
 	bindings = bindings.replace(
 		"#[derive(Debug, Copy, Clone)]",
@@ -162,7 +161,7 @@ fn snapshot_vendor(repo: &Path) -> Result<()> {
 	log::info!("Looking for `uv`...");
 	if !Command::new("which").arg("uv").status()?.success() {
 		bail!("`uv` not found on your $PATH, you probably want to install pebble-tool first")
-	};
+	}
 
 	for platform in Platform::iter() {
 		log::info!("Building SDK headers for {platform}...");
@@ -200,8 +199,9 @@ fn snapshot_vendor(repo: &Path) -> Result<()> {
 		.arg("rev-parse")
 		.arg("HEAD")
 		.output()
-		.map(|output| String::from_utf8_lossy(&output.stdout).into_owned())
-		.unwrap_or("NotAGitRepo".into());
+		.map_or("NotAGitRepo".into(), |output| {
+			String::from_utf8_lossy(&output.stdout).into_owned()
+		});
 	// ...and write out a fingerprint file
 	let now = chrono::Local::now().to_rfc3339();
 	std::fs::write(

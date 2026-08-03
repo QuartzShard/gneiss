@@ -28,11 +28,11 @@ pub struct Display {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Capabilities {
-	/// `false` means BW (PBL_BW); `true` means color (PBL_COLOR).
+	/// `false` means BW (`PBL_BW`); `true` means color (`PBL_COLOR`).
 	pub color:            bool,
 	pub microphone:       bool,
 	pub smartstrap:       bool,
-	/// Implies `smartstrap`. PBL_SMARTSTRAP_POWER.
+	/// Implies `smartstrap`. `PBL_SMARTSTRAP_POWER`.
 	pub smartstrap_power: bool,
 	pub health:           bool,
 	pub compass:          bool,
@@ -112,7 +112,7 @@ pub const PLATFORM_BASALT: PlatformConfig = PlatformConfig {
 	max_app_binary_size: 0x10000,
 	max_app_memory_size: 0x10000,
 	max_worker_memory_size: 0x2800,
-	max_resources_size: 0x100000,
+	max_resources_size: 0x0010_0000,
 	max_resources_size_appstore: 0x40000,
 	max_font_glyph_size: 256,
 	display: Display {
@@ -153,7 +153,7 @@ pub const PLATFORM_CHALK: PlatformConfig = PlatformConfig {
 	max_app_binary_size: 0x10000,
 	max_app_memory_size: 0x10000,
 	max_worker_memory_size: 0x2800,
-	max_resources_size: 0x100000,
+	max_resources_size: 0x0010_0000,
 	max_resources_size_appstore: 0x40000,
 	max_font_glyph_size: 256,
 	display: Display {
@@ -194,7 +194,7 @@ pub const PLATFORM_DIORITE: PlatformConfig = PlatformConfig {
 	max_app_binary_size: 0x10000,
 	max_app_memory_size: 0x10000,
 	max_worker_memory_size: 0x2800,
-	max_resources_size: 0x100000,
+	max_resources_size: 0x0010_0000,
 	max_resources_size_appstore: 0x40000,
 	max_font_glyph_size: 256,
 	display: Display {
@@ -233,7 +233,7 @@ pub const PLATFORM_EMERY: PlatformConfig = PlatformConfig {
 	max_app_binary_size: 0x20000,
 	max_app_memory_size: 0x20000,
 	max_worker_memory_size: 0x2800,
-	max_resources_size: 0x100000,
+	max_resources_size: 0x0010_0000,
 	max_resources_size_appstore: 0x40000,
 	max_font_glyph_size: 512,
 	display: Display {
@@ -276,7 +276,7 @@ pub const PLATFORM_FLINT: PlatformConfig = PlatformConfig {
 	max_app_binary_size: 0x10000,
 	max_app_memory_size: 0x10000,
 	max_worker_memory_size: 0x2800,
-	max_resources_size: 0x100000,
+	max_resources_size: 0x0010_0000,
 	max_resources_size_appstore: 0x40000,
 	max_font_glyph_size: 256,
 	display: Display {
@@ -315,7 +315,7 @@ pub const PLATFORM_GABBRO: PlatformConfig = PlatformConfig {
 	max_app_binary_size: 0x20000,
 	max_app_memory_size: 0x20000,
 	max_worker_memory_size: 0x2800,
-	max_resources_size: 0x100000,
+	max_resources_size: 0x0010_0000,
 	max_resources_size_appstore: 0x40000,
 	max_font_glyph_size: 512,
 	display: Display {
@@ -377,7 +377,7 @@ mod tests {
 	use super::*;
 
 	fn has(defs: &[&str], needle: &str) -> bool {
-		defs.iter().any(|d| *d == needle)
+		defs.contains(&needle)
 	}
 
 	#[test]

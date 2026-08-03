@@ -6,6 +6,9 @@ license.workspace = true
 repository.workspace = true
 description       = "Shared types across the pebble-sys / cargo-pebble / xtask crates"
 
+[lints]
+workspace = true
+
 [lib]
 
 [features]

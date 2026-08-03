@@ -55,39 +55,36 @@ pub struct NewProject {
 
 impl NewProject {
 	pub fn create(&self) -> Result<()> {
-		let path = self
+		let path: &Path = &self
 			.path
-			.as_ref()
-			.cloned()
-			.unwrap_or(PathBuf::from(format!("./{}", self.name)));
+			.clone()
+			.unwrap_or_else(|| PathBuf::from(format!("./{}", self.name)));
 		println!(
 			"Creating {} in {} for {:?}...",
 			self.name,
 			path.display(),
 			self.platform
 		);
-		std::fs::create_dir_all(&path.join("src"))?;
-		std::fs::create_dir_all(&path.join("resources"))?;
+		std::fs::create_dir_all(path.join("src"))?;
+		std::fs::create_dir_all(path.join("resources"))?;
 		std::fs::write(
 			path.join("resources/icon.png"),
 			include_bytes!("../default_icon.png"),
 		)?;
-		self.cargo_toml(&path)
+		self.cargo_toml(path)
 			.wrap_err("Failed to write Cargo.toml")?;
-		self.cargo_config(&path)
+		self.cargo_config(path)
 			.wrap_err("Failed to write cargo/config.toml")?;
-		self.toolchain(&path)
-			.wrap_err("Failed to write rust-toolchain.toml")?;
-		self.main_rs(&path)
-			.wrap_err("Failed to write src/main.rs")?;
-		self.build_rs(&path).wrap_err("Failed to write build.rs")?;
+		Self::toolchain(path).wrap_err("Failed to write rust-toolchain.toml")?;
+		self.main_rs(path).wrap_err("Failed to write src/main.rs")?;
+		Self::build_rs(path).wrap_err("Failed to write build.rs")?;
 		Ok(())
 	}
 
 	/// The app must build on nightly with `rust-src`: `-Zbuild-std` recompiles
 	/// `core`/`alloc` (no prebuilt sysroot exists for the custom target), and
 	/// `-Zjson-target-spec` is needed to consume the vendored `.json` at all.
-	fn toolchain(&self, path: &PathBuf) -> Result<()> {
+	fn toolchain(path: &Path) -> Result<()> {
 		std::fs::write(
 			path.join("rust-toolchain.toml"),
 			"[toolchain]\nchannel = \"nightly\"\ncomponents = [\"rust-src\"]\n",
@@ -95,7 +92,7 @@ impl NewProject {
 		.wrap_err("Can't write toolchain file")
 	}
 
-	fn cargo_config(&self, path: &PathBuf) -> Result<()> {
+	fn cargo_config(&self, path: &Path) -> Result<()> {
 		std::fs::create_dir_all(path.join(".cargo"))?;
 
 		let triple = self.platform[0].app_target_triple();
@@ -148,7 +145,7 @@ impl NewProject {
 			},
 		};
 		let package = Package {
-			name: self.name.to_string(),
+			name: self.name.clone(),
 			authors: vec![git_author()],
 			version: String::from("0.1.0"),
 			edition: String::from("2024"),
@@ -188,7 +185,9 @@ impl NewProject {
 			profile: Profiles::default(),
 		};
 		let mut doc = toml::to_string(&manifest)?.parse::<toml_edit::DocumentMut>()?;
-		let pkg = &mut doc["package"].as_table_mut().unwrap();
+		let pkg = doc["package"]
+			.as_table_mut()
+			.expect("manifest was just serialized from PebbleCargoManifest above");
 		let mut authors = pkg.key_mut("authors").expect("authors key");
 		let decor = authors.leaf_decor_mut();
 		let prev = decor
@@ -200,7 +199,7 @@ impl NewProject {
 			"{prev}# authors[0] used as the watch-menu \"company\"\n"
 		));
 
-		std::fs::write(&path.join("Cargo.toml"), doc.to_string())?;
+		std::fs::write(path.join("Cargo.toml"), doc.to_string())?;
 
 		Ok(())
 	}
@@ -271,7 +270,7 @@ impl NewProject {
 			.wrap_err("Cannot write main.rs")
 	}
 
-	fn build_rs(&self, path: &Path) -> Result<()> {
+	fn build_rs(path: &Path) -> Result<()> {
 		let build: syn::File = syn::parse_quote! {
 			use pebble_build;
 

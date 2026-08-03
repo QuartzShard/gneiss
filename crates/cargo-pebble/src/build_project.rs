@@ -4,11 +4,10 @@ use std::{
 	process::{Command, Stdio, exit},
 };
 
-use cargo_metadata::{Message, MetadataCommand, PackageId, camino::Utf8PathBuf};
-use color_eyre::eyre::{Context, OptionExt, Result};
-use pebble_build::{PebbleMetadata, app_info, package_platform, read_pbl_metadata};
+use cargo_metadata::{Message, PackageId, camino::Utf8PathBuf};
+use color_eyre::eyre::{OptionExt, Result};
+use pebble_build::{app_info, package_platform, read_pbl_metadata};
 use pebble_types::{Platform, pbpack::PbPack};
-use serde::Deserialize;
 use unix_time::Instant;
 use zip::write::FileOptions;
 
@@ -31,16 +30,16 @@ fn build_elf(
 	for msg in Message::parse_stream(BufReader::new(stdout)) {
 		match msg? {
 			Message::CompilerArtifact(artifact) if artifact.package_id == *pkg_id => {
-				log::trace!("{:#?}", artifact);
+				log::trace!("{artifact:#?}");
 				elf = artifact.executable;
 			}
 			Message::BuildScriptExecuted(build) if build.package_id == *pkg_id => {
-				log::trace!("{:#?}", build);
+				log::trace!("{build:#?}");
 				out_dir.replace(build.out_dir);
 			}
 			Message::BuildFinished(build_finished) => build_ok = build_finished.success,
 			_ => (),
-		};
+		}
 	}
 	if !build.wait()?.success() || !build_ok {
 		// `cargo build` already streamed its own error to our inherited stderr;
@@ -52,8 +51,8 @@ fn build_elf(
 
 fn bytes_readable(val: usize) -> String {
 	match val {
-		1000000.. => format!("{}.{}MB", val / 1000000, (val % 10000000) / 1000),
-		1000..1000000 => format!("{}.{}KB", val / 1000, val % 1000),
+		1_000_000.. => format!("{}.{}MB", val / 1_000_000, (val % 1_000_000) / 1000),
+		1000..1_000_000 => format!("{}.{}KB", val / 1000, val % 1000),
 		_ => format!("{val} B"),
 	}
 }
@@ -97,8 +96,8 @@ impl BuildProject {
 			log::debug!("ELF output at {elf_path}");
 			let elf_bytes = std::fs::read(&elf_path)?;
 
-			let pbpack = PbPack::from_bytes(std::fs::read(
-				out_dir.join(format!("{}_app_resources.pbpack", platform)),
+			let pbpack = PbPack::from_bytes(&std::fs::read(
+				out_dir.join(format!("{platform}_app_resources.pbpack")),
 			)?)
 			.ok_or_eyre("PbPack Malformed")?;
 			let pbpack_bytes = pbpack.as_bytes();
@@ -128,7 +127,9 @@ impl BuildProject {
                     -> Flash: {} binary, {} resources",
 				bytes_readable(virt_size as usize),
 				bytes_readable(platform.config().max_app_memory_size as usize),
-				bytes_readable((platform.config().max_app_memory_size - virt_size as u32) as usize),
+				bytes_readable(
+					(platform.config().max_app_memory_size - u32::from(virt_size)) as usize
+				),
 				bytes_readable(bin_buf.len()),
 				bytes_readable(pbpack_bytes.len()),
 			);

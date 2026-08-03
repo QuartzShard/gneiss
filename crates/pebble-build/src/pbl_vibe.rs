@@ -30,10 +30,10 @@ struct VibeNote {
 }
 
 pub(crate) fn process_vibe(file: &Path) -> Result<Vec<u8>> {
-	serialise(serde_json::from_str(&std::fs::read_to_string(file)?)?)
+	serialise(&serde_json::from_str(&std::fs::read_to_string(file)?)?)
 }
 
-fn serialise(score: VibeScore) -> Result<Vec<u8>> {
+fn serialise(score: &VibeScore) -> Result<Vec<u8>> {
 	if score.pattern.is_empty() {
 		bail!("Vibe score has no pattern");
 	}
@@ -61,7 +61,7 @@ fn serialise(score: VibeScore) -> Result<Vec<u8>> {
 		})
 		.collect::<Result<_>>()?;
 
-	let mut attrs = vec![2 + score.repeat_delay_ms.is_some() as u8];
+	let mut attrs = vec![2 + u8::from(score.repeat_delay_ms.is_some())];
 	let mut push_attr = |id: u8, payload: &[u8]| {
 		attrs.push(id);
 		attrs.extend((payload.len() as u16).to_le_bytes());
@@ -97,7 +97,7 @@ mod tests {
 
 	fn score(json: &str) -> Vec<u8> {
 		let score: VibeScore = serde_json::from_str(json).unwrap();
-		serialise(score).unwrap()
+		serialise(&score).unwrap()
 	}
 
 	// Expected bytes generated with upstream tools/json2vibe.py

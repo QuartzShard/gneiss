@@ -1,4 +1,4 @@
-//! Rust side structure of the exported_symbols.json. We allow dead code here so that the sections
+//! Rust side structure of the `exported_symbols.json`. We allow dead code here so that the sections
 //! we don't read (but still want for completeness) aren't polluting clippy.
 #![allow(dead_code)]
 
@@ -6,7 +6,7 @@ use serde::Deserialize;
 use std::{fmt::Display, path::PathBuf};
 
 #[derive(Debug, Deserialize)]
-/// Schema of exported_symbols.json
+/// Schema of `exported_symbols.json`
 pub struct ExportedSymbols {
     #[serde(rename = "_notes")]
     pub notes: Vec<String>,
@@ -58,7 +58,7 @@ pub struct TypeDef {
     pub added_revision: u32,
     #[serde(default)]
     pub internal: bool,
-    /// Headers to `#include` after the typedef (e.g. gcolor_definitions.h).
+    /// Headers to `#include` after the typedef (e.g. `gcolor_definitions.h`).
     #[serde(default)]
     pub include_after: Vec<String>,
 }
@@ -91,7 +91,7 @@ impl Display for Function {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let name = &self.name;
         let deprecated = match &self.deprecated {
-            Flag::Set(false) => "".to_string(),
+            Flag::Set(false) => String::new(),
             Flag::Set(true) => "[deprecated]".to_string(),
             Flag::Reason(reason) => format!("[deprecated: {reason}"),
         };
