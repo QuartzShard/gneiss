@@ -485,7 +485,7 @@ bool connection_service_peek_pebblekit_connection(void);
 //! Subscribe to the connection event service. Once subscribed, the appropriate
 //! handler gets called based on the type of connection event and user provided
 //! handlers
-//! @param ConnectionHandlers A struct populated with the handlers to
+//! @param conn_handlers A struct populated with the handlers to
 //! be called when the specified connection event occurs. If a given handler is
 //! NULL, no function will be called.
 void connection_service_subscribe(ConnectionHandlers conn_handlers);
@@ -567,7 +567,7 @@ typedef struct {
 
 //! Subscribe to the focus event service. Once subscribed, the handlers get called every time the
 //! app gains or loses focus.
-//! @param handler Handlers which will be called on will-focus and did-focus events.
+//! @param handlers Handlers which will be called on will-focus and did-focus events.
 //! @see AppFocusHandlers
 void app_focus_service_subscribe_handlers(AppFocusHandlers handlers);
 
@@ -927,6 +927,10 @@ typedef enum TouchEventType {
 //! Touch event data, carried directly in PebbleTouchEvent
 typedef struct TouchEvent {
   TouchEventType type:8;
+  //! true when the touch must not drive navigation: the interaction session
+  //! was inactive at Touchdown (unarmed contact on the idle watchface).
+  //! Latched on Touchdown and carried across the whole gesture.
+  bool non_navigational;
   int16_t x;
   int16_t y;
 } TouchEvent;
@@ -941,6 +945,8 @@ typedef void (*TouchServiceHandler)(const TouchEvent *event, void *context);
 #define touch_service_unsubscribe(...) (0)
 
 #define touch_service_is_enabled(...) (0)
+
+#define app_touch_navigation_enable(...) (0)
 
 //! @} // group TouchService
 
@@ -1225,7 +1231,7 @@ HealthServiceAccessibilityMask health_service_metric_accessible(
 //! @param time_start Earliest UTC time you are interested in.
 //! @param time_end Latest UTC time you are interested in.
 //! @param scope \ref HealthServiceTimeScope value describing how the average should be computed.
-//! @return A \HealthServiceAccessibilityMask value decribing whether averaged data is available.
+//! @return A \ref HealthServiceAccessibilityMask value decribing whether averaged data is available.
 HealthServiceAccessibilityMask health_service_metric_averaged_accessible(
     HealthMetric metric, time_t time_start, time_t time_end, HealthServiceTimeScope scope);
 
@@ -1239,7 +1245,7 @@ HealthServiceAccessibilityMask health_service_metric_averaged_accessible(
 //! @param time_end Latest UTC time you are interested in.
 //! @param aggregation The aggregation to perform
 //! @param scope \ref HealthServiceTimeScope value describing how the average should be computed.
-//! @return A \HealthServiceAccessibilityMask value decribing whether averaged data is available.
+//! @return A \ref HealthServiceAccessibilityMask value decribing whether averaged data is available.
 HealthServiceAccessibilityMask health_service_metric_aggregate_averaged_accessible(
     HealthMetric metric, time_t time_start, time_t time_end, HealthAggregation aggregation,
     HealthServiceTimeScope scope);
@@ -1272,6 +1278,8 @@ typedef enum {
   HealthEventMetricAlert = 3,
   //! Value of \ref HealthMetricHeartRateBPM or \ref HealthMetricHeartRateRawBPM has changed.
   HealthEventHeartRateUpdate = 4,
+  //! A new HRV peak-to-peak interval reading is available.
+  HealthEventHRVUpdate = 5,
 } HealthEventType;
 
 //! Developer-supplied event handler, called when a health-related event occurs after subscribing
@@ -2014,8 +2022,7 @@ DictionaryResult dict_serialize_tuplets(DictionarySerializeCallback callback, vo
 //! @param tuplets The array of tuplets
 //! @param tuplets_count The number of tuplets in the array
 //! @param buffer The buffer in which to write the serialized dictionary
-//! @param [in] size_in_out The available buffer size in bytes
-//! @param [out] size_in_out The number of bytes written
+//! @param [in,out] size_in_out In: the available buffer size in bytes. Out: the number of bytes written.
 //! @return \ref DICT_OK, \ref DICT_NOT_ENOUGH_STORAGE or \ref DICT_INVALID_ARGS
 DictionaryResult dict_serialize_tuplets_to_buffer(const Tuplet * const tuplets, const uint8_t tuplets_count, uint8_t *buffer, uint32_t *size_in_out);
 
@@ -2024,8 +2031,7 @@ DictionaryResult dict_serialize_tuplets_to_buffer(const Tuplet * const tuplets, 
 //! @param tuplets The array of tuplets
 //! @param tuplets_count The number of tuplets in the array
 //! @param buffer The buffer in which to write the serialized dictionary
-//! @param [in] size_in_out The available buffer size in bytes
-//! @param [out] size_in_out The number of bytes written
+//! @param [in,out] size_in_out In: the available buffer size in bytes. Out: the number of bytes written.
 //! @return \ref DICT_OK, \ref DICT_NOT_ENOUGH_STORAGE or \ref DICT_INVALID_ARGS
 DictionaryResult dict_serialize_tuplets_to_buffer_with_iter(DictionaryIterator *iter, const Tuplet * const tuplets, const uint8_t tuplets_count, uint8_t *buffer, uint32_t *size_in_out);
 
@@ -2051,7 +2057,7 @@ uint32_t dict_calc_buffer_size_from_tuplets(const Tuplet * const tuplets, const 
 //! Therefore the Tuple can be used after the callback returns, until the destination dictionary
 //! storage is free'd (by the application itself).
 //! @param old_tuple The values that will be replaced with `new_tuple`. The key, value and type will be
-//! equal to the previous tuple in the old destination dictionary, however the `old_tuple points
+//! equal to the previous tuple in the old destination dictionary, however the `old_tuple` points
 //! to a stack-allocated copy of the old data.
 //! @param context Pointer to application specific data
 //! The storage backing `old_tuple` can only be used during the callback and
@@ -2130,7 +2136,7 @@ typedef void (*DictationSessionStatusCallback)(DictationSession *session,
 
 //! Create a dictation session. The session object can be used more than once to get a
 //! transcription. When a transcription is received a buffer will be allocated to store the text in
-//! with a maximum size specified by \ref buffer_size. When a transcription is accepted by the user
+//! with a maximum size specified by @c buffer_size. When a transcription is accepted by the user
 //! or a failure of some sort occurs, the callback specified will be called with the status and the
 //! transcription if one was accepted.
 //! @param buffer_size       size of buffer to allocate for the transcription text; text will be
@@ -2355,7 +2361,7 @@ typedef void (*AppMessageInboxReceived)(DictionaryIterator *iterator, void *cont
 
 //! Called after an incoming message is dropped.
 //!
-//! \param[in] result
+//! \param[in] reason
 //!   The reason why the message was dropped.  Some possibilities include \ref APP_MSG_BUSY and
 //!   \ref APP_MSG_BUFFER_OVERFLOW.
 //!
@@ -2386,7 +2392,7 @@ typedef void (*AppMessageOutboxSent)(DictionaryIterator *iterator, void *context
 //!   the iterator cannot be modified or saved off as the library will re-open the dictionary with dict_begin() after
 //!   this callback returns.
 //!
-//! \param[in] result
+//! \param[in] reason
 //!   The result of the operation.  Some possibilities for the value include \ref APP_MSG_SEND_TIMEOUT,
 //!   \ref APP_MSG_SEND_REJECTED, \ref APP_MSG_NOT_CONNECTED, \ref APP_MSG_APP_NOT_RUNNING, and the combination
 //!   `(APP_MSG_NOT_CONNECTED | APP_MSG_APP_NOT_RUNNING)`.
@@ -2731,7 +2737,7 @@ const Tuple * app_sync_get(const struct AppSync *s, const uint32_t key);
 //! The metadata describes how long each row of pixels is in the buffer (the stride).
 //! The following restrictions on stride are in place for different formats:
 //!
-//! - \ref GBitmapFormat1Bit:
+//! - \ref GBitmapFormat1Bit "GBitmapFormat1Bit":
 //!   Each row must be a multiple of 32 pixels (4 bytes). Using the `bounds` field,
 //!   the area that is actually relevant can be specified.
 //!   For example, when the image is 29 by 5 pixels
@@ -2748,12 +2754,12 @@ const Tuple * app_sync_get(const struct AppSync *s, const uint32_t key);
 //!   it will result in a black pixel.
 //!   ![](pixel_bit_values.png)
 //!
-//! - \ref GBitmapFormat8Bit:
+//! - \ref GBitmapFormat8Bit "GBitmapFormat8Bit":
 //!   Each pixel in the bitmap is represented by 1 byte. The color value of that byte correspends to
 //!   a GColor.argb value.
 //!   There is no restriction on row_size_bytes / stride.
 //!
-//! - \ref GBitmapFormat1BitPalette, \ref GBitmapFormat2BitPalette, \ref GBitmapFormat4BitPalette:
+//! - \ref GBitmapFormat1BitPalette, \ref GBitmapFormat2BitPalette, \ref GBitmapFormat4BitPalette "GBitmapFormat4BitPalette":
 //!   Each pixel in the bitmap is represented by the number of bits the format specifies. Pixels
 //!   must be packed.
 //!   For example, in GBitmapFormat2BitPalette, each pixel uses 2 bits. This means 4 pixels / byte.
@@ -2781,7 +2787,7 @@ const Tuple * app_sync_get(const struct AppSync *s, const uint32_t key);
 //! @} // group FileFormats
 
 //! Opaque reference to a resource.
-//! @see \ref resource_get_handle()
+//! @see @c resource_get_handle()
 typedef void * ResHandle;
 
 #define RESOURCE_ID_FONT_FALLBACK RESOURCE_ID_GOTHIC_14
@@ -3217,12 +3223,12 @@ typedef int32_t WakeupId;
 
 //! The type of function which can be called when a wakeup event occurs.  
 //! The arguments will be the id of the wakeup event that occurred, 
-//! as well as the scheduled cookie provided to \ref wakeup_schedule.
+//! as well as the scheduled cookie provided to @c wakeup_schedule.
 typedef void (*WakeupHandler)(WakeupId wakeup_id, int32_t cookie);
 
 //! Registers a WakeupHandler to be called when wakeup events occur.
 //! @note The handler is only called for wakeup events which occur while the app is already running;
-//!       use \ref launch_reason() === \ref APP_LAUNCH_WAKEUP to detect when the app was launched by a wakeup event.
+//!       use @c launch_reason() === \ref APP_LAUNCH_WAKEUP to detect when the app was launched by a wakeup event.
 //! @param handler The callback that gets called when the wakeup event occurs
 void wakeup_service_subscribe(WakeupHandler handler);
 
@@ -3249,7 +3255,7 @@ void wakeup_cancel(WakeupId wakeup_id);
 void wakeup_cancel_all(void);
 
 //! Retrieves the wakeup event info for an app that was launched
-//! by a wakeup_event (ie. \ref launch_reason() === APP_LAUNCH_WAKEUP)
+//! by a wakeup_event (ie. @c launch_reason() === APP_LAUNCH_WAKEUP)
 //! so that an app may display information regarding the wakeup event
 //! @param wakeup_id WakeupId for the wakeup event that caused the app to wakeup
 //! @param cookie App provided reason for the wakeup event
@@ -3339,7 +3345,7 @@ typedef enum AppExitReason {
 } AppExitReason;
 
 //! Set the app exit reason to a new reason.
-//! @param reason The new app exit reason
+//! @param exit_reason The new app exit reason
 void exit_reason_set(AppExitReason exit_reason);
 
 //! @} // group ExitReason
@@ -3362,7 +3368,7 @@ void exit_reason_set(AppExitReason exit_reason);
 //!
 //!   The main window's unload handler is usually a good place to call \ref app_glance_reload.
 //!
-//!   @warning \ref PBL_PLATFORM_APLITE does not support App Glance.
+//!   @warning @c PBL_PLATFORM_APLITE does not support App Glance.
 //!
 //!   Example code:
 //!   \code{.c}
@@ -3594,13 +3600,11 @@ bool grect_is_empty(const GRect* const rect);
 //! the origin will offset, so that the final rectangle overlaps with the original.
 //! For example, a GRect with size (-10, -5) and origin (20, 20), will be standardized
 //! to size (10, 5) and origin (10, 15).
-//! @param[in] rect The rectangle to convert.
-//! @param[out] rect The standardized rectangle.
+//! @param[in,out] rect The rectangle to convert, set to the standardized rectangle.
 void grect_standardize(GRect *rect);
 
 //! Trim one rectangle using the edges of a second rectangle.
-//! @param[in] rect_to_clip The rectangle that needs to be clipped (in place).
-//! @param[out] rect_to_clip The clipped rectangle.
+//! @param[in,out] rect_to_clip The rectangle that needs to be clipped (in place).
 //! @param rect_clipper The rectangle of which the edges will serve as "scissors"
 //! in order to trim `rect_to_clip`.
 void grect_clip(GRect * const rect_to_clip, const GRect * const rect_clipper);
@@ -3943,8 +3947,8 @@ typedef enum GAlign {
 //! Aligns one rectangle within another rectangle, using an alignment parameter.
 //! The relative coordinate systems of both rectangles are assumed to be the same.
 //! When clip is true, `rect` is also clipped by the constraint.
-//! @param[in] rect The rectangle to align (in place)
-//! @param[out] rect The aligned and optionally clipped rectangle
+//! @param[in,out] rect The rectangle to align (in place), set to the aligned and
+//! optionally clipped rectangle
 //! @param inside_rect The rectangle in which to align `rect`
 //! @param alignment Determines the alignment of `rect` within `inside_rect` by
 //! specifying what edges of should overlap.
@@ -4050,7 +4054,7 @@ typedef struct {
 //!    (GEdgeInsets){.top = v1, .right = v2, .bottom = v3, .left = v2}
 //!  - four values v1, v2, v3, v4 to configure it with
 //!    (GEdgeInsets){.top = v1, .right = v2, .bottom = v3, .left = v4}
-//! @see \ref grect_insets
+//! @see \ref grect_inset
 #define GEdgeInsets(...) \
   GEdgeInsetsN(__VA_ARGS__, GEdgeInsets4, GEdgeInsets3, GEdgeInsets2, GEdgeInsets1)(__VA_ARGS__)
 
@@ -4505,27 +4509,27 @@ void gdraw_command_set_point(GDrawCommand *command, uint16_t point_idx, GPoint p
 GPoint gdraw_command_get_point(GDrawCommand *command, uint16_t point_idx);
 
 //! Set the radius of a circle command
-//! @note This only works for commands of type \ref GDrawCommandCircle
+//! @note This only works for commands of type \ref GDrawCommandTypeCircle
 //! @param command \ref GDrawCommand from which to set the circle radius
 //! @param radius The radius to set for the circle.
 void gdraw_command_set_radius(GDrawCommand *command, uint16_t radius);
 
 //! Get the radius of a circle command.
-//! @note this only works for commands of type\ref GDrawCommandCircle.
+//! @note this only works for commands of type \ref GDrawCommandTypeCircle.
 //! @param command \ref GDrawCommand from which to get the circle radius
-//! @return The radius in pixels if command is of type \ref GDrawCommandCircle
+//! @return The radius in pixels if command is of type \ref GDrawCommandTypeCircle
 uint16_t gdraw_command_get_radius(GDrawCommand *command);
 
 //! Set the path of a stroke command to be open
-//! @note This only works for commands of type \ref GDrawCommandPath and
-//! \ref GDrawCommandPrecisePath
+//! @note This only works for commands of type \ref GDrawCommandTypePath and
+//! \ref GDrawCommandTypePrecisePath
 //! @param command \ref GDrawCommand for which to set the path open status
 //! @param path_open true if path should be hidden
 void gdraw_command_set_path_open(GDrawCommand *command, bool path_open);
 
 //! Return whether a stroke command path is open
-//! @note This only works for commands of type \ref GDrawCommandPath and
-//! \ref GDrawCommandPrecisePath
+//! @note This only works for commands of type \ref GDrawCommandTypePath and
+//! \ref GDrawCommandTypePrecisePath
 //! @param command \ref GDrawCommand from which to get the path open status
 //! @return true if the path is open
 bool gdraw_command_get_path_open(GDrawCommand *command);
@@ -4631,7 +4635,7 @@ GDrawCommandSequence *gdraw_command_sequence_create_with_resource(uint32_t resou
 GDrawCommandSequence *gdraw_command_sequence_clone(GDrawCommandSequence *sequence);
 
 //! Deletes the \ref GDrawCommandSequence structure and frees associated data
-//! @param image Pointer to the sequence to destroy
+//! @param sequence Pointer to the sequence to destroy
 void gdraw_command_sequence_destroy(GDrawCommandSequence *sequence);
 
 //! Get the frame that should be shown after the specified amount of elapsed time
@@ -4837,7 +4841,7 @@ GFont fonts_get_system_font(const char *font_key);
 
 //! Loads a custom font.
 //! @param handle The resource handle of the font to load. See resource_ids.auto.h
-//! for a list of resource IDs, and use \ref resource_get_handle() to obtain the resource handle.
+//! for a list of resource IDs, and use @c resource_get_handle() to obtain the resource handle.
 //! @return An opaque pointer to the loaded font, or a pointer to the default
 //! (fallback) font if the specified font cannot be loaded.
 //! @see Read the <a href="http://developer.getpebble.com/guides/pebble-apps/resources/">App
@@ -4993,7 +4997,7 @@ GSize graphics_text_layout_get_content_size_with_attributes(
 //! @addtogroup Smartstrap
 //! @{
 
-//! The default request timeout in milliseconds (see \ref smartstrap_set_timeout).
+//! The default request timeout in milliseconds (see @c smartstrap_set_timeout).
 #define SMARTSTRAP_TIMEOUT_DEFAULT 250
 
 //! The service_id to specify in order to read/write raw data to the smartstrap.
@@ -5124,13 +5128,13 @@ void smartstrap_attribute_destroy(SmartstrapAttribute *attribute);
 //! @returns Whether or not the service is available.
 bool smartstrap_service_is_available(SmartstrapServiceId service_id);
 
-//! Returns the ServiceId which the attribute was created for (see \ref
+//! Returns the ServiceId which the attribute was created for (see @c
 //! smartstrap_attribute_create).
 //! @param attribute The SmartstrapAttribute for which to obtain the service ID.
 //! @returns The SmartstrapServiceId which the attribute was created with.
 SmartstrapServiceId smartstrap_attribute_get_service_id(SmartstrapAttribute *attribute);
 
-//! Gets the AttributeId which the attribute was created for (see \ref smartstrap_attribute_create).
+//! Gets the AttributeId which the attribute was created for (see @c smartstrap_attribute_create).
 //! @param attribute The SmartstrapAttribute for which to obtain the attribute ID.
 //! @returns The SmartstrapAttributeId which the attribute was created with.
 SmartstrapAttributeId smartstrap_attribute_get_attribute_id(SmartstrapAttribute *attribute);
@@ -5462,6 +5466,139 @@ void* layer_get_data(const Layer *layer);
 
 //! @} // group Layer
 
+//! @addtogroup Recognizer Gesture Recognizers
+//! \brief Low-level touch-gesture recognizers for building fully custom touch
+//! interactions on touch-capable hardware.
+//!
+//! A recognizer watches the raw touch stream for one gesture — a tap, a pan
+//! (single-axis drag) or a swipe — and calls a \ref RecognizerEventCb as the
+//! gesture progresses. Create one with a per-gesture constructor
+//! (\ref tap_recognizer_create, \ref pan_recognizer_create,
+//! \ref swipe_recognizer_create), attach it to a \ref Window, and read the
+//! current gesture data from the event callback. Recognizers are the building
+//! block for a custom scroll or drag.
+//!
+//! For an ordinary scrollable list you do not need recognizers at all: on touch
+//! hardware \ref MenuLayer already scrolls by touch. Reach for recognizers to
+//! build an interaction the built-in list does not give you — a custom menu, a
+//! drag, or acting on a raw tap or swipe. Note that a bare \ref ScrollLayer does
+//! not scroll by touch on its own; you drive it with a pan recognizer, as below.
+//!
+//! <h3>Usage example: scrolling a custom menu</h3>
+//! A \ref ScrollLayer holds your own content but does not scroll by touch by
+//! itself. Attach a vertical pan recognizer to the window and feed its delta into
+//! \ref scroll_layer_set_content_offset() to scroll the content by finger:
+//! \code{.c}
+//! static ScrollLayer *s_scroll;
+//! static int16_t s_base;  // content offset committed on Complete
+//!
+//! static void pan_handler(const Recognizer *recognizer, RecognizerEvent event) {
+//!   switch (event) {
+//!     case RecognizerEvent_Updated: {
+//!       // delta_since_start is (0, 0) at Start, so the content does not jump.
+//!       GPoint d = pan_recognizer_get_delta_since_start(recognizer);
+//!       scroll_layer_set_content_offset(s_scroll, GPoint(0, s_base + d.y), false);
+//!       break;
+//!     }
+//!     case RecognizerEvent_Completed:
+//!       s_base = scroll_layer_get_content_offset(s_scroll).y;  // commit
+//!       break;
+//!     case RecognizerEvent_Cancelled:
+//!       scroll_layer_set_content_offset(s_scroll, GPoint(0, s_base), true);  // roll back
+//!       break;
+//!     default:
+//!       break;
+//!   }
+//! }
+//!
+//! static void window_load(Window *window) {
+//!   Layer *root = window_get_root_layer(window);
+//!   s_scroll = scroll_layer_create(layer_get_bounds(root));
+//!   scroll_layer_set_content_size(s_scroll, GSize(layer_get_bounds(root).size.w,
+//!                                                 total_content_height));
+//!   // Add your custom row layers as children of s_scroll here.
+//!   layer_add_child(root, scroll_layer_get_layer(s_scroll));
+//!
+//!   // The window owns the recognizer and destroys it when the window unloads.
+//!   Recognizer *pan = pan_recognizer_create(pan_handler, NULL, PanAxis_Vertical);
+//!   window_attach_recognizer(window, pan);
+//! }
+//! \endcode
+//! While the global system recognizer set is live, attaching alone is not enough:
+//! a window opts out of it with window_set_touch_bridge_disabled() (added by the
+//! touch-bridge change) so its own recognizers receive the touch stream.
+//! @{
+
+struct Recognizer;
+typedef struct Recognizer Recognizer;
+
+typedef enum RecognizerEventType {
+  RecognizerEvent_Started,
+  RecognizerEvent_Updated,
+  RecognizerEvent_Completed,
+  RecognizerEvent_Cancelled,
+} RecognizerEvent;
+
+//! User event callback. When a recognizer changes state to any state other than the failed state
+//! the user callback of this type will be called.
+//! @param recognizer recognizer affected by the event
+//! @param event_type event that occurred
+typedef void (*RecognizerEventCb)(const Recognizer *recognizer, RecognizerEvent event_type);
+
+//! This function is called to determine whether \a recognizer should be evaluated simultaneously
+//! with \a simultaneous_with
+//! @param recognizer recognizer to be tested
+//! @param simultaneous_with recognizer with which \a recognizer would be evaluated simultaneously
+//! should this test pass
+//! @return true if recognizers should be evaluated simultaneously
+typedef bool (*RecognizerSimultaneousWithCb)(const Recognizer *recognizer,
+                                             const Recognizer *simultaneous_with);
+
+//! Axis to which a pan recognizer is locked. A pan is only recognized when the
+//! finger moves unambiguously along this axis.
+typedef enum PanAxis {
+  PanAxis_Horizontal,
+  PanAxis_Vertical,
+} PanAxis;
+
+//! Swipe direction, also used as a bitmask when configuring which directions a swipe recognizer
+//! accepts. Screen coordinates grow downward, so a positive y delta is a downward swipe.
+typedef enum SwipeDirection {
+  SwipeDirection_None  = 0,
+  SwipeDirection_Up    = 1 << 0,
+  SwipeDirection_Down  = 1 << 1,
+  SwipeDirection_Left  = 1 << 2,
+  SwipeDirection_Right = 1 << 3,
+} SwipeDirection;
+
+#define tap_recognizer_create(...) (0)
+
+#define pan_recognizer_create(...) (0)
+
+#define swipe_recognizer_create(...) (0)
+
+#define tap_recognizer_get_tap_point(...) (0)
+
+#define pan_recognizer_get_total_delta(...) (0)
+
+#define pan_recognizer_get_delta_since_start(...) (0)
+
+#define pan_recognizer_get_delta_since_prev(...) (0)
+
+#define pan_recognizer_get_velocity(...) (0)
+
+#define swipe_recognizer_get_direction(...) (0)
+
+#define swipe_recognizer_get_velocity(...) (0)
+
+#define recognizer_destroy(...) (0)
+
+#define recognizer_set_simultaneous_with(...) (0)
+
+#define recognizer_set_fail_after(...) (0)
+
+//! @} // group Recognizer
+
 //! @addtogroup Window
 //! \brief The basic building block of the user interface
 //!
@@ -5559,6 +5696,12 @@ ClickConfigProvider window_get_click_config_provider(const Window *window);
 //! Gets the current click configuration provider context of the window.
 //! @param window The window for which to get the click config provider context
 void *window_get_click_config_context(Window *window);
+
+#define window_attach_recognizer(...) (0)
+
+#define window_detach_recognizer(...) (0)
+
+#define window_set_touch_bridge_disabled(...) (0)
 
 //! Sets the window handlers of the window.
 //! These handlers get called e.g. when the user enters or leaves the window.
@@ -6218,8 +6361,8 @@ PropertyAnimation *property_animation_create_layer_frame(struct Layer *layer, GR
 //! layer_get_bounds() as accessors and uses the `layer` parameter as the subject for the animation.
 //! The same defaults are used as with \ref animation_create().
 //! @param layer the layer that will be animated
-//! @param from_origin the origin that the bounds should animate from
-//! @param to_origin the origin that the layer should animate to
+//! @param from the origin that the bounds should animate from
+//! @param to the origin that the layer should animate to
 //! @return A handle to the property animation. `NULL` if animation could not be created
 PropertyAnimation *property_animation_create_bounds_origin(struct Layer *layer, GPoint *from,
     GPoint *to);
@@ -6570,6 +6713,66 @@ bool property_animation_to(PropertyAnimation *property_animation, void *to, size
 //! @} // group Animation
 
 //! @addtogroup UnobstructedArea
+//!
+//! \brief Events about when the app's unobstructed area changes for visually adapting
+//!
+//! Unobstructed Area enables a watchface to adapt to overlays partially obstructing it. Timeline
+//! Peek is the only overlay, and it partially obstructs the bottom of watchfaces, displaying the
+//! immediately upcoming or newly began event. Unobstructed Area is for use only with watchfaces.
+//! There will be no Unobstructed Area events emitted for apps that are not watchfaces. Timeline
+//! Peek is also limited to rectangular platforms, thus using Unobstructed Area on Chalk will also
+//! result in no events.
+//!
+//! Watchfaces are encouraged to respect Unobstructed Area in order to dynamically resize within
+//! the remaining screen area that isn't obstructed by an overlay. Unobstructed Area provides
+//! handlers for when the screen area will begin and end changing as well as progress for every
+//! frame of the animation, allowing one to animate the watchface to resize while the overlay
+//! animates into or out of the screen. Additionally, at any point, a watchface can query the
+//! Unobstructed Area using \ref layer_get_unobstructed_bounds even if there was not event or if it
+//! didn't subscribe to them.
+//!
+//! The simplest usage of Unobstructed Area is to change rendering of your watchface to render
+//! within the unobstructed bounds obtained by \ref layer_get_unobstructed_bounds. This is
+//! accomplished by modifying your layer update procedure that you setup a layer with using
+//! \ref layer_set_update_proc to use \ref layer_get_unobstructed_bounds instead of
+//! \ref layer_get_bounds or \ref layer_get_frame and adjusting all the rendering logic within it
+//! to handle resizing bounds. The app will redraw automatically whenever the Unobstructed
+//! Area changes, even if you did not subscribe to the events.
+//!
+//! Subscribing to `will_change`, `change`, and `did_change` events with
+//! \ref app_unobstructed_area_service_subscribe will allow you to obtain the final unobstructed
+//! area as soon as the animation begins and the current animation progress for each frame as they
+//! occur should you need that information to resize your watchface.
+//!
+//! When designing your watchface resizing logic or animation, take into consideration the way
+//! Timeline Peek animates. Timeline Peek appears from the bottom with an animation that moves
+//! slightly at first and snaps across with a bounce back. Because there is a bounce back in the
+//! animation, there will be momentary frames where the unobstructed area is slightly smaller than
+//! when Timeline Peek is visible but not animating.
+//!
+//! If you intend to hide or show layers on the screen depending on the unobstructed area, there
+//! are two ways to do this. For anything inside a layer update procedure the simple solution would
+//! be sufficient. That is, in your update procedure, you can to determine whether something is to
+//! be rendered or not based on the remaining height available to you determined from
+//! \ref layer_get_unobstructed_bounds.
+//!
+//! The other method for deciding whether to show or hide layers is to subscribe to events using
+//! \ref app_unobstructed_area_service_subscribe. Note that hiding or showing elements in your
+//! `will_change` can be too early due to the nature of the Timeline Peek animation where it moves
+//! slowly in the first few frames. After judging the animation visually, you may instead show or
+//! hide your layers based on both the final unobstructed area obtained from `will_change` in
+//! combination with the progress obtained from `change`, or check the current height available to
+//! you by calling \ref layer_get_unobstructed_bounds in your `change` handler to update your
+//! state.
+//!
+//! For more advance usages such as functionally defined animations whose animation frames are a
+//! function of animation progress, you will want to subscribe to `will_change`, `change`, and
+//! optionally `did_change` events if you need to clean up resources or layers created in your
+//! `will_change` handler. For example, in your `will_change` handler, you may use
+//! \ref layer_get_unobstructed_bounds to get the current unobstructed area, and combine it with
+//! the final unobstructed area passed into `will_change` to set up a \ref PropertyAnimation. A
+//! separate example would be to save the animation progress passed to your `change` handler for
+//! use in your own custom easing curve in your layer update procedure.
 //! @{
 
 //! Handler that will be called just before the unobstructed area will begin changing
@@ -7287,7 +7490,7 @@ typedef struct MenuLayerCallbacks {
 
   //! Callback that gets called to get the height of a cell.
   //! This can get called at various moments throughout the life of a menu.
-  //! @note When `NULL`, the default height of \ref MENU_CELL_BASIC_CELL_HEIGHT pixels is used.
+  //! @note When `NULL`, the default height of @c MENU_CELL_BASIC_CELL_HEIGHT pixels is used.
   //! Developers may wish to use \ref MENU_CELL_ROUND_FOCUSED_SHORT_CELL_HEIGHT
   //! and \ref MENU_CELL_ROUND_UNFOCUSED_SHORT_CELL_HEIGHT on a round display
   //! to respect the system aesthetic.
@@ -8227,7 +8430,7 @@ typedef enum {
 typedef struct ActionMenu ActionMenu;
 
 //! Callback executed after the ActionMenu has closed, so memory may be freed.
-//! @param root_level the root level passed to the ActionMenu
+//! @param menu the ActionMenu
 //! @param performed_action the ActionMenuItem for the action that was performed,
 //! NULL if the ActionMenu is closing without an action being selected by the user
 //! @param context the context passed to the ActionMenu
@@ -8254,7 +8457,7 @@ typedef void (*ActionMenuPerformActionCb)(ActionMenu *action_menu,
 
 //! Callback invoked for each item in an action menu hierarchy.
 //! @param item the current action menu item
-//! @param a caller-provided context callback
+//! @param context a caller-provided callback context
 typedef void (*ActionMenuEachItemCb)(const ActionMenuItem *item, void *context);
 
 //! Configuration struct for the ActionMenu
@@ -8275,7 +8478,7 @@ typedef struct {
 //! @return a pointer to the string label. NULL if invalid.
 char *action_menu_item_get_label(const ActionMenuItem *item);
 
-//! Getter for the action_data pointer of a given \ref ActionMenuitem.
+//! Getter for the action_data pointer of a given \ref ActionMenuItem.
 //! @see action_menu_level_add_action
 //! @param item the \ref ActionMenuItem of interest
 //! @return a pointer to the data. NULL if invalid.
@@ -8673,7 +8876,8 @@ struct tm {
   int tm_yday;    /*!< Days in year.[0-365] */
   int tm_isdst;   /*!< DST. [-1/0/1] */
 
-  int tm_gmtoff;  /*!< Seconds east of UTC */
+  int tm_gmtoff;  /*!< Total seconds east of UTC, DST included. tm_isdst is an indicator only --
+                       never add it to this value. */
   char tm_zone[TZ_LEN]; /*!< Timezone abbreviation */
 };
 
@@ -8727,14 +8931,10 @@ double difftime(time_t end, time_t beginning);
 
 //! Obtain the number of seconds and milliseconds part since the epoch.
 //!   This is a non-standard C function provided for convenience.
-//! @param tloc Optionally points to an address of a time_t variable to store the time in.
-//!   You may pass NULL into tloc if you don't need a time_t variable to be set
-//!   with the seconds since the epoch
-//! @param out_ms Optionally points to an address of a uint16_t variable to store the
-//!   number of milliseconds since the last second in.
-//!   If you only want to use the return value, you may pass NULL into out_ms instead
-//! @return The number of milliseconds since the last second
-uint16_t time_ms(time_t *t_utc, uint16_t *out_ms);
+//! @param tloc if provided receives the current UTC Unix Time seconds portion
+//! @param out_ms if provided receives the current Unix Time milliseconds portion
+//! @return Current Unix Time milliseconds portion
+uint16_t time_ms(time_t *tloc, uint16_t *out_ms);
 
 //! Return the UTC time that corresponds to the start of today (midnight).
 //! @return the UTC time corresponding to the start of today (midnight)
@@ -8743,4 +8943,8 @@ time_t time_start_of_today(void);
 //! @} // group StandardTime
 
 //! @} // group StandardC
+
+#define health_service_peek_hrv_ppi_ms(...) (0)
+
+#define health_service_set_hrv_sample_period(...) (0)
 

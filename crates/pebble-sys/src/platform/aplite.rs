@@ -853,7 +853,7 @@ pub unsafe extern "C" fn connection_service_peek_pebblekit_connection() -> bool 
 /**! Subscribe to the connection event service. Once subscribed, the appropriate
 ! handler gets called based on the type of connection event and user provided
 ! handlers
-! @param ConnectionHandlers A struct populated with the handlers to
+! @param conn_handlers A struct populated with the handlers to
 ! be called when the specified connection event occurs. If a given handler is
 ! NULL, no function will be called.*/
 /** connection_service_subscribe
@@ -1002,7 +1002,7 @@ fn bindgen_test_layout_AppFocusHandlers() {
 }
 /**! Subscribe to the focus event service. Once subscribed, the handlers get called every time the
 ! app gains or loses focus.
-! @param handler Handlers which will be called on will-focus and did-focus events.
+! @param handlers Handlers which will be called on will-focus and did-focus events.
 ! @see AppFocusHandlers*/
 /** app_focus_service_subscribe_handlers
   -> Added in 62
@@ -1654,6 +1654,10 @@ pub type TouchEventType = ::core::ffi::c_uint;
 pub struct TouchEvent {
     pub _bitfield_align_1: [u8; 0],
     pub _bitfield_1: __BindgenBitfieldUnit<[u8; 1usize]>,
+    /**! true when the touch must not drive navigation: the interaction session
+! was inactive at Touchdown (unarmed contact on the idle watchface).
+! Latched on Touchdown and carried across the whole gesture.*/
+    pub non_navigational: bool,
     pub x: i16,
     pub y: i16,
 }
@@ -1670,6 +1674,18 @@ fn bindgen_test_layout_TouchEvent() {
         ::core::mem::align_of::<TouchEvent>(),
         4usize,
         concat!("Alignment of ", stringify!(TouchEvent)),
+    );
+    assert_eq!(
+        unsafe {
+            ::core::ptr::addr_of!((*ptr).non_navigational) as usize - ptr as usize
+        },
+        1usize,
+        concat!(
+            "Offset of field: ",
+            stringify!(TouchEvent),
+            "::",
+            stringify!(non_navigational),
+        ),
     );
     assert_eq!(
         unsafe { ::core::ptr::addr_of!((*ptr).x) as usize - ptr as usize },
@@ -1990,7 +2006,7 @@ pub unsafe extern "C" fn health_service_metric_accessible(
 ! @param time_start Earliest UTC time you are interested in.
 ! @param time_end Latest UTC time you are interested in.
 ! @param scope \ref HealthServiceTimeScope value describing how the average should be computed.
-! @return A \HealthServiceAccessibilityMask value decribing whether averaged data is available.*/
+! @return A \ref HealthServiceAccessibilityMask value decribing whether averaged data is available.*/
 /** health_service_metric_averaged_accessible
   -> Added in 79
 gneiss: Vtable Slot 609, Offset 2436*/
@@ -2045,6 +2061,8 @@ pub const HealthEventType_HealthEventSleepUpdate: HealthEventType = 2;
 pub const HealthEventType_HealthEventMetricAlert: HealthEventType = 3;
 ///! Value of \ref HealthMetricHeartRateBPM or \ref HealthMetricHeartRateRawBPM has changed.
 pub const HealthEventType_HealthEventHeartRateUpdate: HealthEventType = 4;
+///! A new HRV peak-to-peak interval reading is available.
+pub const HealthEventType_HealthEventHRVUpdate: HealthEventType = 5;
 ///! Health event enum. Passed into the \ref HealthEventHandler.
 pub type HealthEventType = ::core::ffi::c_uint;
 /**! Developer-supplied event handler, called when a health-related event occurs after subscribing
@@ -3501,8 +3519,7 @@ pub unsafe extern "C" fn dict_serialize_tuplets(
 ! @param tuplets The array of tuplets
 ! @param tuplets_count The number of tuplets in the array
 ! @param buffer The buffer in which to write the serialized dictionary
-! @param [in] size_in_out The available buffer size in bytes
-! @param [out] size_in_out The number of bytes written
+! @param [in,out] size_in_out In: the available buffer size in bytes. Out: the number of bytes written.
 ! @return \ref DICT_OK, \ref DICT_NOT_ENOUGH_STORAGE or \ref DICT_INVALID_ARGS*/
 /** dict_serialize_tuplets_to_buffer
   -> Added in 5
@@ -3525,8 +3542,7 @@ pub unsafe extern "C" fn dict_serialize_tuplets_to_buffer(
 ! @param tuplets The array of tuplets
 ! @param tuplets_count The number of tuplets in the array
 ! @param buffer The buffer in which to write the serialized dictionary
-! @param [in] size_in_out The available buffer size in bytes
-! @param [out] size_in_out The number of bytes written
+! @param [in,out] size_in_out In: the available buffer size in bytes. Out: the number of bytes written.
 ! @return \ref DICT_OK, \ref DICT_NOT_ENOUGH_STORAGE or \ref DICT_INVALID_ARGS*/
 /** dict_serialize_tuplets_to_buffer_with_iter
   -> Added in 0
@@ -3591,7 +3607,7 @@ pub unsafe extern "C" fn dict_calc_buffer_size_from_tuplets(
 ! Therefore the Tuple can be used after the callback returns, until the destination dictionary
 ! storage is free'd (by the application itself).
 ! @param old_tuple The values that will be replaced with `new_tuple`. The key, value and type will be
-! equal to the previous tuple in the old destination dictionary, however the `old_tuple points
+! equal to the previous tuple in the old destination dictionary, however the `old_tuple` points
 ! to a stack-allocated copy of the old data.
 ! @param context Pointer to application specific data
 ! The storage backing `old_tuple` can only be used during the callback and
@@ -3693,7 +3709,7 @@ pub type DictationSessionStatusCallback = ::core::option::Option<
 >;
 /**! Create a dictation session. The session object can be used more than once to get a
 ! transcription. When a transcription is received a buffer will be allocated to store the text in
-! with a maximum size specified by \ref buffer_size. When a transcription is accepted by the user
+! with a maximum size specified by @c buffer_size. When a transcription is accepted by the user
 ! or a failure of some sort occurs, the callback specified will be called with the status and the
 ! transcription if one was accepted.
 ! @param buffer_size       size of buffer to allocate for the transcription text; text will be
@@ -3899,7 +3915,7 @@ pub type AppMessageInboxReceived = ::core::option::Option<
 >;
 /**! Called after an incoming message is dropped.
 !
-! \param[in] result
+! \param[in] reason
 !   The reason why the message was dropped.  Some possibilities include \ref APP_MSG_BUSY and
 !   \ref APP_MSG_BUFFER_OVERFLOW.
 !
@@ -3935,7 +3951,7 @@ pub type AppMessageOutboxSent = ::core::option::Option<
 !   the iterator cannot be modified or saved off as the library will re-open the dictionary with dict_begin() after
 !   this callback returns.
 !
-! \param[in] result
+! \param[in] reason
 !   The result of the operation.  Some possibilities for the value include \ref APP_MSG_SEND_TIMEOUT,
 !   \ref APP_MSG_SEND_REJECTED, \ref APP_MSG_NOT_CONNECTED, \ref APP_MSG_APP_NOT_RUNNING, and the combination
 !   `(APP_MSG_NOT_CONNECTED | APP_MSG_APP_NOT_RUNNING)`.
@@ -4438,7 +4454,7 @@ pub unsafe extern "C" fn app_sync_get(s: *const AppSync, key: u32) -> *const Tup
     )
 }
 /**! Opaque reference to a resource.
-! @see \ref resource_get_handle()*/
+! @see @c resource_get_handle()*/
 pub type ResHandle = *mut ::core::ffi::c_void;
 /**! Gets the resource handle for a file identifier.
 ! @param resource_id The resource ID
@@ -5181,13 +5197,13 @@ pub unsafe extern "C" fn persist_delete(key: u32) -> status_t {
 pub type WakeupId = i32;
 /**! The type of function which can be called when a wakeup event occurs.
 ! The arguments will be the id of the wakeup event that occurred,
-! as well as the scheduled cookie provided to \ref wakeup_schedule.*/
+! as well as the scheduled cookie provided to @c wakeup_schedule.*/
 pub type WakeupHandler = ::core::option::Option<
     unsafe extern "C" fn(wakeup_id: WakeupId, cookie: i32),
 >;
 /**! Registers a WakeupHandler to be called when wakeup events occur.
 ! @note The handler is only called for wakeup events which occur while the app is already running;
-!       use \ref launch_reason() === \ref APP_LAUNCH_WAKEUP to detect when the app was launched by a wakeup event.
+!       use @c launch_reason() === \ref APP_LAUNCH_WAKEUP to detect when the app was launched by a wakeup event.
 ! @param handler The callback that gets called when the wakeup event occurs*/
 /** wakeup_service_subscribe
   -> Added in 24
@@ -5254,7 +5270,7 @@ pub unsafe extern "C" fn wakeup_cancel_all() {
     )
 }
 /**! Retrieves the wakeup event info for an app that was launched
-! by a wakeup_event (ie. \ref launch_reason() === APP_LAUNCH_WAKEUP)
+! by a wakeup_event (ie. @c launch_reason() === APP_LAUNCH_WAKEUP)
 ! so that an app may display information regarding the wakeup event
 ! @param wakeup_id WakeupId for the wakeup event that caused the app to wakeup
 ! @param cookie App provided reason for the wakeup event
@@ -5850,8 +5866,7 @@ pub unsafe extern "C" fn grect_is_empty(rect: *const GRect) -> bool {
 ! the origin will offset, so that the final rectangle overlaps with the original.
 ! For example, a GRect with size (-10, -5) and origin (20, 20), will be standardized
 ! to size (10, 5) and origin (10, 15).
-! @param[in] rect The rectangle to convert.
-! @param[out] rect The standardized rectangle.*/
+! @param[in,out] rect The rectangle to convert, set to the standardized rectangle.*/
 /** grect_standardize
   -> Added in 0
 gneiss: Vtable Slot 133, Offset 532*/
@@ -5864,8 +5879,7 @@ pub unsafe extern "C" fn grect_standardize(rect: *mut GRect) {
     )
 }
 /**! Trim one rectangle using the edges of a second rectangle.
-! @param[in] rect_to_clip The rectangle that needs to be clipped (in place).
-! @param[out] rect_to_clip The clipped rectangle.
+! @param[in,out] rect_to_clip The rectangle that needs to be clipped (in place).
 ! @param rect_clipper The rectangle of which the edges will serve as "scissors"
 ! in order to trim `rect_to_clip`.*/
 /** grect_clip
@@ -6583,8 +6597,8 @@ pub type GAlign = ::core::ffi::c_uint;
 /**! Aligns one rectangle within another rectangle, using an alignment parameter.
 ! The relative coordinate systems of both rectangles are assumed to be the same.
 ! When clip is true, `rect` is also clipped by the constraint.
-! @param[in] rect The rectangle to align (in place)
-! @param[out] rect The aligned and optionally clipped rectangle
+! @param[in,out] rect The rectangle to align (in place), set to the aligned and
+! optionally clipped rectangle
 ! @param inside_rect The rectangle in which to align `rect`
 ! @param alignment Determines the alignment of `rect` within `inside_rect` by
 ! specifying what edges of should overlap.
@@ -7494,7 +7508,7 @@ pub unsafe extern "C" fn gdraw_command_get_point(
     )
 }
 /**! Set the radius of a circle command
-! @note This only works for commands of type \ref GDrawCommandCircle
+! @note This only works for commands of type \ref GDrawCommandTypeCircle
 ! @param command \ref GDrawCommand from which to set the circle radius
 ! @param radius The radius to set for the circle.*/
 /** gdraw_command_set_radius
@@ -7512,9 +7526,9 @@ pub unsafe extern "C" fn gdraw_command_set_radius(
     )
 }
 /**! Get the radius of a circle command.
-! @note this only works for commands of type\ref GDrawCommandCircle.
+! @note this only works for commands of type \ref GDrawCommandTypeCircle.
 ! @param command \ref GDrawCommand from which to get the circle radius
-! @return The radius in pixels if command is of type \ref GDrawCommandCircle*/
+! @return The radius in pixels if command is of type \ref GDrawCommandTypeCircle*/
 /** gdraw_command_get_radius
   -> Added in 48
 gneiss: Vtable Slot 483, Offset 1932*/
@@ -7527,8 +7541,8 @@ pub unsafe extern "C" fn gdraw_command_get_radius(command: *mut GDrawCommand) ->
     )
 }
 /**! Set the path of a stroke command to be open
-! @note This only works for commands of type \ref GDrawCommandPath and
-! \ref GDrawCommandPrecisePath
+! @note This only works for commands of type \ref GDrawCommandTypePath and
+! \ref GDrawCommandTypePrecisePath
 ! @param command \ref GDrawCommand for which to set the path open status
 ! @param path_open true if path should be hidden*/
 /** gdraw_command_set_path_open
@@ -7546,8 +7560,8 @@ pub unsafe extern "C" fn gdraw_command_set_path_open(
     )
 }
 /**! Return whether a stroke command path is open
-! @note This only works for commands of type \ref GDrawCommandPath and
-! \ref GDrawCommandPrecisePath
+! @note This only works for commands of type \ref GDrawCommandTypePath and
+! \ref GDrawCommandTypePrecisePath
 ! @param command \ref GDrawCommand from which to get the path open status
 ! @return true if the path is open*/
 /** gdraw_command_get_path_open
@@ -7868,7 +7882,7 @@ pub unsafe extern "C" fn gdraw_command_sequence_clone(
     )
 }
 /**! Deletes the \ref GDrawCommandSequence structure and frees associated data
-! @param image Pointer to the sequence to destroy*/
+! @param sequence Pointer to the sequence to destroy*/
 /** gdraw_command_sequence_destroy
   -> Added in 48
 gneiss: Vtable Slot 500, Offset 2000*/
@@ -8284,7 +8298,7 @@ pub unsafe extern "C" fn fonts_get_system_font(
 }
 /**! Loads a custom font.
 ! @param handle The resource handle of the font to load. See resource_ids.auto.h
-! for a list of resource IDs, and use \ref resource_get_handle() to obtain the resource handle.
+! for a list of resource IDs, and use @c resource_get_handle() to obtain the resource handle.
 ! @return An opaque pointer to the loaded font, or a pointer to the default
 ! (fallback) font if the specified font cannot be loaded.
 ! @see Read the <a href="http://developer.getpebble.com/guides/pebble-apps/resources/">App
@@ -8784,7 +8798,7 @@ pub unsafe extern "C" fn smartstrap_service_is_available(
         ::shim::jump_to_pbl_function,
     )
 }
-/**! Returns the ServiceId which the attribute was created for (see \ref
+/**! Returns the ServiceId which the attribute was created for (see @c
 ! smartstrap_attribute_create).
 ! @param attribute The SmartstrapAttribute for which to obtain the service ID.
 ! @returns The SmartstrapServiceId which the attribute was created with.*/
@@ -8801,7 +8815,7 @@ pub unsafe extern "C" fn smartstrap_attribute_get_service_id(
         ::shim::jump_to_pbl_function,
     )
 }
-/**! Gets the AttributeId which the attribute was created for (see \ref smartstrap_attribute_create).
+/**! Gets the AttributeId which the attribute was created for (see @c smartstrap_attribute_create).
 ! @param attribute The SmartstrapAttribute for which to obtain the attribute ID.
 ! @returns The SmartstrapAttributeId which the attribute was created with.*/
 /** smartstrap_attribute_get_attribute_id
@@ -9447,6 +9461,111 @@ pub unsafe extern "C" fn layer_get_data(
         ::shim::jump_to_pbl_function,
     )
 }
+/**! @addtogroup Recognizer Gesture Recognizers
+! \brief Low-level touch-gesture recognizers for building fully custom touch
+! interactions on touch-capable hardware.
+!
+! A recognizer watches the raw touch stream for one gesture — a tap, a pan
+! (single-axis drag) or a swipe — and calls a \ref RecognizerEventCb as the
+! gesture progresses. Create one with a per-gesture constructor
+! (\ref tap_recognizer_create, \ref pan_recognizer_create,
+! \ref swipe_recognizer_create), attach it to a \ref Window, and read the
+! current gesture data from the event callback. Recognizers are the building
+! block for a custom scroll or drag.
+!
+! For an ordinary scrollable list you do not need recognizers at all: on touch
+! hardware \ref MenuLayer already scrolls by touch. Reach for recognizers to
+! build an interaction the built-in list does not give you — a custom menu, a
+! drag, or acting on a raw tap or swipe. Note that a bare \ref ScrollLayer does
+! not scroll by touch on its own; you drive it with a pan recognizer, as below.
+!
+! <h3>Usage example: scrolling a custom menu</h3>
+! A \ref ScrollLayer holds your own content but does not scroll by touch by
+! itself. Attach a vertical pan recognizer to the window and feed its delta into
+! \ref scroll_layer_set_content_offset() to scroll the content by finger:
+! \code{.c}
+! static ScrollLayer *s_scroll;
+! static int16_t s_base;  // content offset committed on Complete
+!
+! static void pan_handler(const Recognizer *recognizer, RecognizerEvent event) {
+!   switch (event) {
+!     case RecognizerEvent_Updated: {
+!       // delta_since_start is (0, 0) at Start, so the content does not jump.
+!       GPoint d = pan_recognizer_get_delta_since_start(recognizer);
+!       scroll_layer_set_content_offset(s_scroll, GPoint(0, s_base + d.y), false);
+!       break;
+!     }
+!     case RecognizerEvent_Completed:
+!       s_base = scroll_layer_get_content_offset(s_scroll).y;  // commit
+!       break;
+!     case RecognizerEvent_Cancelled:
+!       scroll_layer_set_content_offset(s_scroll, GPoint(0, s_base), true);  // roll back
+!       break;
+!     default:
+!       break;
+!   }
+! }
+!
+! static void window_load(Window *window) {
+!   Layer *root = window_get_root_layer(window);
+!   s_scroll = scroll_layer_create(layer_get_bounds(root));
+!   scroll_layer_set_content_size(s_scroll, GSize(layer_get_bounds(root).size.w,
+!                                                 total_content_height));
+!   // Add your custom row layers as children of s_scroll here.
+!   layer_add_child(root, scroll_layer_get_layer(s_scroll));
+!
+!   // The window owns the recognizer and destroys it when the window unloads.
+!   Recognizer *pan = pan_recognizer_create(pan_handler, NULL, PanAxis_Vertical);
+!   window_attach_recognizer(window, pan);
+! }
+! \endcode
+! While the global system recognizer set is live, attaching alone is not enough:
+! a window opts out of it with window_set_touch_bridge_disabled() (added by the
+! touch-bridge change) so its own recognizers receive the touch stream.
+! @{*/
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct Recognizer {
+    _unused: [u8; 0],
+}
+pub const RecognizerEventType_RecognizerEvent_Started: RecognizerEventType = 0;
+pub const RecognizerEventType_RecognizerEvent_Updated: RecognizerEventType = 1;
+pub const RecognizerEventType_RecognizerEvent_Completed: RecognizerEventType = 2;
+pub const RecognizerEventType_RecognizerEvent_Cancelled: RecognizerEventType = 3;
+pub type RecognizerEventType = ::core::ffi::c_uint;
+pub use self::RecognizerEventType as RecognizerEvent;
+/**! User event callback. When a recognizer changes state to any state other than the failed state
+! the user callback of this type will be called.
+! @param recognizer recognizer affected by the event
+! @param event_type event that occurred*/
+pub type RecognizerEventCb = ::core::option::Option<
+    unsafe extern "C" fn(recognizer: *const Recognizer, event_type: RecognizerEvent),
+>;
+/**! This function is called to determine whether \a recognizer should be evaluated simultaneously
+! with \a simultaneous_with
+! @param recognizer recognizer to be tested
+! @param simultaneous_with recognizer with which \a recognizer would be evaluated simultaneously
+! should this test pass
+! @return true if recognizers should be evaluated simultaneously*/
+pub type RecognizerSimultaneousWithCb = ::core::option::Option<
+    unsafe extern "C" fn(
+        recognizer: *const Recognizer,
+        simultaneous_with: *const Recognizer,
+    ) -> bool,
+>;
+pub const PanAxis_PanAxis_Horizontal: PanAxis = 0;
+pub const PanAxis_PanAxis_Vertical: PanAxis = 1;
+/**! Axis to which a pan recognizer is locked. A pan is only recognized when the
+! finger moves unambiguously along this axis.*/
+pub type PanAxis = ::core::ffi::c_uint;
+pub const SwipeDirection_SwipeDirection_None: SwipeDirection = 0;
+pub const SwipeDirection_SwipeDirection_Up: SwipeDirection = 1;
+pub const SwipeDirection_SwipeDirection_Down: SwipeDirection = 2;
+pub const SwipeDirection_SwipeDirection_Left: SwipeDirection = 4;
+pub const SwipeDirection_SwipeDirection_Right: SwipeDirection = 8;
+/**! Swipe direction, also used as a bitmask when configuring which directions a swipe recognizer
+! accepts. Screen coordinates grow downward, so a positive y delta is a downward swipe.*/
+pub type SwipeDirection = ::core::ffi::c_uint;
 /**! Function signature for a handler that deals with transition events of a window.
 ! @see WindowHandlers
 ! @see \ref window_set_window_handlers()*/
@@ -10808,8 +10927,8 @@ pub unsafe extern "C" fn property_animation_create_layer_frame(
 ! layer_get_bounds() as accessors and uses the `layer` parameter as the subject for the animation.
 ! The same defaults are used as with \ref animation_create().
 ! @param layer the layer that will be animated
-! @param from_origin the origin that the bounds should animate from
-! @param to_origin the origin that the layer should animate to
+! @param from the origin that the bounds should animate from
+! @param to the origin that the layer should animate to
 ! @return A handle to the property animation. `NULL` if animation could not be created*/
 /** property_animation_create_bounds_origin
   -> Added in 48
@@ -12665,7 +12784,7 @@ pub struct MenuLayerCallbacks {
     pub get_num_rows: MenuLayerGetNumberOfRowsInSectionsCallback,
     /**! Callback that gets called to get the height of a cell.
 ! This can get called at various moments throughout the life of a menu.
-! @note When `NULL`, the default height of \ref MENU_CELL_BASIC_CELL_HEIGHT pixels is used.
+! @note When `NULL`, the default height of @c MENU_CELL_BASIC_CELL_HEIGHT pixels is used.
 ! Developers may wish to use \ref MENU_CELL_ROUND_FOCUSED_SHORT_CELL_HEIGHT
 ! and \ref MENU_CELL_ROUND_UNFOCUSED_SHORT_CELL_HEIGHT on a round display
 ! to respect the system aesthetic.*/
@@ -14500,7 +14619,7 @@ pub struct ActionMenu {
     _unused: [u8; 0],
 }
 /**! Callback executed after the ActionMenu has closed, so memory may be freed.
-! @param root_level the root level passed to the ActionMenu
+! @param menu the ActionMenu
 ! @param performed_action the ActionMenuItem for the action that was performed,
 ! NULL if the ActionMenu is closing without an action being selected by the user
 ! @param context the context passed to the ActionMenu*/
@@ -14533,7 +14652,7 @@ pub type ActionMenuPerformActionCb = ::core::option::Option<
 >;
 /**! Callback invoked for each item in an action menu hierarchy.
 ! @param item the current action menu item
-! @param a caller-provided context callback*/
+! @param context a caller-provided callback context*/
 pub type ActionMenuEachItemCb = ::core::option::Option<
     unsafe extern "C" fn(item: *const ActionMenuItem, context: *mut ::core::ffi::c_void),
 >;
@@ -14686,7 +14805,7 @@ pub unsafe extern "C" fn action_menu_item_get_label(
         ::shim::jump_to_pbl_function,
     )
 }
-/**! Getter for the action_data pointer of a given \ref ActionMenuitem.
+/**! Getter for the action_data pointer of a given \ref ActionMenuItem.
 ! @see action_menu_level_add_action
 ! @param item the \ref ActionMenuItem of interest
 ! @return a pointer to the data. NULL if invalid.*/
@@ -15437,19 +15556,15 @@ pub unsafe extern "C" fn difftime(end: time_t, beginning: time_t) -> f64 {
 }
 /**! Obtain the number of seconds and milliseconds part since the epoch.
 !   This is a non-standard C function provided for convenience.
-! @param tloc Optionally points to an address of a time_t variable to store the time in.
-!   You may pass NULL into tloc if you don't need a time_t variable to be set
-!   with the seconds since the epoch
-! @param out_ms Optionally points to an address of a uint16_t variable to store the
-!   number of milliseconds since the last second in.
-!   If you only want to use the return value, you may pass NULL into out_ms instead
-! @return The number of milliseconds since the last second*/
+! @param tloc if provided receives the current UTC Unix Time seconds portion
+! @param out_ms if provided receives the current Unix Time milliseconds portion
+! @return Current Unix Time milliseconds portion*/
 /** time_ms
   -> Added in 59
 gneiss: Vtable Slot 532, Offset 2128*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.time_ms")]
-pub unsafe extern "C" fn time_ms(t_utc: *mut time_t, out_ms: *mut u16) -> u16 {
+pub unsafe extern "C" fn time_ms(tloc: *mut time_t, out_ms: *mut u16) -> u16 {
     core::arch::naked_asm!(
         "push  {{r0-r3}}", "ldr   r1, =2128", "b     {resolver}", resolver = sym crate
         ::shim::jump_to_pbl_function,

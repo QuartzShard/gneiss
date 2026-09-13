@@ -122,6 +122,8 @@
 #define _PBL_API_EXISTS_difftime
 #define _PBL_API_EXISTS_time_ms
 #define _PBL_API_EXISTS_time_start_of_today
+#define _PBL_API_EXISTS_health_service_peek_hrv_ppi_ms
+#define _PBL_API_EXISTS_health_service_set_hrv_sample_period
 
 //! @addtogroup Misc
 //! @{

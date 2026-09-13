@@ -48,6 +48,7 @@
 #define _PBL_API_EXISTS_touch_service_subscribe
 #define _PBL_API_EXISTS_touch_service_unsubscribe
 #define _PBL_API_EXISTS_touch_service_is_enabled
+#define _PBL_API_EXISTS_app_touch_navigation_enable
 #define _PBL_API_EXISTS_health_service_sum
 #define _PBL_API_EXISTS_health_service_sum_today
 #define _PBL_API_EXISTS_health_service_peek_current_value
@@ -326,12 +327,28 @@
 #define _PBL_API_EXISTS_layer_set_clips
 #define _PBL_API_EXISTS_layer_get_clips
 #define _PBL_API_EXISTS_layer_get_data
+#define _PBL_API_EXISTS_tap_recognizer_create
+#define _PBL_API_EXISTS_pan_recognizer_create
+#define _PBL_API_EXISTS_swipe_recognizer_create
+#define _PBL_API_EXISTS_tap_recognizer_get_tap_point
+#define _PBL_API_EXISTS_pan_recognizer_get_total_delta
+#define _PBL_API_EXISTS_pan_recognizer_get_delta_since_start
+#define _PBL_API_EXISTS_pan_recognizer_get_delta_since_prev
+#define _PBL_API_EXISTS_pan_recognizer_get_velocity
+#define _PBL_API_EXISTS_swipe_recognizer_get_direction
+#define _PBL_API_EXISTS_swipe_recognizer_get_velocity
+#define _PBL_API_EXISTS_recognizer_destroy
+#define _PBL_API_EXISTS_recognizer_set_simultaneous_with
+#define _PBL_API_EXISTS_recognizer_set_fail_after
 #define _PBL_API_EXISTS_window_create
 #define _PBL_API_EXISTS_window_destroy
 #define _PBL_API_EXISTS_window_set_click_config_provider
 #define _PBL_API_EXISTS_window_set_click_config_provider_with_context
 #define _PBL_API_EXISTS_window_get_click_config_provider
 #define _PBL_API_EXISTS_window_get_click_config_context
+#define _PBL_API_EXISTS_window_attach_recognizer
+#define _PBL_API_EXISTS_window_detach_recognizer
+#define _PBL_API_EXISTS_window_set_touch_bridge_disabled
 #define _PBL_API_EXISTS_window_set_window_handlers
 #define _PBL_API_EXISTS_window_get_root_layer
 #define _PBL_API_EXISTS_window_set_background_color
@@ -550,6 +567,8 @@
 #define _PBL_API_EXISTS_difftime
 #define _PBL_API_EXISTS_time_ms
 #define _PBL_API_EXISTS_time_start_of_today
+#define _PBL_API_EXISTS_health_service_peek_hrv_ppi_ms
+#define _PBL_API_EXISTS_health_service_set_hrv_sample_period
 
 //! @addtogroup Misc
 //! @{

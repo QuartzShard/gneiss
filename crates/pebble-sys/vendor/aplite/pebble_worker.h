@@ -333,7 +333,7 @@ bool connection_service_peek_pebblekit_connection(void);
 //! Subscribe to the connection event service. Once subscribed, the appropriate
 //! handler gets called based on the type of connection event and user provided
 //! handlers
-//! @param ConnectionHandlers A struct populated with the handlers to
+//! @param conn_handlers A struct populated with the handlers to
 //! be called when the specified connection event occurs. If a given handler is
 //! NULL, no function will be called.
 void connection_service_subscribe(ConnectionHandlers conn_handlers);
@@ -896,7 +896,7 @@ HealthServiceAccessibilityMask health_service_metric_accessible(
 //! @param time_start Earliest UTC time you are interested in.
 //! @param time_end Latest UTC time you are interested in.
 //! @param scope \ref HealthServiceTimeScope value describing how the average should be computed.
-//! @return A \HealthServiceAccessibilityMask value decribing whether averaged data is available.
+//! @return A \ref HealthServiceAccessibilityMask value decribing whether averaged data is available.
 HealthServiceAccessibilityMask health_service_metric_averaged_accessible(
     HealthMetric metric, time_t time_start, time_t time_end, HealthServiceTimeScope scope);
 
@@ -930,6 +930,8 @@ typedef enum {
   HealthEventMetricAlert = 3,
   //! Value of \ref HealthMetricHeartRateBPM or \ref HealthMetricHeartRateRawBPM has changed.
   HealthEventHeartRateUpdate = 4,
+  //! A new HRV peak-to-peak interval reading is available.
+  HealthEventHRVUpdate = 5,
 } HealthEventType;
 
 //! Developer-supplied event handler, called when a health-related event occurs after subscribing
@@ -1619,8 +1621,7 @@ DictionaryResult dict_serialize_tuplets(DictionarySerializeCallback callback, vo
 //! @param tuplets The array of tuplets
 //! @param tuplets_count The number of tuplets in the array
 //! @param buffer The buffer in which to write the serialized dictionary
-//! @param [in] size_in_out The available buffer size in bytes
-//! @param [out] size_in_out The number of bytes written
+//! @param [in,out] size_in_out In: the available buffer size in bytes. Out: the number of bytes written.
 //! @return \ref DICT_OK, \ref DICT_NOT_ENOUGH_STORAGE or \ref DICT_INVALID_ARGS
 DictionaryResult dict_serialize_tuplets_to_buffer(const Tuplet * const tuplets, const uint8_t tuplets_count, uint8_t *buffer, uint32_t *size_in_out);
 
@@ -1629,8 +1630,7 @@ DictionaryResult dict_serialize_tuplets_to_buffer(const Tuplet * const tuplets, 
 //! @param tuplets The array of tuplets
 //! @param tuplets_count The number of tuplets in the array
 //! @param buffer The buffer in which to write the serialized dictionary
-//! @param [in] size_in_out The available buffer size in bytes
-//! @param [out] size_in_out The number of bytes written
+//! @param [in,out] size_in_out In: the available buffer size in bytes. Out: the number of bytes written.
 //! @return \ref DICT_OK, \ref DICT_NOT_ENOUGH_STORAGE or \ref DICT_INVALID_ARGS
 DictionaryResult dict_serialize_tuplets_to_buffer_with_iter(DictionaryIterator *iter, const Tuplet * const tuplets, const uint8_t tuplets_count, uint8_t *buffer, uint32_t *size_in_out);
 
@@ -1656,7 +1656,7 @@ uint32_t dict_calc_buffer_size_from_tuplets(const Tuplet * const tuplets, const 
 //! Therefore the Tuple can be used after the callback returns, until the destination dictionary
 //! storage is free'd (by the application itself).
 //! @param old_tuple The values that will be replaced with `new_tuple`. The key, value and type will be
-//! equal to the previous tuple in the old destination dictionary, however the `old_tuple points
+//! equal to the previous tuple in the old destination dictionary, however the `old_tuple` points
 //! to a stack-allocated copy of the old data.
 //! @param context Pointer to application specific data
 //! The storage backing `old_tuple` can only be used during the callback and
@@ -2030,7 +2030,8 @@ struct tm {
   int tm_yday;    /*!< Days in year.[0-365] */
   int tm_isdst;   /*!< DST. [-1/0/1] */
 
-  int tm_gmtoff;  /*!< Seconds east of UTC */
+  int tm_gmtoff;  /*!< Total seconds east of UTC, DST included. tm_isdst is an indicator only --
+                       never add it to this value. */
   char tm_zone[TZ_LEN]; /*!< Timezone abbreviation */
 };
 
@@ -2084,14 +2085,10 @@ double difftime(time_t end, time_t beginning);
 
 //! Obtain the number of seconds and milliseconds part since the epoch.
 //!   This is a non-standard C function provided for convenience.
-//! @param tloc Optionally points to an address of a time_t variable to store the time in.
-//!   You may pass NULL into tloc if you don't need a time_t variable to be set
-//!   with the seconds since the epoch
-//! @param out_ms Optionally points to an address of a uint16_t variable to store the
-//!   number of milliseconds since the last second in.
-//!   If you only want to use the return value, you may pass NULL into out_ms instead
-//! @return The number of milliseconds since the last second
-uint16_t time_ms(time_t *t_utc, uint16_t *out_ms);
+//! @param tloc if provided receives the current UTC Unix Time seconds portion
+//! @param out_ms if provided receives the current Unix Time milliseconds portion
+//! @return Current Unix Time milliseconds portion
+uint16_t time_ms(time_t *tloc, uint16_t *out_ms);
 
 //! Return the UTC time that corresponds to the start of today (midnight).
 //! @return the UTC time corresponding to the start of today (midnight)
@@ -2100,4 +2097,8 @@ time_t time_start_of_today(void);
 //! @} // group StandardTime
 
 //! @} // group StandardC
+
+#define health_service_peek_hrv_ppi_ms(...) (0)
+
+#define health_service_set_hrv_sample_period(...) (0)
 
