@@ -2843,6 +2843,7 @@ pub unsafe extern "C" fn app_log(
     src_filename: *const ::core::ffi::c_char,
     src_line_number: ::core::ffi::c_int,
     fmt: *const ::core::ffi::c_char,
+    args: ...
 ) {
     core::arch::naked_asm!(
         "push  {{r0-r3}}", "ldr   r1, =136", "b     {resolver}", resolver = sym crate
@@ -3167,7 +3168,7 @@ fn bindgen_test_layout_DictionaryIterator() {
 gneiss: Vtable Slot 74, Offset 296*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.dict_calc_buffer_size")]
-pub unsafe extern "C" fn dict_calc_buffer_size(tuple_count: u8) -> u32 {
+pub unsafe extern "C" fn dict_calc_buffer_size(tuple_count: u8, args: ...) -> u32 {
     core::arch::naked_asm!(
         "push  {{r0-r3}}", "ldr   r1, =296", "b     {resolver}", resolver = sym crate
         ::shim::jump_to_pbl_function,
@@ -10381,6 +10382,7 @@ pub unsafe extern "C" fn animation_sequence_create(
     animation_a: *mut Animation,
     animation_b: *mut Animation,
     animation_c: *mut Animation,
+    args: ...
 ) -> *mut Animation {
     core::arch::naked_asm!(
         "push  {{r0-r3}}", "ldr   r1, =1712", "b     {resolver}", resolver = sym crate
@@ -10424,6 +10426,7 @@ pub unsafe extern "C" fn animation_spawn_create(
     animation_a: *mut Animation,
     animation_b: *mut Animation,
     animation_c: *mut Animation,
+    args: ...
 ) -> *mut Animation {
     core::arch::naked_asm!(
         "push  {{r0-r3}}", "ldr   r1, =1732", "b     {resolver}", resolver = sym crate

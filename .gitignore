@@ -1,1 +1,3 @@
 target
+.rust-analyzer.json
+bacon.toml

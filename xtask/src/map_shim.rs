@@ -2,6 +2,7 @@ use std::{collections::HashMap, path::Path};
 
 use color_eyre::{Result, eyre::bail};
 use pebble_types::Platform;
+use quote::quote;
 
 use crate::exported_symbols::{Export, ExportedSymbols, Flag, Function};
 
@@ -168,7 +169,9 @@ fn map_fn(
 		log::info!(target: &format!("xtask::map_shim::{platform}"),"Shimming `{ident}` at slot {index}");
 		let fn_ident = &sig.ident;
 		let fn_args = &sig.inputs;
+		let fn_variadic = &sig.variadic.as_ref().map(|_| quote!(args: ...));
 		let fn_ret = &sig.output;
+
 		let fn_doc = format!(
 			" {}\ngneiss: Vtable Slot {index}, Offset {}",
 			exported_fn,
@@ -191,7 +194,7 @@ fn map_fn(
 			#(#doc_attrs)*
 			#[unsafe(naked)]
 			#[unsafe(link_section = #link_section)]
-			pub unsafe extern "C" fn #fn_ident(#fn_args) #fn_ret {
+			pub unsafe extern "C" fn #fn_ident(#fn_args #fn_variadic) #fn_ret {
 				core::arch::naked_asm!(
 					"push  {{r0-r3}}",
 					#index_op,

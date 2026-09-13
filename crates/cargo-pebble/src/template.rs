@@ -256,10 +256,10 @@ impl NewProject {
 			#![no_std]
 			#![no_main]
 
+			#[doc = " See pebble_sys::panic for options"]
 			#[panic_handler]
-			fn pbl_panic(_info: &core::panic::PanicInfo<'_>) -> ! {
-				unsafe { core::arch::asm!("udf 0") };
-				loop {}
+			fn pbl_panic(info: &core::panic::PanicInfo<'_>) -> ! {
+				panic::panic_minimal(info)
 			}
 
 			#includes

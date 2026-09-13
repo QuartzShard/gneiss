@@ -16,6 +16,7 @@ mutually_exclusive_features::exactly_one_of!(
 	"emery", "flint", "gabbro", "aplite", "basalt", "chalk", "diorite"
 );
 
+pub mod panic;
 mod shim;
 
 // Shut up, clippy! We don't care that bindgen outputs messy code.
