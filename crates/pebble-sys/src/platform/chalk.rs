@@ -16,10 +16,7 @@ where
     Storage: AsRef<[u8]> + AsMut<[u8]>,
 {
     #[inline]
-    pub fn get_bit(&self, index: usize) -> bool {
-        debug_assert!(index / 8 < self.storage.as_ref().len());
-        let byte_index = index / 8;
-        let byte = self.storage.as_ref()[byte_index];
+    fn extract_bit(byte: u8, index: usize) -> bool {
         let bit_index = if cfg!(target_endian = "big") {
             7 - (index % 8)
         } else {
@@ -29,39 +26,115 @@ where
         byte & mask == mask
     }
     #[inline]
-    pub fn set_bit(&mut self, index: usize, val: bool) {
+    pub fn get_bit(&self, index: usize) -> bool {
         debug_assert!(index / 8 < self.storage.as_ref().len());
         let byte_index = index / 8;
-        let byte = &mut self.storage.as_mut()[byte_index];
+        let byte = self.storage.as_ref()[byte_index];
+        Self::extract_bit(byte, index)
+    }
+    #[inline]
+    pub unsafe fn raw_get_bit(this: *const Self, index: usize) -> bool {
+        debug_assert!(index / 8 < core::mem::size_of::< Storage > ());
+        let byte_index = index / 8;
+        let byte = unsafe {
+            *(core::ptr::addr_of!((* this).storage) as *const u8)
+                .offset(byte_index as isize)
+        };
+        Self::extract_bit(byte, index)
+    }
+    #[inline]
+    fn change_bit(byte: u8, index: usize, val: bool) -> u8 {
         let bit_index = if cfg!(target_endian = "big") {
             7 - (index % 8)
         } else {
             index % 8
         };
         let mask = 1 << bit_index;
-        if val {
-            *byte |= mask;
-        } else {
-            *byte &= !mask;
-        }
+        if val { byte | mask } else { byte & !mask }
+    }
+    #[inline]
+    pub fn set_bit(&mut self, index: usize, val: bool) {
+        debug_assert!(index / 8 < self.storage.as_ref().len());
+        let byte_index = index / 8;
+        let byte = &mut self.storage.as_mut()[byte_index];
+        *byte = Self::change_bit(*byte, index, val);
+    }
+    #[inline]
+    pub unsafe fn raw_set_bit(this: *mut Self, index: usize, val: bool) {
+        debug_assert!(index / 8 < core::mem::size_of::< Storage > ());
+        let byte_index = index / 8;
+        let byte = unsafe {
+            (core::ptr::addr_of_mut!((* this).storage) as *mut u8)
+                .offset(byte_index as isize)
+        };
+        unsafe { *byte = Self::change_bit(*byte, index, val) };
     }
     #[inline]
     pub fn get(&self, bit_offset: usize, bit_width: u8) -> u64 {
         debug_assert!(bit_width <= 64);
         debug_assert!(bit_offset / 8 < self.storage.as_ref().len());
         debug_assert!(
-            (bit_offset + (bit_width as usize)) / 8 <= self.storage.as_ref().len(),
+            (bit_offset + (bit_width as usize) + 7) / 8 <= self.storage.as_ref().len()
         );
-        let mut val = 0;
-        for i in 0..(bit_width as usize) {
-            if self.get_bit(i + bit_offset) {
-                let index = if cfg!(target_endian = "big") {
-                    bit_width as usize - 1 - i
-                } else {
-                    i
-                };
-                val |= 1 << index;
+        if bit_width == 0 {
+            return 0;
+        }
+        let mut val = 0u64;
+        let storage = self.storage.as_ref();
+        let start_byte = bit_offset / 8;
+        let bit_shift = bit_offset % 8;
+        let bytes_needed = (bit_width as usize + bit_shift + 7) / 8;
+        if cfg!(target_endian = "big") {
+            for i in 0..bytes_needed {
+                val |= (storage[start_byte + i].reverse_bits() as u64) << (i * 8);
             }
+        } else {
+            for i in 0..bytes_needed {
+                val |= (storage[start_byte + i] as u64) << (i * 8);
+            }
+        }
+        val >>= bit_shift;
+        if bit_width < 64 {
+            val &= (1u64 << bit_width) - 1;
+        }
+        if cfg!(target_endian = "big") {
+            val = val.reverse_bits() >> (64 - bit_width as usize);
+        }
+        val
+    }
+    #[inline]
+    pub unsafe fn raw_get(this: *const Self, bit_offset: usize, bit_width: u8) -> u64 {
+        debug_assert!(bit_width <= 64);
+        debug_assert!(bit_offset / 8 < core::mem::size_of::< Storage > ());
+        debug_assert!(
+            (bit_offset + (bit_width as usize) + 7) / 8 <= core::mem::size_of::< Storage
+            > ()
+        );
+        if bit_width == 0 {
+            return 0;
+        }
+        let mut val = 0u64;
+        let start_byte = bit_offset / 8;
+        let bit_shift = bit_offset % 8;
+        let bytes_needed = (bit_width as usize + bit_shift + 7) / 8;
+        let storage_ptr = unsafe { core::ptr::addr_of!((* this).storage) as *const u8 };
+        if cfg!(target_endian = "big") {
+            for i in 0..bytes_needed {
+                let byte = unsafe { *storage_ptr.add(start_byte + i) };
+                val |= (byte.reverse_bits() as u64) << (i * 8);
+            }
+        } else {
+            for i in 0..bytes_needed {
+                let byte = unsafe { *storage_ptr.add(start_byte + i) };
+                val |= (byte as u64) << (i * 8);
+            }
+        }
+        val >>= bit_shift;
+        if bit_width < 64 {
+            val &= (1u64 << bit_width) - 1;
+        }
+        if cfg!(target_endian = "big") {
+            val = val.reverse_bits() >> (64 - bit_width as usize);
         }
         val
     }
@@ -70,17 +143,369 @@ where
         debug_assert!(bit_width <= 64);
         debug_assert!(bit_offset / 8 < self.storage.as_ref().len());
         debug_assert!(
-            (bit_offset + (bit_width as usize)) / 8 <= self.storage.as_ref().len(),
+            (bit_offset + (bit_width as usize) + 7) / 8 <= self.storage.as_ref().len()
         );
-        for i in 0..(bit_width as usize) {
-            let mask = 1 << i;
-            let val_bit_is_set = val & mask == mask;
-            let index = if cfg!(target_endian = "big") {
-                bit_width as usize - 1 - i
+        if bit_width == 0 {
+            return;
+        }
+        let mut val = val;
+        if bit_width < 64 {
+            val &= (1u64 << bit_width) - 1;
+        }
+        if cfg!(target_endian = "big") {
+            val = val.reverse_bits() >> (64 - bit_width as usize);
+        }
+        let storage = self.storage.as_mut();
+        let start_byte = bit_offset / 8;
+        let bit_shift = bit_offset % 8;
+        let bytes_needed = (bit_width as usize + bit_shift + 7) / 8;
+        val <<= bit_shift;
+        let field_mask = if bit_width as usize + bit_shift >= 64 {
+            !0u64 << bit_shift
+        } else {
+            ((1u64 << bit_width) - 1) << bit_shift
+        };
+        for i in 0..bytes_needed {
+            let byte_val = (val >> (i * 8)) as u8;
+            let byte_mask = (field_mask >> (i * 8)) as u8;
+            if cfg!(target_endian = "big") {
+                let byte = storage[start_byte + i].reverse_bits();
+                let new_byte = (byte & !byte_mask) | (byte_val & byte_mask);
+                storage[start_byte + i] = new_byte.reverse_bits();
             } else {
-                i
+                storage[start_byte + i] = (storage[start_byte + i] & !byte_mask)
+                    | (byte_val & byte_mask);
+            }
+        }
+    }
+    #[inline]
+    pub unsafe fn raw_set(this: *mut Self, bit_offset: usize, bit_width: u8, val: u64) {
+        debug_assert!(bit_width <= 64);
+        debug_assert!(bit_offset / 8 < core::mem::size_of::< Storage > ());
+        debug_assert!(
+            (bit_offset + (bit_width as usize) + 7) / 8 <= core::mem::size_of::< Storage
+            > ()
+        );
+        if bit_width == 0 {
+            return;
+        }
+        let mut val = val;
+        if bit_width < 64 {
+            val &= (1u64 << bit_width) - 1;
+        }
+        if cfg!(target_endian = "big") {
+            val = val.reverse_bits() >> (64 - bit_width as usize);
+        }
+        let start_byte = bit_offset / 8;
+        let bit_shift = bit_offset % 8;
+        let bytes_needed = (bit_width as usize + bit_shift + 7) / 8;
+        val <<= bit_shift;
+        let field_mask = if bit_width as usize + bit_shift >= 64 {
+            !0u64 << bit_shift
+        } else {
+            ((1u64 << bit_width) - 1) << bit_shift
+        };
+        let storage_ptr = unsafe {
+            core::ptr::addr_of_mut!((* this).storage) as *mut u8
+        };
+        for i in 0..bytes_needed {
+            let byte_val = (val >> (i * 8)) as u8;
+            let byte_mask = (field_mask >> (i * 8)) as u8;
+            let byte_ptr = unsafe { storage_ptr.add(start_byte + i) };
+            if cfg!(target_endian = "big") {
+                let byte = unsafe { (*byte_ptr).reverse_bits() };
+                let new_byte = (byte & !byte_mask) | (byte_val & byte_mask);
+                unsafe { *byte_ptr = new_byte.reverse_bits() };
+            } else {
+                unsafe { *byte_ptr = (*byte_ptr & !byte_mask) | (byte_val & byte_mask) };
+            }
+        }
+    }
+}
+/// Const-generic methods for efficient bitfield access when offset and width
+/// are known at compile time.
+impl<const N: usize> __BindgenBitfieldUnit<[u8; N]> {
+    /// Get a field using const generics for compile-time optimization.
+    /// Uses native word size operations when the field fits in usize.
+    #[inline]
+    pub const fn get_const<const BIT_OFFSET: usize, const BIT_WIDTH: u8>(&self) -> u64 {
+        debug_assert!(BIT_WIDTH <= 64);
+        debug_assert!(BIT_OFFSET / 8 < N);
+        debug_assert!((BIT_OFFSET + (BIT_WIDTH as usize) + 7) / 8 <= N);
+        if BIT_WIDTH == 0 {
+            return 0;
+        }
+        let start_byte = BIT_OFFSET / 8;
+        let bit_shift = BIT_OFFSET % 8;
+        let bytes_needed = (BIT_WIDTH as usize + bit_shift + 7) / 8;
+        if BIT_WIDTH as usize + bit_shift <= usize::BITS as usize {
+            let mut val = 0usize;
+            if cfg!(target_endian = "big") {
+                let mut i = 0;
+                while i < bytes_needed {
+                    val
+                        |= (self.storage[start_byte + i].reverse_bits() as usize)
+                            << (i * 8);
+                    i += 1;
+                }
+            } else {
+                let mut i = 0;
+                while i < bytes_needed {
+                    val |= (self.storage[start_byte + i] as usize) << (i * 8);
+                    i += 1;
+                }
+            }
+            val >>= bit_shift;
+            if (BIT_WIDTH as u32) < usize::BITS {
+                val &= (1usize << BIT_WIDTH) - 1;
+            }
+            if cfg!(target_endian = "big") {
+                val = val.reverse_bits() >> (usize::BITS as usize - BIT_WIDTH as usize);
+            }
+            val as u64
+        } else {
+            let mut val = 0u64;
+            if cfg!(target_endian = "big") {
+                let mut i = 0;
+                while i < bytes_needed {
+                    val
+                        |= (self.storage[start_byte + i].reverse_bits() as u64)
+                            << (i * 8);
+                    i += 1;
+                }
+            } else {
+                let mut i = 0;
+                while i < bytes_needed {
+                    val |= (self.storage[start_byte + i] as u64) << (i * 8);
+                    i += 1;
+                }
+            }
+            val >>= bit_shift;
+            if BIT_WIDTH < 64 {
+                val &= (1u64 << BIT_WIDTH) - 1;
+            }
+            if cfg!(target_endian = "big") {
+                val = val.reverse_bits() >> (64 - BIT_WIDTH as usize);
+            }
+            val
+        }
+    }
+    /// Set a field using const generics for compile-time optimization.
+    /// Uses native word size operations when the field fits in usize.
+    #[inline]
+    pub fn set_const<const BIT_OFFSET: usize, const BIT_WIDTH: u8>(&mut self, val: u64) {
+        debug_assert!(BIT_WIDTH <= 64);
+        debug_assert!(BIT_OFFSET / 8 < N);
+        debug_assert!((BIT_OFFSET + (BIT_WIDTH as usize) + 7) / 8 <= N);
+        if BIT_WIDTH == 0 {
+            return;
+        }
+        let start_byte = BIT_OFFSET / 8;
+        let bit_shift = BIT_OFFSET % 8;
+        let bytes_needed = (BIT_WIDTH as usize + bit_shift + 7) / 8;
+        if BIT_WIDTH as usize + bit_shift <= usize::BITS as usize {
+            let mut val = val as usize;
+            if (BIT_WIDTH as u32) < usize::BITS {
+                val &= (1usize << BIT_WIDTH) - 1;
+            }
+            if cfg!(target_endian = "big") {
+                val = val.reverse_bits() >> (usize::BITS as usize - BIT_WIDTH as usize);
+            }
+            val <<= bit_shift;
+            let field_mask = if BIT_WIDTH as usize + bit_shift >= usize::BITS as usize {
+                !0usize << bit_shift
+            } else {
+                ((1usize << BIT_WIDTH) - 1) << bit_shift
             };
-            self.set_bit(index + bit_offset, val_bit_is_set);
+            let mut i = 0;
+            while i < bytes_needed {
+                let byte_val = (val >> (i * 8)) as u8;
+                let byte_mask = (field_mask >> (i * 8)) as u8;
+                if cfg!(target_endian = "big") {
+                    let byte = self.storage[start_byte + i].reverse_bits();
+                    let new_byte = (byte & !byte_mask) | (byte_val & byte_mask);
+                    self.storage[start_byte + i] = new_byte.reverse_bits();
+                } else {
+                    self.storage[start_byte + i] = (self.storage[start_byte + i]
+                        & !byte_mask) | (byte_val & byte_mask);
+                }
+                i += 1;
+            }
+        } else {
+            let mut val = val;
+            if BIT_WIDTH < 64 {
+                val &= (1u64 << BIT_WIDTH) - 1;
+            }
+            if cfg!(target_endian = "big") {
+                val = val.reverse_bits() >> (64 - BIT_WIDTH as usize);
+            }
+            val <<= bit_shift;
+            let field_mask = if BIT_WIDTH as usize + bit_shift >= 64 {
+                !0u64 << bit_shift
+            } else {
+                ((1u64 << BIT_WIDTH) - 1) << bit_shift
+            };
+            let mut i = 0;
+            while i < bytes_needed {
+                let byte_val = (val >> (i * 8)) as u8;
+                let byte_mask = (field_mask >> (i * 8)) as u8;
+                if cfg!(target_endian = "big") {
+                    let byte = self.storage[start_byte + i].reverse_bits();
+                    let new_byte = (byte & !byte_mask) | (byte_val & byte_mask);
+                    self.storage[start_byte + i] = new_byte.reverse_bits();
+                } else {
+                    self.storage[start_byte + i] = (self.storage[start_byte + i]
+                        & !byte_mask) | (byte_val & byte_mask);
+                }
+                i += 1;
+            }
+        }
+    }
+    /// Raw pointer get using const generics for compile-time optimization.
+    /// Uses native word size operations when the field fits in usize.
+    #[inline]
+    pub const unsafe fn raw_get_const<const BIT_OFFSET: usize, const BIT_WIDTH: u8>(
+        this: *const Self,
+    ) -> u64 {
+        debug_assert!(BIT_WIDTH <= 64);
+        debug_assert!(BIT_OFFSET / 8 < N);
+        debug_assert!((BIT_OFFSET + (BIT_WIDTH as usize) + 7) / 8 <= N);
+        if BIT_WIDTH == 0 {
+            return 0;
+        }
+        let start_byte = BIT_OFFSET / 8;
+        let bit_shift = BIT_OFFSET % 8;
+        let bytes_needed = (BIT_WIDTH as usize + bit_shift + 7) / 8;
+        let storage_ptr = unsafe { core::ptr::addr_of!((* this).storage) as *const u8 };
+        if BIT_WIDTH as usize + bit_shift <= usize::BITS as usize {
+            let mut val = 0usize;
+            if cfg!(target_endian = "big") {
+                let mut i = 0;
+                while i < bytes_needed {
+                    let byte = unsafe { *storage_ptr.add(start_byte + i) };
+                    val |= (byte.reverse_bits() as usize) << (i * 8);
+                    i += 1;
+                }
+            } else {
+                let mut i = 0;
+                while i < bytes_needed {
+                    let byte = unsafe { *storage_ptr.add(start_byte + i) };
+                    val |= (byte as usize) << (i * 8);
+                    i += 1;
+                }
+            }
+            val >>= bit_shift;
+            if (BIT_WIDTH as u32) < usize::BITS {
+                val &= (1usize << BIT_WIDTH) - 1;
+            }
+            if cfg!(target_endian = "big") {
+                val = val.reverse_bits() >> (usize::BITS as usize - BIT_WIDTH as usize);
+            }
+            val as u64
+        } else {
+            let mut val = 0u64;
+            if cfg!(target_endian = "big") {
+                let mut i = 0;
+                while i < bytes_needed {
+                    let byte = unsafe { *storage_ptr.add(start_byte + i) };
+                    val |= (byte.reverse_bits() as u64) << (i * 8);
+                    i += 1;
+                }
+            } else {
+                let mut i = 0;
+                while i < bytes_needed {
+                    let byte = unsafe { *storage_ptr.add(start_byte + i) };
+                    val |= (byte as u64) << (i * 8);
+                    i += 1;
+                }
+            }
+            val >>= bit_shift;
+            if BIT_WIDTH < 64 {
+                val &= (1u64 << BIT_WIDTH) - 1;
+            }
+            if cfg!(target_endian = "big") {
+                val = val.reverse_bits() >> (64 - BIT_WIDTH as usize);
+            }
+            val
+        }
+    }
+    /// Raw pointer set using const generics for compile-time optimization.
+    /// Uses native word size operations when the field fits in usize.
+    #[inline]
+    pub unsafe fn raw_set_const<const BIT_OFFSET: usize, const BIT_WIDTH: u8>(
+        this: *mut Self,
+        val: u64,
+    ) {
+        debug_assert!(BIT_WIDTH <= 64);
+        debug_assert!(BIT_OFFSET / 8 < N);
+        debug_assert!((BIT_OFFSET + (BIT_WIDTH as usize) + 7) / 8 <= N);
+        if BIT_WIDTH == 0 {
+            return;
+        }
+        let start_byte = BIT_OFFSET / 8;
+        let bit_shift = BIT_OFFSET % 8;
+        let bytes_needed = (BIT_WIDTH as usize + bit_shift + 7) / 8;
+        let storage_ptr = this.cast::<[u8; N]>().cast::<u8>();
+        if BIT_WIDTH as usize + bit_shift <= usize::BITS as usize {
+            let mut val = val as usize;
+            if (BIT_WIDTH as u32) < usize::BITS {
+                val &= (1usize << BIT_WIDTH) - 1;
+            }
+            if cfg!(target_endian = "big") {
+                val = val.reverse_bits() >> (usize::BITS as usize - BIT_WIDTH as usize);
+            }
+            val <<= bit_shift;
+            let field_mask = if BIT_WIDTH as usize + bit_shift >= usize::BITS as usize {
+                !0usize << bit_shift
+            } else {
+                ((1usize << BIT_WIDTH) - 1) << bit_shift
+            };
+            let mut i = 0;
+            while i < bytes_needed {
+                let byte_val = (val >> (i * 8)) as u8;
+                let byte_mask = (field_mask >> (i * 8)) as u8;
+                let byte_ptr = unsafe { storage_ptr.add(start_byte + i) };
+                if cfg!(target_endian = "big") {
+                    let byte = unsafe { (*byte_ptr).reverse_bits() };
+                    let new_byte = (byte & !byte_mask) | (byte_val & byte_mask);
+                    unsafe { *byte_ptr = new_byte.reverse_bits() };
+                } else {
+                    unsafe {
+                        *byte_ptr = (*byte_ptr & !byte_mask) | (byte_val & byte_mask)
+                    };
+                }
+                i += 1;
+            }
+        } else {
+            let mut val = val;
+            if BIT_WIDTH < 64 {
+                val &= (1u64 << BIT_WIDTH) - 1;
+            }
+            if cfg!(target_endian = "big") {
+                val = val.reverse_bits() >> (64 - BIT_WIDTH as usize);
+            }
+            val <<= bit_shift;
+            let field_mask = if BIT_WIDTH as usize + bit_shift >= 64 {
+                !0u64 << bit_shift
+            } else {
+                ((1u64 << BIT_WIDTH) - 1) << bit_shift
+            };
+            let mut i = 0;
+            while i < bytes_needed {
+                let byte_val = (val >> (i * 8)) as u8;
+                let byte_mask = (field_mask >> (i * 8)) as u8;
+                let byte_ptr = unsafe { storage_ptr.add(start_byte + i) };
+                if cfg!(target_endian = "big") {
+                    let byte = unsafe { (*byte_ptr).reverse_bits() };
+                    let new_byte = (byte & !byte_mask) | (byte_val & byte_mask);
+                    unsafe { *byte_ptr = new_byte.reverse_bits() };
+                } else {
+                    unsafe {
+                        *byte_ptr = (*byte_ptr & !byte_mask) | (byte_val & byte_mask)
+                    };
+                }
+                i += 1;
+            }
         }
     }
 }
@@ -122,12 +547,12 @@ impl<T> __BindgenUnionField<T> {
         __BindgenUnionField(::core::marker::PhantomData)
     }
     #[inline]
-    pub unsafe fn as_ref(&self) -> &T {
-        ::core::mem::transmute(self)
+    pub const unsafe fn as_ref(&self) -> &T {
+        unsafe { ::core::mem::transmute(self) }
     }
     #[inline]
-    pub unsafe fn as_mut(&mut self) -> &mut T {
-        ::core::mem::transmute(self)
+    pub const unsafe fn as_mut(&mut self) -> &mut T {
+        unsafe { ::core::mem::transmute(self) }
     }
 }
 impl<T> ::core::default::Default for __BindgenUnionField<T> {
@@ -157,146 +582,34 @@ impl<T> ::core::cmp::PartialEq for __BindgenUnionField<T> {
     }
 }
 impl<T> ::core::cmp::Eq for __BindgenUnionField<T> {}
-#[allow(unsafe_code)]
-pub const FONT_KEY_FONT_FALLBACK_INTERNAL: &::core::ffi::CStr = unsafe {
-    ::core::ffi::CStr::from_bytes_with_nul_unchecked(
-        b"RESOURCE_ID_FONT_FALLBACK_INTERNAL\0",
-    )
-};
-#[allow(unsafe_code)]
-pub const FONT_KEY_GOTHIC_18_BOLD: &::core::ffi::CStr = unsafe {
-    ::core::ffi::CStr::from_bytes_with_nul_unchecked(b"RESOURCE_ID_GOTHIC_18_BOLD\0")
-};
-#[allow(unsafe_code)]
-pub const FONT_KEY_GOTHIC_24: &::core::ffi::CStr = unsafe {
-    ::core::ffi::CStr::from_bytes_with_nul_unchecked(b"RESOURCE_ID_GOTHIC_24\0")
-};
-#[allow(unsafe_code)]
-pub const FONT_KEY_GOTHIC_09: &::core::ffi::CStr = unsafe {
-    ::core::ffi::CStr::from_bytes_with_nul_unchecked(b"RESOURCE_ID_GOTHIC_09\0")
-};
-#[allow(unsafe_code)]
-pub const FONT_KEY_GOTHIC_14: &::core::ffi::CStr = unsafe {
-    ::core::ffi::CStr::from_bytes_with_nul_unchecked(b"RESOURCE_ID_GOTHIC_14\0")
-};
-#[allow(unsafe_code)]
-pub const FONT_KEY_GOTHIC_14_BOLD: &::core::ffi::CStr = unsafe {
-    ::core::ffi::CStr::from_bytes_with_nul_unchecked(b"RESOURCE_ID_GOTHIC_14_BOLD\0")
-};
-#[allow(unsafe_code)]
-pub const FONT_KEY_GOTHIC_18: &::core::ffi::CStr = unsafe {
-    ::core::ffi::CStr::from_bytes_with_nul_unchecked(b"RESOURCE_ID_GOTHIC_18\0")
-};
-#[allow(unsafe_code)]
-pub const FONT_KEY_GOTHIC_24_BOLD: &::core::ffi::CStr = unsafe {
-    ::core::ffi::CStr::from_bytes_with_nul_unchecked(b"RESOURCE_ID_GOTHIC_24_BOLD\0")
-};
-#[allow(unsafe_code)]
-pub const FONT_KEY_GOTHIC_28: &::core::ffi::CStr = unsafe {
-    ::core::ffi::CStr::from_bytes_with_nul_unchecked(b"RESOURCE_ID_GOTHIC_28\0")
-};
-#[allow(unsafe_code)]
-pub const FONT_KEY_GOTHIC_28_BOLD: &::core::ffi::CStr = unsafe {
-    ::core::ffi::CStr::from_bytes_with_nul_unchecked(b"RESOURCE_ID_GOTHIC_28_BOLD\0")
-};
-#[allow(unsafe_code)]
-pub const FONT_KEY_BITHAM_30_BLACK: &::core::ffi::CStr = unsafe {
-    ::core::ffi::CStr::from_bytes_with_nul_unchecked(b"RESOURCE_ID_BITHAM_30_BLACK\0")
-};
-#[allow(unsafe_code)]
-pub const FONT_KEY_BITHAM_42_BOLD: &::core::ffi::CStr = unsafe {
-    ::core::ffi::CStr::from_bytes_with_nul_unchecked(b"RESOURCE_ID_BITHAM_42_BOLD\0")
-};
-#[allow(unsafe_code)]
-pub const FONT_KEY_BITHAM_42_LIGHT: &::core::ffi::CStr = unsafe {
-    ::core::ffi::CStr::from_bytes_with_nul_unchecked(b"RESOURCE_ID_BITHAM_42_LIGHT\0")
-};
-#[allow(unsafe_code)]
-pub const FONT_KEY_BITHAM_42_MEDIUM_NUMBERS: &::core::ffi::CStr = unsafe {
-    ::core::ffi::CStr::from_bytes_with_nul_unchecked(
-        b"RESOURCE_ID_BITHAM_42_MEDIUM_NUMBERS\0",
-    )
-};
-#[allow(unsafe_code)]
-pub const FONT_KEY_BITHAM_34_MEDIUM_NUMBERS: &::core::ffi::CStr = unsafe {
-    ::core::ffi::CStr::from_bytes_with_nul_unchecked(
-        b"RESOURCE_ID_BITHAM_34_MEDIUM_NUMBERS\0",
-    )
-};
-#[allow(unsafe_code)]
-pub const FONT_KEY_BITHAM_34_LIGHT_SUBSET: &::core::ffi::CStr = unsafe {
-    ::core::ffi::CStr::from_bytes_with_nul_unchecked(
-        b"RESOURCE_ID_BITHAM_34_LIGHT_SUBSET\0",
-    )
-};
-#[allow(unsafe_code)]
-pub const FONT_KEY_BITHAM_18_LIGHT_SUBSET: &::core::ffi::CStr = unsafe {
-    ::core::ffi::CStr::from_bytes_with_nul_unchecked(
-        b"RESOURCE_ID_BITHAM_18_LIGHT_SUBSET\0",
-    )
-};
-#[allow(unsafe_code)]
-pub const FONT_KEY_ROBOTO_CONDENSED_21: &::core::ffi::CStr = unsafe {
-    ::core::ffi::CStr::from_bytes_with_nul_unchecked(
-        b"RESOURCE_ID_ROBOTO_CONDENSED_21\0",
-    )
-};
-#[allow(unsafe_code)]
-pub const FONT_KEY_ROBOTO_BOLD_SUBSET_49: &::core::ffi::CStr = unsafe {
-    ::core::ffi::CStr::from_bytes_with_nul_unchecked(
-        b"RESOURCE_ID_ROBOTO_BOLD_SUBSET_49\0",
-    )
-};
-#[allow(unsafe_code)]
-pub const FONT_KEY_DROID_SERIF_28_BOLD: &::core::ffi::CStr = unsafe {
-    ::core::ffi::CStr::from_bytes_with_nul_unchecked(
-        b"RESOURCE_ID_DROID_SERIF_28_BOLD\0",
-    )
-};
-#[allow(unsafe_code)]
-pub const FONT_KEY_LECO_20_BOLD_NUMBERS: &::core::ffi::CStr = unsafe {
-    ::core::ffi::CStr::from_bytes_with_nul_unchecked(
-        b"RESOURCE_ID_LECO_20_BOLD_NUMBERS\0",
-    )
-};
-#[allow(unsafe_code)]
-pub const FONT_KEY_LECO_26_BOLD_NUMBERS_AM_PM: &::core::ffi::CStr = unsafe {
-    ::core::ffi::CStr::from_bytes_with_nul_unchecked(
-        b"RESOURCE_ID_LECO_26_BOLD_NUMBERS_AM_PM\0",
-    )
-};
-#[allow(unsafe_code)]
-pub const FONT_KEY_LECO_32_BOLD_NUMBERS: &::core::ffi::CStr = unsafe {
-    ::core::ffi::CStr::from_bytes_with_nul_unchecked(
-        b"RESOURCE_ID_LECO_32_BOLD_NUMBERS\0",
-    )
-};
-#[allow(unsafe_code)]
-pub const FONT_KEY_LECO_36_BOLD_NUMBERS: &::core::ffi::CStr = unsafe {
-    ::core::ffi::CStr::from_bytes_with_nul_unchecked(
-        b"RESOURCE_ID_LECO_36_BOLD_NUMBERS\0",
-    )
-};
-#[allow(unsafe_code)]
-pub const FONT_KEY_LECO_38_BOLD_NUMBERS: &::core::ffi::CStr = unsafe {
-    ::core::ffi::CStr::from_bytes_with_nul_unchecked(
-        b"RESOURCE_ID_LECO_38_BOLD_NUMBERS\0",
-    )
-};
-#[allow(unsafe_code)]
-pub const FONT_KEY_LECO_42_NUMBERS: &::core::ffi::CStr = unsafe {
-    ::core::ffi::CStr::from_bytes_with_nul_unchecked(b"RESOURCE_ID_LECO_42_NUMBERS\0")
-};
-#[allow(unsafe_code)]
-pub const FONT_KEY_LECO_28_LIGHT_NUMBERS: &::core::ffi::CStr = unsafe {
-    ::core::ffi::CStr::from_bytes_with_nul_unchecked(
-        b"RESOURCE_ID_LECO_28_LIGHT_NUMBERS\0",
-    )
-};
-#[allow(unsafe_code)]
-pub const FONT_KEY_FONT_FALLBACK: &::core::ffi::CStr = unsafe {
-    ::core::ffi::CStr::from_bytes_with_nul_unchecked(b"RESOURCE_ID_FONT_FALLBACK\0")
-};
+pub const FONT_KEY_FONT_FALLBACK_INTERNAL: &::core::ffi::CStr = c"RESOURCE_ID_FONT_FALLBACK_INTERNAL";
+pub const FONT_KEY_GOTHIC_18_BOLD: &::core::ffi::CStr = c"RESOURCE_ID_GOTHIC_18_BOLD";
+pub const FONT_KEY_GOTHIC_24: &::core::ffi::CStr = c"RESOURCE_ID_GOTHIC_24";
+pub const FONT_KEY_GOTHIC_09: &::core::ffi::CStr = c"RESOURCE_ID_GOTHIC_09";
+pub const FONT_KEY_GOTHIC_14: &::core::ffi::CStr = c"RESOURCE_ID_GOTHIC_14";
+pub const FONT_KEY_GOTHIC_14_BOLD: &::core::ffi::CStr = c"RESOURCE_ID_GOTHIC_14_BOLD";
+pub const FONT_KEY_GOTHIC_18: &::core::ffi::CStr = c"RESOURCE_ID_GOTHIC_18";
+pub const FONT_KEY_GOTHIC_24_BOLD: &::core::ffi::CStr = c"RESOURCE_ID_GOTHIC_24_BOLD";
+pub const FONT_KEY_GOTHIC_28: &::core::ffi::CStr = c"RESOURCE_ID_GOTHIC_28";
+pub const FONT_KEY_GOTHIC_28_BOLD: &::core::ffi::CStr = c"RESOURCE_ID_GOTHIC_28_BOLD";
+pub const FONT_KEY_BITHAM_30_BLACK: &::core::ffi::CStr = c"RESOURCE_ID_BITHAM_30_BLACK";
+pub const FONT_KEY_BITHAM_42_BOLD: &::core::ffi::CStr = c"RESOURCE_ID_BITHAM_42_BOLD";
+pub const FONT_KEY_BITHAM_42_LIGHT: &::core::ffi::CStr = c"RESOURCE_ID_BITHAM_42_LIGHT";
+pub const FONT_KEY_BITHAM_42_MEDIUM_NUMBERS: &::core::ffi::CStr = c"RESOURCE_ID_BITHAM_42_MEDIUM_NUMBERS";
+pub const FONT_KEY_BITHAM_34_MEDIUM_NUMBERS: &::core::ffi::CStr = c"RESOURCE_ID_BITHAM_34_MEDIUM_NUMBERS";
+pub const FONT_KEY_BITHAM_34_LIGHT_SUBSET: &::core::ffi::CStr = c"RESOURCE_ID_BITHAM_34_LIGHT_SUBSET";
+pub const FONT_KEY_BITHAM_18_LIGHT_SUBSET: &::core::ffi::CStr = c"RESOURCE_ID_BITHAM_18_LIGHT_SUBSET";
+pub const FONT_KEY_ROBOTO_CONDENSED_21: &::core::ffi::CStr = c"RESOURCE_ID_ROBOTO_CONDENSED_21";
+pub const FONT_KEY_ROBOTO_BOLD_SUBSET_49: &::core::ffi::CStr = c"RESOURCE_ID_ROBOTO_BOLD_SUBSET_49";
+pub const FONT_KEY_DROID_SERIF_28_BOLD: &::core::ffi::CStr = c"RESOURCE_ID_DROID_SERIF_28_BOLD";
+pub const FONT_KEY_LECO_20_BOLD_NUMBERS: &::core::ffi::CStr = c"RESOURCE_ID_LECO_20_BOLD_NUMBERS";
+pub const FONT_KEY_LECO_26_BOLD_NUMBERS_AM_PM: &::core::ffi::CStr = c"RESOURCE_ID_LECO_26_BOLD_NUMBERS_AM_PM";
+pub const FONT_KEY_LECO_32_BOLD_NUMBERS: &::core::ffi::CStr = c"RESOURCE_ID_LECO_32_BOLD_NUMBERS";
+pub const FONT_KEY_LECO_36_BOLD_NUMBERS: &::core::ffi::CStr = c"RESOURCE_ID_LECO_36_BOLD_NUMBERS";
+pub const FONT_KEY_LECO_38_BOLD_NUMBERS: &::core::ffi::CStr = c"RESOURCE_ID_LECO_38_BOLD_NUMBERS";
+pub const FONT_KEY_LECO_42_NUMBERS: &::core::ffi::CStr = c"RESOURCE_ID_LECO_42_NUMBERS";
+pub const FONT_KEY_LECO_28_LIGHT_NUMBERS: &::core::ffi::CStr = c"RESOURCE_ID_LECO_28_LIGHT_NUMBERS";
+pub const FONT_KEY_FONT_FALLBACK: &::core::ffi::CStr = c"RESOURCE_ID_FONT_FALLBACK";
 pub const __bool_true_false_are_defined: u32 = 1;
 pub const true_: u32 = 1;
 pub const false_: u32 = 0;
@@ -504,51 +817,22 @@ pub struct WatchInfoVersion {
     ///!< Patch version number
     pub patch: u8,
 }
-#[test]
-fn bindgen_test_layout_WatchInfoVersion() {
-    const UNINIT: ::core::mem::MaybeUninit<WatchInfoVersion> = ::core::mem::MaybeUninit::uninit();
-    let ptr = UNINIT.as_ptr();
-    assert_eq!(
-        ::core::mem::size_of::<WatchInfoVersion>(),
-        3usize,
-        concat!("Size of: ", stringify!(WatchInfoVersion)),
-    );
-    assert_eq!(
-        ::core::mem::align_of::<WatchInfoVersion>(),
-        1usize,
-        concat!("Alignment of ", stringify!(WatchInfoVersion)),
-    );
-    assert_eq!(
-        unsafe { ::core::ptr::addr_of!((*ptr).major) as usize - ptr as usize },
-        0usize,
-        concat!(
-            "Offset of field: ",
-            stringify!(WatchInfoVersion),
-            "::",
-            stringify!(major),
-        ),
-    );
-    assert_eq!(
-        unsafe { ::core::ptr::addr_of!((*ptr).minor) as usize - ptr as usize },
-        1usize,
-        concat!(
-            "Offset of field: ",
-            stringify!(WatchInfoVersion),
-            "::",
-            stringify!(minor),
-        ),
-    );
-    assert_eq!(
-        unsafe { ::core::ptr::addr_of!((*ptr).patch) as usize - ptr as usize },
-        2usize,
-        concat!(
-            "Offset of field: ",
-            stringify!(WatchInfoVersion),
-            "::",
-            stringify!(patch),
-        ),
-    );
-}
+#[allow(clippy::unnecessary_operation, clippy::identity_op)]
+const _: () = {
+    ["Size of WatchInfoVersion"][::core::mem::size_of::<WatchInfoVersion>() - 3usize];
+    [
+        "Alignment of WatchInfoVersion",
+    ][::core::mem::align_of::<WatchInfoVersion>() - 1usize];
+    [
+        "Offset of field: WatchInfoVersion::major",
+    ][::core::mem::offset_of!(WatchInfoVersion, major) - 0usize];
+    [
+        "Offset of field: WatchInfoVersion::minor",
+    ][::core::mem::offset_of!(WatchInfoVersion, minor) - 1usize];
+    [
+        "Offset of field: WatchInfoVersion::patch",
+    ][::core::mem::offset_of!(WatchInfoVersion, patch) - 2usize];
+};
 /**! Provides the model of the watch.
 ! @return {@link WatchInfoModel} representing the model of the watch.*/
 /** watch_info_get_model
@@ -783,47 +1067,23 @@ pub struct ConnectionHandlers {
     ///! ID for callback to be executed on PebbleKit connection event
     pub pebblekit_connection_handler: ConnectionHandler,
 }
-#[test]
-fn bindgen_test_layout_ConnectionHandlers() {
-    const UNINIT: ::core::mem::MaybeUninit<ConnectionHandlers> = ::core::mem::MaybeUninit::uninit();
-    let ptr = UNINIT.as_ptr();
-    assert_eq!(
-        ::core::mem::size_of::<ConnectionHandlers>(),
-        8usize,
-        concat!("Size of: ", stringify!(ConnectionHandlers)),
-    );
-    assert_eq!(
-        ::core::mem::align_of::<ConnectionHandlers>(),
-        4usize,
-        concat!("Alignment of ", stringify!(ConnectionHandlers)),
-    );
-    assert_eq!(
-        unsafe {
-            ::core::ptr::addr_of!((*ptr).pebble_app_connection_handler) as usize
-                - ptr as usize
-        },
-        0usize,
-        concat!(
-            "Offset of field: ",
-            stringify!(ConnectionHandlers),
-            "::",
-            stringify!(pebble_app_connection_handler),
-        ),
-    );
-    assert_eq!(
-        unsafe {
-            ::core::ptr::addr_of!((*ptr).pebblekit_connection_handler) as usize
-                - ptr as usize
-        },
-        4usize,
-        concat!(
-            "Offset of field: ",
-            stringify!(ConnectionHandlers),
-            "::",
-            stringify!(pebblekit_connection_handler),
-        ),
-    );
-}
+#[allow(clippy::unnecessary_operation, clippy::identity_op)]
+const _: () = {
+    [
+        "Size of ConnectionHandlers",
+    ][::core::mem::size_of::<ConnectionHandlers>() - 8usize];
+    [
+        "Alignment of ConnectionHandlers",
+    ][::core::mem::align_of::<ConnectionHandlers>() - 4usize];
+    [
+        "Offset of field: ConnectionHandlers::pebble_app_connection_handler",
+    ][::core::mem::offset_of!(ConnectionHandlers, pebble_app_connection_handler)
+        - 0usize];
+    [
+        "Offset of field: ConnectionHandlers::pebblekit_connection_handler",
+    ][::core::mem::offset_of!(ConnectionHandlers, pebblekit_connection_handler)
+        - 4usize];
+};
 /**! Query the bluetooth connection service for the current Pebble app connection status
 ! @return true if the Pebble app is connected, false otherwise*/
 /** connection_service_peek_pebble_app_connection
@@ -965,41 +1225,19 @@ pub struct AppFocusHandlers {
 ! covering the app, causing the app to lose focus.*/
     pub did_focus: AppFocusHandler,
 }
-#[test]
-fn bindgen_test_layout_AppFocusHandlers() {
-    const UNINIT: ::core::mem::MaybeUninit<AppFocusHandlers> = ::core::mem::MaybeUninit::uninit();
-    let ptr = UNINIT.as_ptr();
-    assert_eq!(
-        ::core::mem::size_of::<AppFocusHandlers>(),
-        8usize,
-        concat!("Size of: ", stringify!(AppFocusHandlers)),
-    );
-    assert_eq!(
-        ::core::mem::align_of::<AppFocusHandlers>(),
-        4usize,
-        concat!("Alignment of ", stringify!(AppFocusHandlers)),
-    );
-    assert_eq!(
-        unsafe { ::core::ptr::addr_of!((*ptr).will_focus) as usize - ptr as usize },
-        0usize,
-        concat!(
-            "Offset of field: ",
-            stringify!(AppFocusHandlers),
-            "::",
-            stringify!(will_focus),
-        ),
-    );
-    assert_eq!(
-        unsafe { ::core::ptr::addr_of!((*ptr).did_focus) as usize - ptr as usize },
-        4usize,
-        concat!(
-            "Offset of field: ",
-            stringify!(AppFocusHandlers),
-            "::",
-            stringify!(did_focus),
-        ),
-    );
-}
+#[allow(clippy::unnecessary_operation, clippy::identity_op)]
+const _: () = {
+    ["Size of AppFocusHandlers"][::core::mem::size_of::<AppFocusHandlers>() - 8usize];
+    [
+        "Alignment of AppFocusHandlers",
+    ][::core::mem::align_of::<AppFocusHandlers>() - 4usize];
+    [
+        "Offset of field: AppFocusHandlers::will_focus",
+    ][::core::mem::offset_of!(AppFocusHandlers, will_focus) - 0usize];
+    [
+        "Offset of field: AppFocusHandlers::did_focus",
+    ][::core::mem::offset_of!(AppFocusHandlers, did_focus) - 4usize];
+};
 /**! Subscribe to the focus event service. Once subscribed, the handlers get called every time the
 ! app gains or loses focus.
 ! @param handlers Handlers which will be called on will-focus and did-focus events.
@@ -1064,51 +1302,24 @@ pub struct BatteryChargeState {
     ///! True if the charger cable is connected. False if not.
     pub is_plugged: bool,
 }
-#[test]
-fn bindgen_test_layout_BatteryChargeState() {
-    const UNINIT: ::core::mem::MaybeUninit<BatteryChargeState> = ::core::mem::MaybeUninit::uninit();
-    let ptr = UNINIT.as_ptr();
-    assert_eq!(
-        ::core::mem::size_of::<BatteryChargeState>(),
-        3usize,
-        concat!("Size of: ", stringify!(BatteryChargeState)),
-    );
-    assert_eq!(
-        ::core::mem::align_of::<BatteryChargeState>(),
-        1usize,
-        concat!("Alignment of ", stringify!(BatteryChargeState)),
-    );
-    assert_eq!(
-        unsafe { ::core::ptr::addr_of!((*ptr).charge_percent) as usize - ptr as usize },
-        0usize,
-        concat!(
-            "Offset of field: ",
-            stringify!(BatteryChargeState),
-            "::",
-            stringify!(charge_percent),
-        ),
-    );
-    assert_eq!(
-        unsafe { ::core::ptr::addr_of!((*ptr).is_charging) as usize - ptr as usize },
-        1usize,
-        concat!(
-            "Offset of field: ",
-            stringify!(BatteryChargeState),
-            "::",
-            stringify!(is_charging),
-        ),
-    );
-    assert_eq!(
-        unsafe { ::core::ptr::addr_of!((*ptr).is_plugged) as usize - ptr as usize },
-        2usize,
-        concat!(
-            "Offset of field: ",
-            stringify!(BatteryChargeState),
-            "::",
-            stringify!(is_plugged),
-        ),
-    );
-}
+#[allow(clippy::unnecessary_operation, clippy::identity_op)]
+const _: () = {
+    [
+        "Size of BatteryChargeState",
+    ][::core::mem::size_of::<BatteryChargeState>() - 3usize];
+    [
+        "Alignment of BatteryChargeState",
+    ][::core::mem::align_of::<BatteryChargeState>() - 1usize];
+    [
+        "Offset of field: BatteryChargeState::charge_percent",
+    ][::core::mem::offset_of!(BatteryChargeState, charge_percent) - 0usize];
+    [
+        "Offset of field: BatteryChargeState::is_charging",
+    ][::core::mem::offset_of!(BatteryChargeState, is_charging) - 1usize];
+    [
+        "Offset of field: BatteryChargeState::is_plugged",
+    ][::core::mem::offset_of!(BatteryChargeState, is_plugged) - 2usize];
+};
 /**! Callback type for battery state change events
 ! @param charge the state of the battery \ref BatteryChargeState*/
 pub type BatteryStateHandler = ::core::option::Option<
@@ -1174,51 +1385,20 @@ pub struct AccelData {
     ///! timestamp, in milliseconds
     pub timestamp: u64,
 }
-#[test]
-fn bindgen_test_layout_AccelData() {
-    const UNINIT: ::core::mem::MaybeUninit<AccelData> = ::core::mem::MaybeUninit::uninit();
-    let ptr = UNINIT.as_ptr();
-    assert_eq!(
-        ::core::mem::size_of::<AccelData>(),
-        15usize,
-        concat!("Size of: ", stringify!(AccelData)),
-    );
-    assert_eq!(
-        ::core::mem::align_of::<AccelData>(),
-        1usize,
-        concat!("Alignment of ", stringify!(AccelData)),
-    );
-    assert_eq!(
-        unsafe { ::core::ptr::addr_of!((*ptr).x) as usize - ptr as usize },
-        0usize,
-        concat!("Offset of field: ", stringify!(AccelData), "::", stringify!(x)),
-    );
-    assert_eq!(
-        unsafe { ::core::ptr::addr_of!((*ptr).y) as usize - ptr as usize },
-        2usize,
-        concat!("Offset of field: ", stringify!(AccelData), "::", stringify!(y)),
-    );
-    assert_eq!(
-        unsafe { ::core::ptr::addr_of!((*ptr).z) as usize - ptr as usize },
-        4usize,
-        concat!("Offset of field: ", stringify!(AccelData), "::", stringify!(z)),
-    );
-    assert_eq!(
-        unsafe { ::core::ptr::addr_of!((*ptr).did_vibrate) as usize - ptr as usize },
-        6usize,
-        concat!(
-            "Offset of field: ",
-            stringify!(AccelData),
-            "::",
-            stringify!(did_vibrate),
-        ),
-    );
-    assert_eq!(
-        unsafe { ::core::ptr::addr_of!((*ptr).timestamp) as usize - ptr as usize },
-        7usize,
-        concat!("Offset of field: ", stringify!(AccelData), "::", stringify!(timestamp)),
-    );
-}
+#[allow(clippy::unnecessary_operation, clippy::identity_op)]
+const _: () = {
+    ["Size of AccelData"][::core::mem::size_of::<AccelData>() - 15usize];
+    ["Alignment of AccelData"][::core::mem::align_of::<AccelData>() - 1usize];
+    ["Offset of field: AccelData::x"][::core::mem::offset_of!(AccelData, x) - 0usize];
+    ["Offset of field: AccelData::y"][::core::mem::offset_of!(AccelData, y) - 2usize];
+    ["Offset of field: AccelData::z"][::core::mem::offset_of!(AccelData, z) - 4usize];
+    [
+        "Offset of field: AccelData::did_vibrate",
+    ][::core::mem::offset_of!(AccelData, did_vibrate) - 6usize];
+    [
+        "Offset of field: AccelData::timestamp",
+    ][::core::mem::offset_of!(AccelData, timestamp) - 7usize];
+};
 ///! A single accelerometer sample for all three axes
 #[repr(C, packed)]
 #[derive(Debug, Copy, Clone)]
@@ -1230,36 +1410,20 @@ pub struct AccelRawData {
     ///! acceleration along the z axis
     pub z: i16,
 }
-#[test]
-fn bindgen_test_layout_AccelRawData() {
-    const UNINIT: ::core::mem::MaybeUninit<AccelRawData> = ::core::mem::MaybeUninit::uninit();
-    let ptr = UNINIT.as_ptr();
-    assert_eq!(
-        ::core::mem::size_of::<AccelRawData>(),
-        6usize,
-        concat!("Size of: ", stringify!(AccelRawData)),
-    );
-    assert_eq!(
-        ::core::mem::align_of::<AccelRawData>(),
-        1usize,
-        concat!("Alignment of ", stringify!(AccelRawData)),
-    );
-    assert_eq!(
-        unsafe { ::core::ptr::addr_of!((*ptr).x) as usize - ptr as usize },
-        0usize,
-        concat!("Offset of field: ", stringify!(AccelRawData), "::", stringify!(x)),
-    );
-    assert_eq!(
-        unsafe { ::core::ptr::addr_of!((*ptr).y) as usize - ptr as usize },
-        2usize,
-        concat!("Offset of field: ", stringify!(AccelRawData), "::", stringify!(y)),
-    );
-    assert_eq!(
-        unsafe { ::core::ptr::addr_of!((*ptr).z) as usize - ptr as usize },
-        4usize,
-        concat!("Offset of field: ", stringify!(AccelRawData), "::", stringify!(z)),
-    );
-}
+#[allow(clippy::unnecessary_operation, clippy::identity_op)]
+const _: () = {
+    ["Size of AccelRawData"][::core::mem::size_of::<AccelRawData>() - 6usize];
+    ["Alignment of AccelRawData"][::core::mem::align_of::<AccelRawData>() - 1usize];
+    [
+        "Offset of field: AccelRawData::x",
+    ][::core::mem::offset_of!(AccelRawData, x) - 0usize];
+    [
+        "Offset of field: AccelRawData::y",
+    ][::core::mem::offset_of!(AccelRawData, y) - 2usize];
+    [
+        "Offset of field: AccelRawData::z",
+    ][::core::mem::offset_of!(AccelRawData, z) - 4usize];
+};
 /**! Accelerometer's X axis. The positive direction along the X axis goes
 ! toward the right of the watch.*/
 pub const AccelAxisType_ACCEL_AXIS_X: AccelAxisType = 0;
@@ -1456,65 +1620,27 @@ pub struct CompassHeadingData {
     ///! Currently always false (reserved for future implementation).
     pub is_declination_valid: bool,
 }
-#[test]
-fn bindgen_test_layout_CompassHeadingData() {
-    const UNINIT: ::core::mem::MaybeUninit<CompassHeadingData> = ::core::mem::MaybeUninit::uninit();
-    let ptr = UNINIT.as_ptr();
-    assert_eq!(
-        ::core::mem::size_of::<CompassHeadingData>(),
-        16usize,
-        concat!("Size of: ", stringify!(CompassHeadingData)),
-    );
-    assert_eq!(
-        ::core::mem::align_of::<CompassHeadingData>(),
-        4usize,
-        concat!("Alignment of ", stringify!(CompassHeadingData)),
-    );
-    assert_eq!(
-        unsafe {
-            ::core::ptr::addr_of!((*ptr).magnetic_heading) as usize - ptr as usize
-        },
-        0usize,
-        concat!(
-            "Offset of field: ",
-            stringify!(CompassHeadingData),
-            "::",
-            stringify!(magnetic_heading),
-        ),
-    );
-    assert_eq!(
-        unsafe { ::core::ptr::addr_of!((*ptr).true_heading) as usize - ptr as usize },
-        4usize,
-        concat!(
-            "Offset of field: ",
-            stringify!(CompassHeadingData),
-            "::",
-            stringify!(true_heading),
-        ),
-    );
-    assert_eq!(
-        unsafe { ::core::ptr::addr_of!((*ptr).compass_status) as usize - ptr as usize },
-        8usize,
-        concat!(
-            "Offset of field: ",
-            stringify!(CompassHeadingData),
-            "::",
-            stringify!(compass_status),
-        ),
-    );
-    assert_eq!(
-        unsafe {
-            ::core::ptr::addr_of!((*ptr).is_declination_valid) as usize - ptr as usize
-        },
-        12usize,
-        concat!(
-            "Offset of field: ",
-            stringify!(CompassHeadingData),
-            "::",
-            stringify!(is_declination_valid),
-        ),
-    );
-}
+#[allow(clippy::unnecessary_operation, clippy::identity_op)]
+const _: () = {
+    [
+        "Size of CompassHeadingData",
+    ][::core::mem::size_of::<CompassHeadingData>() - 16usize];
+    [
+        "Alignment of CompassHeadingData",
+    ][::core::mem::align_of::<CompassHeadingData>() - 4usize];
+    [
+        "Offset of field: CompassHeadingData::magnetic_heading",
+    ][::core::mem::offset_of!(CompassHeadingData, magnetic_heading) - 0usize];
+    [
+        "Offset of field: CompassHeadingData::true_heading",
+    ][::core::mem::offset_of!(CompassHeadingData, true_heading) - 4usize];
+    [
+        "Offset of field: CompassHeadingData::compass_status",
+    ][::core::mem::offset_of!(CompassHeadingData, compass_status) - 8usize];
+    [
+        "Offset of field: CompassHeadingData::is_declination_valid",
+    ][::core::mem::offset_of!(CompassHeadingData, is_declination_valid) - 12usize];
+};
 /**! Callback type for compass heading events
 ! @param heading copy of last recorded heading*/
 pub type CompassHeadingHandler = ::core::option::Option<
@@ -1649,10 +1775,9 @@ pub const TouchEventType_TouchEvent_PositionUpdate: TouchEventType = 2;
 pub type TouchEventType = ::core::ffi::c_uint;
 ///! Touch event data, carried directly in PebbleTouchEvent
 #[repr(C)]
-#[repr(align(4))]
 #[derive(Debug, Copy, Clone)]
 pub struct TouchEvent {
-    pub _bitfield_align_1: [u8; 0],
+    pub _bindgen_align: [u32; 0],
     pub _bitfield_1: __BindgenBitfieldUnit<[u8; 1usize]>,
     /**! true when the touch must not drive navigation: the interaction session
 ! was inactive at Touchdown (unarmed contact on the idle watchface).
@@ -1661,67 +1786,71 @@ pub struct TouchEvent {
     pub x: i16,
     pub y: i16,
 }
-#[test]
-fn bindgen_test_layout_TouchEvent() {
-    const UNINIT: ::core::mem::MaybeUninit<TouchEvent> = ::core::mem::MaybeUninit::uninit();
-    let ptr = UNINIT.as_ptr();
-    assert_eq!(
-        ::core::mem::size_of::<TouchEvent>(),
-        8usize,
-        concat!("Size of: ", stringify!(TouchEvent)),
-    );
-    assert_eq!(
-        ::core::mem::align_of::<TouchEvent>(),
-        4usize,
-        concat!("Alignment of ", stringify!(TouchEvent)),
-    );
-    assert_eq!(
-        unsafe {
-            ::core::ptr::addr_of!((*ptr).non_navigational) as usize - ptr as usize
-        },
-        1usize,
-        concat!(
-            "Offset of field: ",
-            stringify!(TouchEvent),
-            "::",
-            stringify!(non_navigational),
-        ),
-    );
-    assert_eq!(
-        unsafe { ::core::ptr::addr_of!((*ptr).x) as usize - ptr as usize },
-        2usize,
-        concat!("Offset of field: ", stringify!(TouchEvent), "::", stringify!(x)),
-    );
-    assert_eq!(
-        unsafe { ::core::ptr::addr_of!((*ptr).y) as usize - ptr as usize },
-        4usize,
-        concat!("Offset of field: ", stringify!(TouchEvent), "::", stringify!(y)),
-    );
-}
+#[allow(clippy::unnecessary_operation, clippy::identity_op)]
+const _: () = {
+    ["Size of TouchEvent"][::core::mem::size_of::<TouchEvent>() - 8usize];
+    ["Alignment of TouchEvent"][::core::mem::align_of::<TouchEvent>() - 4usize];
+    [
+        "Offset of field: TouchEvent::non_navigational",
+    ][::core::mem::offset_of!(TouchEvent, non_navigational) - 1usize];
+    ["Offset of field: TouchEvent::x"][::core::mem::offset_of!(TouchEvent, x) - 2usize];
+    ["Offset of field: TouchEvent::y"][::core::mem::offset_of!(TouchEvent, y) - 4usize];
+};
 impl TouchEvent {
     #[inline]
+    #[allow(unnecessary_transmutes)]
     pub fn type_(&self) -> TouchEventType {
-        unsafe { ::core::mem::transmute(self._bitfield_1.get(0usize, 8u8) as u32) }
-    }
-    #[inline]
-    pub fn set_type(&mut self, val: TouchEventType) {
         unsafe {
-            let val: u32 = ::core::mem::transmute(val);
-            self._bitfield_1.set(0usize, 8u8, val as u64)
+            ::core::mem::transmute(self._bitfield_1.get_const::<0usize, 8u8>() as u32)
         }
     }
     #[inline]
+    #[allow(unnecessary_transmutes)]
+    pub fn set_type(&mut self, val: TouchEventType) {
+        unsafe {
+            let val: u32 = ::core::mem::transmute(val);
+            self._bitfield_1.set_const::<0usize, 8u8>(val as u64)
+        }
+    }
+    #[inline]
+    #[allow(unnecessary_transmutes)]
+    pub unsafe fn type__raw(this: *const Self) -> TouchEventType {
+        unsafe {
+            ::core::mem::transmute(
+                <__BindgenBitfieldUnit<
+                    [u8; 1usize],
+                >>::raw_get_const::<
+                    0usize,
+                    8u8,
+                >(::core::ptr::addr_of!((* this)._bitfield_1)) as u32,
+            )
+        }
+    }
+    #[inline]
+    #[allow(unnecessary_transmutes)]
+    pub unsafe fn set_type_raw(this: *mut Self, val: TouchEventType) {
+        unsafe {
+            let val: u32 = ::core::mem::transmute(val);
+            <__BindgenBitfieldUnit<
+                [u8; 1usize],
+            >>::raw_set_const::<
+                0usize,
+                8u8,
+            >(::core::ptr::addr_of_mut!((* this)._bitfield_1), val as u64)
+        }
+    }
+    #[inline]
+    #[allow(unnecessary_transmutes)]
     pub fn new_bitfield_1(type_: TouchEventType) -> __BindgenBitfieldUnit<[u8; 1usize]> {
         let mut __bindgen_bitfield_unit: __BindgenBitfieldUnit<[u8; 1usize]> = Default::default();
         __bindgen_bitfield_unit
-            .set(
+            .set_const::<
                 0usize,
                 8u8,
-                {
-                    let type_: u32 = unsafe { ::core::mem::transmute(type_) };
-                    type_ as u64
-                },
-            );
+            >({
+                let type_: u32 = unsafe { ::core::mem::transmute(type_) };
+                type_ as u64
+            });
         __bindgen_bitfield_unit
     }
 }
@@ -1754,8 +1883,10 @@ pub const HealthMetric_HealthMetricHeartRateRawBPM: HealthMetric = 8;
 pub type HealthMetric = ::core::ffi::c_uint;
 ///! Type used to represent HealthMetric values
 pub type HealthValue = i32;
+/**! Type used as a handle to a registered metric alert (returned by
+! \ref health_service_register_metric_alert)*/
 #[repr(C)]
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug)]
 pub struct HealthMetricAlert {
     _unused: [u8; 0],
 }
@@ -2336,117 +2467,172 @@ pub type AmbientLightLevel = ::core::ffi::c_uint;
 ! The `vmc` value is a measure of the total amount of movement seen by the watch. More vigorous
 ! movement yields higher VMC values.*/
 #[repr(C)]
-#[repr(align(4))]
 #[derive(Debug, Copy, Clone)]
 pub struct HealthMinuteData {
+    pub _bindgen_align: [u32; 0],
     ///!< Number of steps taken in this minute.
     pub steps: u8,
     ///!< Quantized average orientation.
     pub orientation: u8,
     ///!< Vector Magnitude Counts (vmc).
     pub vmc: u16,
-    pub _bitfield_align_1: [u8; 0],
     pub _bitfield_1: __BindgenBitfieldUnit<[u8; 1usize]>,
     ///!< heart rate in beats per minute
     pub heart_rate_bpm: u8,
     ///!< Reserved for future use.
     pub reserved: [u8; 6usize],
 }
-#[test]
-fn bindgen_test_layout_HealthMinuteData() {
-    const UNINIT: ::core::mem::MaybeUninit<HealthMinuteData> = ::core::mem::MaybeUninit::uninit();
-    let ptr = UNINIT.as_ptr();
-    assert_eq!(
-        ::core::mem::size_of::<HealthMinuteData>(),
-        12usize,
-        concat!("Size of: ", stringify!(HealthMinuteData)),
-    );
-    assert_eq!(
-        ::core::mem::align_of::<HealthMinuteData>(),
-        4usize,
-        concat!("Alignment of ", stringify!(HealthMinuteData)),
-    );
-    assert_eq!(
-        unsafe { ::core::ptr::addr_of!((*ptr).steps) as usize - ptr as usize },
-        0usize,
-        concat!(
-            "Offset of field: ",
-            stringify!(HealthMinuteData),
-            "::",
-            stringify!(steps),
-        ),
-    );
-    assert_eq!(
-        unsafe { ::core::ptr::addr_of!((*ptr).orientation) as usize - ptr as usize },
-        1usize,
-        concat!(
-            "Offset of field: ",
-            stringify!(HealthMinuteData),
-            "::",
-            stringify!(orientation),
-        ),
-    );
-    assert_eq!(
-        unsafe { ::core::ptr::addr_of!((*ptr).vmc) as usize - ptr as usize },
-        2usize,
-        concat!("Offset of field: ", stringify!(HealthMinuteData), "::", stringify!(vmc)),
-    );
-    assert_eq!(
-        unsafe { ::core::ptr::addr_of!((*ptr).heart_rate_bpm) as usize - ptr as usize },
-        5usize,
-        concat!(
-            "Offset of field: ",
-            stringify!(HealthMinuteData),
-            "::",
-            stringify!(heart_rate_bpm),
-        ),
-    );
-    assert_eq!(
-        unsafe { ::core::ptr::addr_of!((*ptr).reserved) as usize - ptr as usize },
-        6usize,
-        concat!(
-            "Offset of field: ",
-            stringify!(HealthMinuteData),
-            "::",
-            stringify!(reserved),
-        ),
-    );
-}
+#[allow(clippy::unnecessary_operation, clippy::identity_op)]
+const _: () = {
+    ["Size of HealthMinuteData"][::core::mem::size_of::<HealthMinuteData>() - 12usize];
+    [
+        "Alignment of HealthMinuteData",
+    ][::core::mem::align_of::<HealthMinuteData>() - 4usize];
+    [
+        "Offset of field: HealthMinuteData::steps",
+    ][::core::mem::offset_of!(HealthMinuteData, steps) - 0usize];
+    [
+        "Offset of field: HealthMinuteData::orientation",
+    ][::core::mem::offset_of!(HealthMinuteData, orientation) - 1usize];
+    [
+        "Offset of field: HealthMinuteData::vmc",
+    ][::core::mem::offset_of!(HealthMinuteData, vmc) - 2usize];
+    [
+        "Offset of field: HealthMinuteData::heart_rate_bpm",
+    ][::core::mem::offset_of!(HealthMinuteData, heart_rate_bpm) - 5usize];
+    [
+        "Offset of field: HealthMinuteData::reserved",
+    ][::core::mem::offset_of!(HealthMinuteData, reserved) - 6usize];
+};
 impl HealthMinuteData {
     #[inline]
+    #[allow(unnecessary_transmutes)]
     pub fn is_invalid(&self) -> bool {
-        unsafe { ::core::mem::transmute(self._bitfield_1.get(0usize, 1u8) as u8) }
+        unsafe {
+            ::core::mem::transmute(self._bitfield_1.get_const::<0usize, 1u8>() as u8)
+        }
     }
     #[inline]
+    #[allow(unnecessary_transmutes)]
     pub fn set_is_invalid(&mut self, val: bool) {
         unsafe {
             let val: u8 = ::core::mem::transmute(val);
-            self._bitfield_1.set(0usize, 1u8, val as u64)
+            self._bitfield_1.set_const::<0usize, 1u8>(val as u64)
         }
     }
     #[inline]
-    pub fn light(&self) -> AmbientLightLevel {
-        unsafe { ::core::mem::transmute(self._bitfield_1.get(1usize, 3u8) as u32) }
+    #[allow(unnecessary_transmutes)]
+    pub unsafe fn is_invalid_raw(this: *const Self) -> bool {
+        unsafe {
+            ::core::mem::transmute(
+                <__BindgenBitfieldUnit<
+                    [u8; 1usize],
+                >>::raw_get_const::<
+                    0usize,
+                    1u8,
+                >(::core::ptr::addr_of!((* this)._bitfield_1)) as u8,
+            )
+        }
     }
     #[inline]
+    #[allow(unnecessary_transmutes)]
+    pub unsafe fn set_is_invalid_raw(this: *mut Self, val: bool) {
+        unsafe {
+            let val: u8 = ::core::mem::transmute(val);
+            <__BindgenBitfieldUnit<
+                [u8; 1usize],
+            >>::raw_set_const::<
+                0usize,
+                1u8,
+            >(::core::ptr::addr_of_mut!((* this)._bitfield_1), val as u64)
+        }
+    }
+    #[inline]
+    #[allow(unnecessary_transmutes)]
+    pub fn light(&self) -> AmbientLightLevel {
+        unsafe {
+            ::core::mem::transmute(self._bitfield_1.get_const::<1usize, 3u8>() as u32)
+        }
+    }
+    #[inline]
+    #[allow(unnecessary_transmutes)]
     pub fn set_light(&mut self, val: AmbientLightLevel) {
         unsafe {
             let val: u32 = ::core::mem::transmute(val);
-            self._bitfield_1.set(1usize, 3u8, val as u64)
+            self._bitfield_1.set_const::<1usize, 3u8>(val as u64)
         }
     }
     #[inline]
-    pub fn padding(&self) -> u8 {
-        unsafe { ::core::mem::transmute(self._bitfield_1.get(4usize, 4u8) as u8) }
+    #[allow(unnecessary_transmutes)]
+    pub unsafe fn light_raw(this: *const Self) -> AmbientLightLevel {
+        unsafe {
+            ::core::mem::transmute(
+                <__BindgenBitfieldUnit<
+                    [u8; 1usize],
+                >>::raw_get_const::<
+                    1usize,
+                    3u8,
+                >(::core::ptr::addr_of!((* this)._bitfield_1)) as u32,
+            )
+        }
     }
     #[inline]
+    #[allow(unnecessary_transmutes)]
+    pub unsafe fn set_light_raw(this: *mut Self, val: AmbientLightLevel) {
+        unsafe {
+            let val: u32 = ::core::mem::transmute(val);
+            <__BindgenBitfieldUnit<
+                [u8; 1usize],
+            >>::raw_set_const::<
+                1usize,
+                3u8,
+            >(::core::ptr::addr_of_mut!((* this)._bitfield_1), val as u64)
+        }
+    }
+    #[inline]
+    #[allow(unnecessary_transmutes)]
+    pub fn padding(&self) -> u8 {
+        unsafe {
+            ::core::mem::transmute(self._bitfield_1.get_const::<4usize, 4u8>() as u8)
+        }
+    }
+    #[inline]
+    #[allow(unnecessary_transmutes)]
     pub fn set_padding(&mut self, val: u8) {
         unsafe {
             let val: u8 = ::core::mem::transmute(val);
-            self._bitfield_1.set(4usize, 4u8, val as u64)
+            self._bitfield_1.set_const::<4usize, 4u8>(val as u64)
         }
     }
     #[inline]
+    #[allow(unnecessary_transmutes)]
+    pub unsafe fn padding_raw(this: *const Self) -> u8 {
+        unsafe {
+            ::core::mem::transmute(
+                <__BindgenBitfieldUnit<
+                    [u8; 1usize],
+                >>::raw_get_const::<
+                    4usize,
+                    4u8,
+                >(::core::ptr::addr_of!((* this)._bitfield_1)) as u8,
+            )
+        }
+    }
+    #[inline]
+    #[allow(unnecessary_transmutes)]
+    pub unsafe fn set_padding_raw(this: *mut Self, val: u8) {
+        unsafe {
+            let val: u8 = ::core::mem::transmute(val);
+            <__BindgenBitfieldUnit<
+                [u8; 1usize],
+            >>::raw_set_const::<
+                4usize,
+                4u8,
+            >(::core::ptr::addr_of_mut!((* this)._bitfield_1), val as u64)
+        }
+    }
+    #[inline]
+    #[allow(unnecessary_transmutes)]
     pub fn new_bitfield_1(
         is_invalid: bool,
         light: AmbientLightLevel,
@@ -2454,32 +2640,29 @@ impl HealthMinuteData {
     ) -> __BindgenBitfieldUnit<[u8; 1usize]> {
         let mut __bindgen_bitfield_unit: __BindgenBitfieldUnit<[u8; 1usize]> = Default::default();
         __bindgen_bitfield_unit
-            .set(
+            .set_const::<
                 0usize,
                 1u8,
-                {
-                    let is_invalid: u8 = unsafe { ::core::mem::transmute(is_invalid) };
-                    is_invalid as u64
-                },
-            );
+            >({
+                let is_invalid: u8 = unsafe { ::core::mem::transmute(is_invalid) };
+                is_invalid as u64
+            });
         __bindgen_bitfield_unit
-            .set(
+            .set_const::<
                 1usize,
                 3u8,
-                {
-                    let light: u32 = unsafe { ::core::mem::transmute(light) };
-                    light as u64
-                },
-            );
+            >({
+                let light: u32 = unsafe { ::core::mem::transmute(light) };
+                light as u64
+            });
         __bindgen_bitfield_unit
-            .set(
+            .set_const::<
                 4usize,
                 4u8,
-                {
-                    let padding: u8 = unsafe { ::core::mem::transmute(padding) };
-                    padding as u64
-                },
-            );
+            >({
+                let padding: u8 = unsafe { ::core::mem::transmute(padding) };
+                padding as u64
+            });
         __bindgen_bitfield_unit
     }
 }
@@ -2714,101 +2897,27 @@ pub struct Uuid {
     pub byte14: u8,
     pub byte15: u8,
 }
-#[test]
-fn bindgen_test_layout_Uuid() {
-    const UNINIT: ::core::mem::MaybeUninit<Uuid> = ::core::mem::MaybeUninit::uninit();
-    let ptr = UNINIT.as_ptr();
-    assert_eq!(
-        ::core::mem::size_of::<Uuid>(),
-        16usize,
-        concat!("Size of: ", stringify!(Uuid)),
-    );
-    assert_eq!(
-        ::core::mem::align_of::<Uuid>(),
-        1usize,
-        concat!("Alignment of ", stringify!(Uuid)),
-    );
-    assert_eq!(
-        unsafe { ::core::ptr::addr_of!((*ptr).byte0) as usize - ptr as usize },
-        0usize,
-        concat!("Offset of field: ", stringify!(Uuid), "::", stringify!(byte0)),
-    );
-    assert_eq!(
-        unsafe { ::core::ptr::addr_of!((*ptr).byte1) as usize - ptr as usize },
-        1usize,
-        concat!("Offset of field: ", stringify!(Uuid), "::", stringify!(byte1)),
-    );
-    assert_eq!(
-        unsafe { ::core::ptr::addr_of!((*ptr).byte2) as usize - ptr as usize },
-        2usize,
-        concat!("Offset of field: ", stringify!(Uuid), "::", stringify!(byte2)),
-    );
-    assert_eq!(
-        unsafe { ::core::ptr::addr_of!((*ptr).byte3) as usize - ptr as usize },
-        3usize,
-        concat!("Offset of field: ", stringify!(Uuid), "::", stringify!(byte3)),
-    );
-    assert_eq!(
-        unsafe { ::core::ptr::addr_of!((*ptr).byte4) as usize - ptr as usize },
-        4usize,
-        concat!("Offset of field: ", stringify!(Uuid), "::", stringify!(byte4)),
-    );
-    assert_eq!(
-        unsafe { ::core::ptr::addr_of!((*ptr).byte5) as usize - ptr as usize },
-        5usize,
-        concat!("Offset of field: ", stringify!(Uuid), "::", stringify!(byte5)),
-    );
-    assert_eq!(
-        unsafe { ::core::ptr::addr_of!((*ptr).byte6) as usize - ptr as usize },
-        6usize,
-        concat!("Offset of field: ", stringify!(Uuid), "::", stringify!(byte6)),
-    );
-    assert_eq!(
-        unsafe { ::core::ptr::addr_of!((*ptr).byte7) as usize - ptr as usize },
-        7usize,
-        concat!("Offset of field: ", stringify!(Uuid), "::", stringify!(byte7)),
-    );
-    assert_eq!(
-        unsafe { ::core::ptr::addr_of!((*ptr).byte8) as usize - ptr as usize },
-        8usize,
-        concat!("Offset of field: ", stringify!(Uuid), "::", stringify!(byte8)),
-    );
-    assert_eq!(
-        unsafe { ::core::ptr::addr_of!((*ptr).byte9) as usize - ptr as usize },
-        9usize,
-        concat!("Offset of field: ", stringify!(Uuid), "::", stringify!(byte9)),
-    );
-    assert_eq!(
-        unsafe { ::core::ptr::addr_of!((*ptr).byte10) as usize - ptr as usize },
-        10usize,
-        concat!("Offset of field: ", stringify!(Uuid), "::", stringify!(byte10)),
-    );
-    assert_eq!(
-        unsafe { ::core::ptr::addr_of!((*ptr).byte11) as usize - ptr as usize },
-        11usize,
-        concat!("Offset of field: ", stringify!(Uuid), "::", stringify!(byte11)),
-    );
-    assert_eq!(
-        unsafe { ::core::ptr::addr_of!((*ptr).byte12) as usize - ptr as usize },
-        12usize,
-        concat!("Offset of field: ", stringify!(Uuid), "::", stringify!(byte12)),
-    );
-    assert_eq!(
-        unsafe { ::core::ptr::addr_of!((*ptr).byte13) as usize - ptr as usize },
-        13usize,
-        concat!("Offset of field: ", stringify!(Uuid), "::", stringify!(byte13)),
-    );
-    assert_eq!(
-        unsafe { ::core::ptr::addr_of!((*ptr).byte14) as usize - ptr as usize },
-        14usize,
-        concat!("Offset of field: ", stringify!(Uuid), "::", stringify!(byte14)),
-    );
-    assert_eq!(
-        unsafe { ::core::ptr::addr_of!((*ptr).byte15) as usize - ptr as usize },
-        15usize,
-        concat!("Offset of field: ", stringify!(Uuid), "::", stringify!(byte15)),
-    );
-}
+#[allow(clippy::unnecessary_operation, clippy::identity_op)]
+const _: () = {
+    ["Size of Uuid"][::core::mem::size_of::<Uuid>() - 16usize];
+    ["Alignment of Uuid"][::core::mem::align_of::<Uuid>() - 1usize];
+    ["Offset of field: Uuid::byte0"][::core::mem::offset_of!(Uuid, byte0) - 0usize];
+    ["Offset of field: Uuid::byte1"][::core::mem::offset_of!(Uuid, byte1) - 1usize];
+    ["Offset of field: Uuid::byte2"][::core::mem::offset_of!(Uuid, byte2) - 2usize];
+    ["Offset of field: Uuid::byte3"][::core::mem::offset_of!(Uuid, byte3) - 3usize];
+    ["Offset of field: Uuid::byte4"][::core::mem::offset_of!(Uuid, byte4) - 4usize];
+    ["Offset of field: Uuid::byte5"][::core::mem::offset_of!(Uuid, byte5) - 5usize];
+    ["Offset of field: Uuid::byte6"][::core::mem::offset_of!(Uuid, byte6) - 6usize];
+    ["Offset of field: Uuid::byte7"][::core::mem::offset_of!(Uuid, byte7) - 7usize];
+    ["Offset of field: Uuid::byte8"][::core::mem::offset_of!(Uuid, byte8) - 8usize];
+    ["Offset of field: Uuid::byte9"][::core::mem::offset_of!(Uuid, byte9) - 9usize];
+    ["Offset of field: Uuid::byte10"][::core::mem::offset_of!(Uuid, byte10) - 10usize];
+    ["Offset of field: Uuid::byte11"][::core::mem::offset_of!(Uuid, byte11) - 11usize];
+    ["Offset of field: Uuid::byte12"][::core::mem::offset_of!(Uuid, byte12) - 12usize];
+    ["Offset of field: Uuid::byte13"][::core::mem::offset_of!(Uuid, byte13) - 13usize];
+    ["Offset of field: Uuid::byte14"][::core::mem::offset_of!(Uuid, byte14) - 14usize];
+    ["Offset of field: Uuid::byte15"][::core::mem::offset_of!(Uuid, byte15) - 15usize];
+};
 /**! Compares two UUIDs.
 ! @return True if the two UUIDs are equal, false if they are not.*/
 /** uuid_equal
@@ -2912,7 +3021,6 @@ pub type TupleType = ::core::ffi::c_uint;
 pub struct Tuple {
     ///! The key
     pub key: u32,
-    pub _bitfield_align_1: [u8; 0],
     pub _bitfield_1: __BindgenBitfieldUnit<[u8; 1usize]>,
     ///! The length of `.value` in bytes
     pub length: u16,
@@ -2950,160 +3058,107 @@ pub struct Tuple__bindgen_ty_1 {
     pub int32: __BindgenUnionField<i32>,
     pub bindgen_union_field: u32,
 }
-#[test]
-fn bindgen_test_layout_Tuple__bindgen_ty_1() {
-    const UNINIT: ::core::mem::MaybeUninit<Tuple__bindgen_ty_1> = ::core::mem::MaybeUninit::uninit();
-    let ptr = UNINIT.as_ptr();
-    assert_eq!(
-        ::core::mem::size_of::<Tuple__bindgen_ty_1>(),
-        4usize,
-        concat!("Size of: ", stringify!(Tuple__bindgen_ty_1)),
-    );
-    assert_eq!(
-        ::core::mem::align_of::<Tuple__bindgen_ty_1>(),
-        4usize,
-        concat!("Alignment of ", stringify!(Tuple__bindgen_ty_1)),
-    );
-    assert_eq!(
-        unsafe { ::core::ptr::addr_of!((*ptr).data) as usize - ptr as usize },
-        0usize,
-        concat!(
-            "Offset of field: ",
-            stringify!(Tuple__bindgen_ty_1),
-            "::",
-            stringify!(data),
-        ),
-    );
-    assert_eq!(
-        unsafe { ::core::ptr::addr_of!((*ptr).cstring) as usize - ptr as usize },
-        0usize,
-        concat!(
-            "Offset of field: ",
-            stringify!(Tuple__bindgen_ty_1),
-            "::",
-            stringify!(cstring),
-        ),
-    );
-    assert_eq!(
-        unsafe { ::core::ptr::addr_of!((*ptr).uint8) as usize - ptr as usize },
-        0usize,
-        concat!(
-            "Offset of field: ",
-            stringify!(Tuple__bindgen_ty_1),
-            "::",
-            stringify!(uint8),
-        ),
-    );
-    assert_eq!(
-        unsafe { ::core::ptr::addr_of!((*ptr).uint16) as usize - ptr as usize },
-        0usize,
-        concat!(
-            "Offset of field: ",
-            stringify!(Tuple__bindgen_ty_1),
-            "::",
-            stringify!(uint16),
-        ),
-    );
-    assert_eq!(
-        unsafe { ::core::ptr::addr_of!((*ptr).uint32) as usize - ptr as usize },
-        0usize,
-        concat!(
-            "Offset of field: ",
-            stringify!(Tuple__bindgen_ty_1),
-            "::",
-            stringify!(uint32),
-        ),
-    );
-    assert_eq!(
-        unsafe { ::core::ptr::addr_of!((*ptr).int8) as usize - ptr as usize },
-        0usize,
-        concat!(
-            "Offset of field: ",
-            stringify!(Tuple__bindgen_ty_1),
-            "::",
-            stringify!(int8),
-        ),
-    );
-    assert_eq!(
-        unsafe { ::core::ptr::addr_of!((*ptr).int16) as usize - ptr as usize },
-        0usize,
-        concat!(
-            "Offset of field: ",
-            stringify!(Tuple__bindgen_ty_1),
-            "::",
-            stringify!(int16),
-        ),
-    );
-    assert_eq!(
-        unsafe { ::core::ptr::addr_of!((*ptr).int32) as usize - ptr as usize },
-        0usize,
-        concat!(
-            "Offset of field: ",
-            stringify!(Tuple__bindgen_ty_1),
-            "::",
-            stringify!(int32),
-        ),
-    );
-}
-#[test]
-fn bindgen_test_layout_Tuple() {
-    const UNINIT: ::core::mem::MaybeUninit<Tuple> = ::core::mem::MaybeUninit::uninit();
-    let ptr = UNINIT.as_ptr();
-    assert_eq!(
-        ::core::mem::size_of::<Tuple>(),
-        7usize,
-        concat!("Size of: ", stringify!(Tuple)),
-    );
-    assert_eq!(
-        ::core::mem::align_of::<Tuple>(),
-        1usize,
-        concat!("Alignment of ", stringify!(Tuple)),
-    );
-    assert_eq!(
-        unsafe { ::core::ptr::addr_of!((*ptr).key) as usize - ptr as usize },
-        0usize,
-        concat!("Offset of field: ", stringify!(Tuple), "::", stringify!(key)),
-    );
-    assert_eq!(
-        unsafe { ::core::ptr::addr_of!((*ptr).length) as usize - ptr as usize },
-        5usize,
-        concat!("Offset of field: ", stringify!(Tuple), "::", stringify!(length)),
-    );
-    assert_eq!(
-        unsafe { ::core::ptr::addr_of!((*ptr).value) as usize - ptr as usize },
-        7usize,
-        concat!("Offset of field: ", stringify!(Tuple), "::", stringify!(value)),
-    );
-}
+#[allow(clippy::unnecessary_operation, clippy::identity_op)]
+const _: () = {
+    [
+        "Size of Tuple__bindgen_ty_1",
+    ][::core::mem::size_of::<Tuple__bindgen_ty_1>() - 4usize];
+    [
+        "Alignment of Tuple__bindgen_ty_1",
+    ][::core::mem::align_of::<Tuple__bindgen_ty_1>() - 4usize];
+    [
+        "Offset of field: Tuple__bindgen_ty_1::data",
+    ][::core::mem::offset_of!(Tuple__bindgen_ty_1, data) - 0usize];
+    [
+        "Offset of field: Tuple__bindgen_ty_1::cstring",
+    ][::core::mem::offset_of!(Tuple__bindgen_ty_1, cstring) - 0usize];
+    [
+        "Offset of field: Tuple__bindgen_ty_1::uint8",
+    ][::core::mem::offset_of!(Tuple__bindgen_ty_1, uint8) - 0usize];
+    [
+        "Offset of field: Tuple__bindgen_ty_1::uint16",
+    ][::core::mem::offset_of!(Tuple__bindgen_ty_1, uint16) - 0usize];
+    [
+        "Offset of field: Tuple__bindgen_ty_1::uint32",
+    ][::core::mem::offset_of!(Tuple__bindgen_ty_1, uint32) - 0usize];
+    [
+        "Offset of field: Tuple__bindgen_ty_1::int8",
+    ][::core::mem::offset_of!(Tuple__bindgen_ty_1, int8) - 0usize];
+    [
+        "Offset of field: Tuple__bindgen_ty_1::int16",
+    ][::core::mem::offset_of!(Tuple__bindgen_ty_1, int16) - 0usize];
+    [
+        "Offset of field: Tuple__bindgen_ty_1::int32",
+    ][::core::mem::offset_of!(Tuple__bindgen_ty_1, int32) - 0usize];
+};
+#[allow(clippy::unnecessary_operation, clippy::identity_op)]
+const _: () = {
+    ["Size of Tuple"][::core::mem::size_of::<Tuple>() - 7usize];
+    ["Alignment of Tuple"][::core::mem::align_of::<Tuple>() - 1usize];
+    ["Offset of field: Tuple::key"][::core::mem::offset_of!(Tuple, key) - 0usize];
+    ["Offset of field: Tuple::length"][::core::mem::offset_of!(Tuple, length) - 5usize];
+    ["Offset of field: Tuple::value"][::core::mem::offset_of!(Tuple, value) - 7usize];
+};
 impl Tuple {
     #[inline]
+    #[allow(unnecessary_transmutes)]
     pub fn type_(&self) -> TupleType {
-        unsafe { ::core::mem::transmute(self._bitfield_1.get(0usize, 8u8) as u32) }
-    }
-    #[inline]
-    pub fn set_type(&mut self, val: TupleType) {
         unsafe {
-            let val: u32 = ::core::mem::transmute(val);
-            self._bitfield_1.set(0usize, 8u8, val as u64)
+            ::core::mem::transmute(self._bitfield_1.get_const::<0usize, 8u8>() as u32)
         }
     }
     #[inline]
+    #[allow(unnecessary_transmutes)]
+    pub fn set_type(&mut self, val: TupleType) {
+        unsafe {
+            let val: u32 = ::core::mem::transmute(val);
+            self._bitfield_1.set_const::<0usize, 8u8>(val as u64)
+        }
+    }
+    #[inline]
+    #[allow(unnecessary_transmutes)]
+    pub unsafe fn type__raw(this: *const Self) -> TupleType {
+        unsafe {
+            ::core::mem::transmute(
+                <__BindgenBitfieldUnit<
+                    [u8; 1usize],
+                >>::raw_get_const::<
+                    0usize,
+                    8u8,
+                >(::core::ptr::addr_of!((* this)._bitfield_1)) as u32,
+            )
+        }
+    }
+    #[inline]
+    #[allow(unnecessary_transmutes)]
+    pub unsafe fn set_type_raw(this: *mut Self, val: TupleType) {
+        unsafe {
+            let val: u32 = ::core::mem::transmute(val);
+            <__BindgenBitfieldUnit<
+                [u8; 1usize],
+            >>::raw_set_const::<
+                0usize,
+                8u8,
+            >(::core::ptr::addr_of_mut!((* this)._bitfield_1), val as u64)
+        }
+    }
+    #[inline]
+    #[allow(unnecessary_transmutes)]
     pub fn new_bitfield_1(type_: TupleType) -> __BindgenBitfieldUnit<[u8; 1usize]> {
         let mut __bindgen_bitfield_unit: __BindgenBitfieldUnit<[u8; 1usize]> = Default::default();
         __bindgen_bitfield_unit
-            .set(
+            .set_const::<
                 0usize,
                 8u8,
-                {
-                    let type_: u32 = unsafe { ::core::mem::transmute(type_) };
-                    type_ as u64
-                },
-            );
+            >({
+                let type_: u32 = unsafe { ::core::mem::transmute(type_) };
+                type_ as u64
+            });
         __bindgen_bitfield_unit
     }
 }
 #[repr(C)]
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug)]
 pub struct Dictionary {
     _unused: [u8; 0],
 }
@@ -3125,51 +3180,24 @@ pub struct DictionaryIterator {
 ! to \ref dict_read_next() will return the cursor.*/
     pub cursor: *mut Tuple,
 }
-#[test]
-fn bindgen_test_layout_DictionaryIterator() {
-    const UNINIT: ::core::mem::MaybeUninit<DictionaryIterator> = ::core::mem::MaybeUninit::uninit();
-    let ptr = UNINIT.as_ptr();
-    assert_eq!(
-        ::core::mem::size_of::<DictionaryIterator>(),
-        12usize,
-        concat!("Size of: ", stringify!(DictionaryIterator)),
-    );
-    assert_eq!(
-        ::core::mem::align_of::<DictionaryIterator>(),
-        4usize,
-        concat!("Alignment of ", stringify!(DictionaryIterator)),
-    );
-    assert_eq!(
-        unsafe { ::core::ptr::addr_of!((*ptr).dictionary) as usize - ptr as usize },
-        0usize,
-        concat!(
-            "Offset of field: ",
-            stringify!(DictionaryIterator),
-            "::",
-            stringify!(dictionary),
-        ),
-    );
-    assert_eq!(
-        unsafe { ::core::ptr::addr_of!((*ptr).end) as usize - ptr as usize },
-        4usize,
-        concat!(
-            "Offset of field: ",
-            stringify!(DictionaryIterator),
-            "::",
-            stringify!(end),
-        ),
-    );
-    assert_eq!(
-        unsafe { ::core::ptr::addr_of!((*ptr).cursor) as usize - ptr as usize },
-        8usize,
-        concat!(
-            "Offset of field: ",
-            stringify!(DictionaryIterator),
-            "::",
-            stringify!(cursor),
-        ),
-    );
-}
+#[allow(clippy::unnecessary_operation, clippy::identity_op)]
+const _: () = {
+    [
+        "Size of DictionaryIterator",
+    ][::core::mem::size_of::<DictionaryIterator>() - 12usize];
+    [
+        "Alignment of DictionaryIterator",
+    ][::core::mem::align_of::<DictionaryIterator>() - 4usize];
+    [
+        "Offset of field: DictionaryIterator::dictionary",
+    ][::core::mem::offset_of!(DictionaryIterator, dictionary) - 0usize];
+    [
+        "Offset of field: DictionaryIterator::end",
+    ][::core::mem::offset_of!(DictionaryIterator, end) - 4usize];
+    [
+        "Offset of field: DictionaryIterator::cursor",
+    ][::core::mem::offset_of!(DictionaryIterator, cursor) - 8usize];
+};
 /**! Calculates the number of bytes that a dictionary will occupy, given
 ! one or more value lengths that need to be stored in the dictionary.
 ! @note The formula to calculate the size of a Dictionary in bytes is:
@@ -3502,41 +3530,21 @@ pub struct Tuplet__bindgen_ty_1__bindgen_ty_1 {
     ///! Length of the data
     pub length: u16,
 }
-#[test]
-fn bindgen_test_layout_Tuplet__bindgen_ty_1__bindgen_ty_1() {
-    const UNINIT: ::core::mem::MaybeUninit<Tuplet__bindgen_ty_1__bindgen_ty_1> = ::core::mem::MaybeUninit::uninit();
-    let ptr = UNINIT.as_ptr();
-    assert_eq!(
-        ::core::mem::size_of::<Tuplet__bindgen_ty_1__bindgen_ty_1>(),
-        8usize,
-        concat!("Size of: ", stringify!(Tuplet__bindgen_ty_1__bindgen_ty_1)),
-    );
-    assert_eq!(
-        ::core::mem::align_of::<Tuplet__bindgen_ty_1__bindgen_ty_1>(),
-        4usize,
-        concat!("Alignment of ", stringify!(Tuplet__bindgen_ty_1__bindgen_ty_1)),
-    );
-    assert_eq!(
-        unsafe { ::core::ptr::addr_of!((*ptr).data) as usize - ptr as usize },
-        0usize,
-        concat!(
-            "Offset of field: ",
-            stringify!(Tuplet__bindgen_ty_1__bindgen_ty_1),
-            "::",
-            stringify!(data),
-        ),
-    );
-    assert_eq!(
-        unsafe { ::core::ptr::addr_of!((*ptr).length) as usize - ptr as usize },
-        4usize,
-        concat!(
-            "Offset of field: ",
-            stringify!(Tuplet__bindgen_ty_1__bindgen_ty_1),
-            "::",
-            stringify!(length),
-        ),
-    );
-}
+#[allow(clippy::unnecessary_operation, clippy::identity_op)]
+const _: () = {
+    [
+        "Size of Tuplet__bindgen_ty_1__bindgen_ty_1",
+    ][::core::mem::size_of::<Tuplet__bindgen_ty_1__bindgen_ty_1>() - 8usize];
+    [
+        "Alignment of Tuplet__bindgen_ty_1__bindgen_ty_1",
+    ][::core::mem::align_of::<Tuplet__bindgen_ty_1__bindgen_ty_1>() - 4usize];
+    [
+        "Offset of field: Tuplet__bindgen_ty_1__bindgen_ty_1::data",
+    ][::core::mem::offset_of!(Tuplet__bindgen_ty_1__bindgen_ty_1, data) - 0usize];
+    [
+        "Offset of field: Tuplet__bindgen_ty_1__bindgen_ty_1::length",
+    ][::core::mem::offset_of!(Tuplet__bindgen_ty_1__bindgen_ty_1, length) - 4usize];
+};
 ///! Valid when `.type.` is \ref TUPLE_CSTRING
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
@@ -3546,41 +3554,21 @@ pub struct Tuplet__bindgen_ty_1__bindgen_ty_2 {
     ///! Length of the c-string, including terminating zero.
     pub length: u16,
 }
-#[test]
-fn bindgen_test_layout_Tuplet__bindgen_ty_1__bindgen_ty_2() {
-    const UNINIT: ::core::mem::MaybeUninit<Tuplet__bindgen_ty_1__bindgen_ty_2> = ::core::mem::MaybeUninit::uninit();
-    let ptr = UNINIT.as_ptr();
-    assert_eq!(
-        ::core::mem::size_of::<Tuplet__bindgen_ty_1__bindgen_ty_2>(),
-        8usize,
-        concat!("Size of: ", stringify!(Tuplet__bindgen_ty_1__bindgen_ty_2)),
-    );
-    assert_eq!(
-        ::core::mem::align_of::<Tuplet__bindgen_ty_1__bindgen_ty_2>(),
-        4usize,
-        concat!("Alignment of ", stringify!(Tuplet__bindgen_ty_1__bindgen_ty_2)),
-    );
-    assert_eq!(
-        unsafe { ::core::ptr::addr_of!((*ptr).data) as usize - ptr as usize },
-        0usize,
-        concat!(
-            "Offset of field: ",
-            stringify!(Tuplet__bindgen_ty_1__bindgen_ty_2),
-            "::",
-            stringify!(data),
-        ),
-    );
-    assert_eq!(
-        unsafe { ::core::ptr::addr_of!((*ptr).length) as usize - ptr as usize },
-        4usize,
-        concat!(
-            "Offset of field: ",
-            stringify!(Tuplet__bindgen_ty_1__bindgen_ty_2),
-            "::",
-            stringify!(length),
-        ),
-    );
-}
+#[allow(clippy::unnecessary_operation, clippy::identity_op)]
+const _: () = {
+    [
+        "Size of Tuplet__bindgen_ty_1__bindgen_ty_2",
+    ][::core::mem::size_of::<Tuplet__bindgen_ty_1__bindgen_ty_2>() - 8usize];
+    [
+        "Alignment of Tuplet__bindgen_ty_1__bindgen_ty_2",
+    ][::core::mem::align_of::<Tuplet__bindgen_ty_1__bindgen_ty_2>() - 4usize];
+    [
+        "Offset of field: Tuplet__bindgen_ty_1__bindgen_ty_2::data",
+    ][::core::mem::offset_of!(Tuplet__bindgen_ty_1__bindgen_ty_2, data) - 0usize];
+    [
+        "Offset of field: Tuplet__bindgen_ty_1__bindgen_ty_2::length",
+    ][::core::mem::offset_of!(Tuplet__bindgen_ty_1__bindgen_ty_2, length) - 4usize];
+};
 ///! Valid when `.type.` is \ref TUPLE_INT or \ref TUPLE_UINT
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
@@ -3591,111 +3579,46 @@ pub struct Tuplet__bindgen_ty_1__bindgen_ty_3 {
     ///! Width of the integer.
     pub width: u16,
 }
-#[test]
-fn bindgen_test_layout_Tuplet__bindgen_ty_1__bindgen_ty_3() {
-    const UNINIT: ::core::mem::MaybeUninit<Tuplet__bindgen_ty_1__bindgen_ty_3> = ::core::mem::MaybeUninit::uninit();
-    let ptr = UNINIT.as_ptr();
-    assert_eq!(
-        ::core::mem::size_of::<Tuplet__bindgen_ty_1__bindgen_ty_3>(),
-        8usize,
-        concat!("Size of: ", stringify!(Tuplet__bindgen_ty_1__bindgen_ty_3)),
-    );
-    assert_eq!(
-        ::core::mem::align_of::<Tuplet__bindgen_ty_1__bindgen_ty_3>(),
-        4usize,
-        concat!("Alignment of ", stringify!(Tuplet__bindgen_ty_1__bindgen_ty_3)),
-    );
-    assert_eq!(
-        unsafe { ::core::ptr::addr_of!((*ptr).storage) as usize - ptr as usize },
-        0usize,
-        concat!(
-            "Offset of field: ",
-            stringify!(Tuplet__bindgen_ty_1__bindgen_ty_3),
-            "::",
-            stringify!(storage),
-        ),
-    );
-    assert_eq!(
-        unsafe { ::core::ptr::addr_of!((*ptr).width) as usize - ptr as usize },
-        4usize,
-        concat!(
-            "Offset of field: ",
-            stringify!(Tuplet__bindgen_ty_1__bindgen_ty_3),
-            "::",
-            stringify!(width),
-        ),
-    );
-}
-#[test]
-fn bindgen_test_layout_Tuplet__bindgen_ty_1() {
-    const UNINIT: ::core::mem::MaybeUninit<Tuplet__bindgen_ty_1> = ::core::mem::MaybeUninit::uninit();
-    let ptr = UNINIT.as_ptr();
-    assert_eq!(
-        ::core::mem::size_of::<Tuplet__bindgen_ty_1>(),
-        8usize,
-        concat!("Size of: ", stringify!(Tuplet__bindgen_ty_1)),
-    );
-    assert_eq!(
-        ::core::mem::align_of::<Tuplet__bindgen_ty_1>(),
-        4usize,
-        concat!("Alignment of ", stringify!(Tuplet__bindgen_ty_1)),
-    );
-    assert_eq!(
-        unsafe { ::core::ptr::addr_of!((*ptr).bytes) as usize - ptr as usize },
-        0usize,
-        concat!(
-            "Offset of field: ",
-            stringify!(Tuplet__bindgen_ty_1),
-            "::",
-            stringify!(bytes),
-        ),
-    );
-    assert_eq!(
-        unsafe { ::core::ptr::addr_of!((*ptr).cstring) as usize - ptr as usize },
-        0usize,
-        concat!(
-            "Offset of field: ",
-            stringify!(Tuplet__bindgen_ty_1),
-            "::",
-            stringify!(cstring),
-        ),
-    );
-    assert_eq!(
-        unsafe { ::core::ptr::addr_of!((*ptr).integer) as usize - ptr as usize },
-        0usize,
-        concat!(
-            "Offset of field: ",
-            stringify!(Tuplet__bindgen_ty_1),
-            "::",
-            stringify!(integer),
-        ),
-    );
-}
-#[test]
-fn bindgen_test_layout_Tuplet() {
-    const UNINIT: ::core::mem::MaybeUninit<Tuplet> = ::core::mem::MaybeUninit::uninit();
-    let ptr = UNINIT.as_ptr();
-    assert_eq!(
-        ::core::mem::size_of::<Tuplet>(),
-        16usize,
-        concat!("Size of: ", stringify!(Tuplet)),
-    );
-    assert_eq!(
-        ::core::mem::align_of::<Tuplet>(),
-        4usize,
-        concat!("Alignment of ", stringify!(Tuplet)),
-    );
-    assert_eq!(
-        unsafe { ::core::ptr::addr_of!((*ptr).type_) as usize - ptr as usize },
-        0usize,
-        concat!("Offset of field: ", stringify!(Tuplet), "::", stringify!(type_)),
-    );
-    assert_eq!(
-        unsafe { ::core::ptr::addr_of!((*ptr).key) as usize - ptr as usize },
-        4usize,
-        concat!("Offset of field: ", stringify!(Tuplet), "::", stringify!(key)),
-    );
-}
+#[allow(clippy::unnecessary_operation, clippy::identity_op)]
+const _: () = {
+    [
+        "Size of Tuplet__bindgen_ty_1__bindgen_ty_3",
+    ][::core::mem::size_of::<Tuplet__bindgen_ty_1__bindgen_ty_3>() - 8usize];
+    [
+        "Alignment of Tuplet__bindgen_ty_1__bindgen_ty_3",
+    ][::core::mem::align_of::<Tuplet__bindgen_ty_1__bindgen_ty_3>() - 4usize];
+    [
+        "Offset of field: Tuplet__bindgen_ty_1__bindgen_ty_3::storage",
+    ][::core::mem::offset_of!(Tuplet__bindgen_ty_1__bindgen_ty_3, storage) - 0usize];
+    [
+        "Offset of field: Tuplet__bindgen_ty_1__bindgen_ty_3::width",
+    ][::core::mem::offset_of!(Tuplet__bindgen_ty_1__bindgen_ty_3, width) - 4usize];
+};
+#[allow(clippy::unnecessary_operation, clippy::identity_op)]
+const _: () = {
+    [
+        "Size of Tuplet__bindgen_ty_1",
+    ][::core::mem::size_of::<Tuplet__bindgen_ty_1>() - 8usize];
+    [
+        "Alignment of Tuplet__bindgen_ty_1",
+    ][::core::mem::align_of::<Tuplet__bindgen_ty_1>() - 4usize];
+    [
+        "Offset of field: Tuplet__bindgen_ty_1::bytes",
+    ][::core::mem::offset_of!(Tuplet__bindgen_ty_1, bytes) - 0usize];
+    [
+        "Offset of field: Tuplet__bindgen_ty_1::cstring",
+    ][::core::mem::offset_of!(Tuplet__bindgen_ty_1, cstring) - 0usize];
+    [
+        "Offset of field: Tuplet__bindgen_ty_1::integer",
+    ][::core::mem::offset_of!(Tuplet__bindgen_ty_1, integer) - 0usize];
+};
+#[allow(clippy::unnecessary_operation, clippy::identity_op)]
+const _: () = {
+    ["Size of Tuplet"][::core::mem::size_of::<Tuplet>() - 16usize];
+    ["Alignment of Tuplet"][::core::mem::align_of::<Tuplet>() - 4usize];
+    ["Offset of field: Tuplet::type_"][::core::mem::offset_of!(Tuplet, type_) - 0usize];
+    ["Offset of field: Tuplet::key"][::core::mem::offset_of!(Tuplet, key) - 4usize];
+};
 /**! Callback for \ref dict_serialize_tuplets() utility.
 ! @param data The data of the serialized dictionary
 ! @param size The size of data
@@ -3882,8 +3805,10 @@ pub unsafe extern "C" fn dict_find(
         ::shim::jump_to_pbl_function,
     )
 }
+/**! @addtogroup Dictation
+! @{*/
 #[repr(C)]
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug)]
 pub struct DictationSession {
     _unused: [u8; 0],
 }
@@ -4452,41 +4377,21 @@ pub union AppSync__bindgen_ty_1 {
     pub current: *mut Dictionary,
     pub buffer: *mut u8,
 }
-#[test]
-fn bindgen_test_layout_AppSync__bindgen_ty_1() {
-    const UNINIT: ::core::mem::MaybeUninit<AppSync__bindgen_ty_1> = ::core::mem::MaybeUninit::uninit();
-    let ptr = UNINIT.as_ptr();
-    assert_eq!(
-        ::core::mem::size_of::<AppSync__bindgen_ty_1>(),
-        4usize,
-        concat!("Size of: ", stringify!(AppSync__bindgen_ty_1)),
-    );
-    assert_eq!(
-        ::core::mem::align_of::<AppSync__bindgen_ty_1>(),
-        4usize,
-        concat!("Alignment of ", stringify!(AppSync__bindgen_ty_1)),
-    );
-    assert_eq!(
-        unsafe { ::core::ptr::addr_of!((*ptr).current) as usize - ptr as usize },
-        0usize,
-        concat!(
-            "Offset of field: ",
-            stringify!(AppSync__bindgen_ty_1),
-            "::",
-            stringify!(current),
-        ),
-    );
-    assert_eq!(
-        unsafe { ::core::ptr::addr_of!((*ptr).buffer) as usize - ptr as usize },
-        0usize,
-        concat!(
-            "Offset of field: ",
-            stringify!(AppSync__bindgen_ty_1),
-            "::",
-            stringify!(buffer),
-        ),
-    );
-}
+#[allow(clippy::unnecessary_operation, clippy::identity_op)]
+const _: () = {
+    [
+        "Size of AppSync__bindgen_ty_1",
+    ][::core::mem::size_of::<AppSync__bindgen_ty_1>() - 4usize];
+    [
+        "Alignment of AppSync__bindgen_ty_1",
+    ][::core::mem::align_of::<AppSync__bindgen_ty_1>() - 4usize];
+    [
+        "Offset of field: AppSync__bindgen_ty_1::current",
+    ][::core::mem::offset_of!(AppSync__bindgen_ty_1, current) - 0usize];
+    [
+        "Offset of field: AppSync__bindgen_ty_1::buffer",
+    ][::core::mem::offset_of!(AppSync__bindgen_ty_1, buffer) - 0usize];
+};
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct AppSync__bindgen_ty_2 {
@@ -4494,81 +4399,38 @@ pub struct AppSync__bindgen_ty_2 {
     pub error: AppSyncErrorCallback,
     pub context: *mut ::core::ffi::c_void,
 }
-#[test]
-fn bindgen_test_layout_AppSync__bindgen_ty_2() {
-    const UNINIT: ::core::mem::MaybeUninit<AppSync__bindgen_ty_2> = ::core::mem::MaybeUninit::uninit();
-    let ptr = UNINIT.as_ptr();
-    assert_eq!(
-        ::core::mem::size_of::<AppSync__bindgen_ty_2>(),
-        12usize,
-        concat!("Size of: ", stringify!(AppSync__bindgen_ty_2)),
-    );
-    assert_eq!(
-        ::core::mem::align_of::<AppSync__bindgen_ty_2>(),
-        4usize,
-        concat!("Alignment of ", stringify!(AppSync__bindgen_ty_2)),
-    );
-    assert_eq!(
-        unsafe { ::core::ptr::addr_of!((*ptr).value_changed) as usize - ptr as usize },
-        0usize,
-        concat!(
-            "Offset of field: ",
-            stringify!(AppSync__bindgen_ty_2),
-            "::",
-            stringify!(value_changed),
-        ),
-    );
-    assert_eq!(
-        unsafe { ::core::ptr::addr_of!((*ptr).error) as usize - ptr as usize },
-        4usize,
-        concat!(
-            "Offset of field: ",
-            stringify!(AppSync__bindgen_ty_2),
-            "::",
-            stringify!(error),
-        ),
-    );
-    assert_eq!(
-        unsafe { ::core::ptr::addr_of!((*ptr).context) as usize - ptr as usize },
-        8usize,
-        concat!(
-            "Offset of field: ",
-            stringify!(AppSync__bindgen_ty_2),
-            "::",
-            stringify!(context),
-        ),
-    );
-}
-#[test]
-fn bindgen_test_layout_AppSync() {
-    const UNINIT: ::core::mem::MaybeUninit<AppSync> = ::core::mem::MaybeUninit::uninit();
-    let ptr = UNINIT.as_ptr();
-    assert_eq!(
-        ::core::mem::size_of::<AppSync>(),
-        32usize,
-        concat!("Size of: ", stringify!(AppSync)),
-    );
-    assert_eq!(
-        ::core::mem::align_of::<AppSync>(),
-        4usize,
-        concat!("Alignment of ", stringify!(AppSync)),
-    );
-    assert_eq!(
-        unsafe { ::core::ptr::addr_of!((*ptr).current_iter) as usize - ptr as usize },
-        0usize,
-        concat!("Offset of field: ", stringify!(AppSync), "::", stringify!(current_iter)),
-    );
-    assert_eq!(
-        unsafe { ::core::ptr::addr_of!((*ptr).buffer_size) as usize - ptr as usize },
-        16usize,
-        concat!("Offset of field: ", stringify!(AppSync), "::", stringify!(buffer_size)),
-    );
-    assert_eq!(
-        unsafe { ::core::ptr::addr_of!((*ptr).callback) as usize - ptr as usize },
-        20usize,
-        concat!("Offset of field: ", stringify!(AppSync), "::", stringify!(callback)),
-    );
-}
+#[allow(clippy::unnecessary_operation, clippy::identity_op)]
+const _: () = {
+    [
+        "Size of AppSync__bindgen_ty_2",
+    ][::core::mem::size_of::<AppSync__bindgen_ty_2>() - 12usize];
+    [
+        "Alignment of AppSync__bindgen_ty_2",
+    ][::core::mem::align_of::<AppSync__bindgen_ty_2>() - 4usize];
+    [
+        "Offset of field: AppSync__bindgen_ty_2::value_changed",
+    ][::core::mem::offset_of!(AppSync__bindgen_ty_2, value_changed) - 0usize];
+    [
+        "Offset of field: AppSync__bindgen_ty_2::error",
+    ][::core::mem::offset_of!(AppSync__bindgen_ty_2, error) - 4usize];
+    [
+        "Offset of field: AppSync__bindgen_ty_2::context",
+    ][::core::mem::offset_of!(AppSync__bindgen_ty_2, context) - 8usize];
+};
+#[allow(clippy::unnecessary_operation, clippy::identity_op)]
+const _: () = {
+    ["Size of AppSync"][::core::mem::size_of::<AppSync>() - 32usize];
+    ["Alignment of AppSync"][::core::mem::align_of::<AppSync>() - 4usize];
+    [
+        "Offset of field: AppSync::current_iter",
+    ][::core::mem::offset_of!(AppSync, current_iter) - 0usize];
+    [
+        "Offset of field: AppSync::buffer_size",
+    ][::core::mem::offset_of!(AppSync, buffer_size) - 16usize];
+    [
+        "Offset of field: AppSync::callback",
+    ][::core::mem::offset_of!(AppSync, callback) - 20usize];
+};
 /**! Initialized an AppSync system with specific buffer size and initial keys and
 ! values. The `callback.value_changed` callback will be called
 ! __asynchronously__ with the initial keys and values, as to avoid duplicating
@@ -4795,81 +4657,33 @@ pub struct ModdableCreationRecord {
     ///!< Optional pointer to an fxBuildFFI function for custom native bindings
     pub fxBuildFFI: *mut ::core::ffi::c_void,
 }
-#[test]
-fn bindgen_test_layout_ModdableCreationRecord() {
-    const UNINIT: ::core::mem::MaybeUninit<ModdableCreationRecord> = ::core::mem::MaybeUninit::uninit();
-    let ptr = UNINIT.as_ptr();
-    assert_eq!(
-        ::core::mem::size_of::<ModdableCreationRecord>(),
-        24usize,
-        concat!("Size of: ", stringify!(ModdableCreationRecord)),
-    );
-    assert_eq!(
-        ::core::mem::align_of::<ModdableCreationRecord>(),
-        4usize,
-        concat!("Alignment of ", stringify!(ModdableCreationRecord)),
-    );
-    assert_eq!(
-        unsafe { ::core::ptr::addr_of!((*ptr).recordSize) as usize - ptr as usize },
-        0usize,
-        concat!(
-            "Offset of field: ",
-            stringify!(ModdableCreationRecord),
-            "::",
-            stringify!(recordSize),
-        ),
-    );
-    assert_eq!(
-        unsafe { ::core::ptr::addr_of!((*ptr).stack) as usize - ptr as usize },
-        4usize,
-        concat!(
-            "Offset of field: ",
-            stringify!(ModdableCreationRecord),
-            "::",
-            stringify!(stack),
-        ),
-    );
-    assert_eq!(
-        unsafe { ::core::ptr::addr_of!((*ptr).slot) as usize - ptr as usize },
-        8usize,
-        concat!(
-            "Offset of field: ",
-            stringify!(ModdableCreationRecord),
-            "::",
-            stringify!(slot),
-        ),
-    );
-    assert_eq!(
-        unsafe { ::core::ptr::addr_of!((*ptr).chunk) as usize - ptr as usize },
-        12usize,
-        concat!(
-            "Offset of field: ",
-            stringify!(ModdableCreationRecord),
-            "::",
-            stringify!(chunk),
-        ),
-    );
-    assert_eq!(
-        unsafe { ::core::ptr::addr_of!((*ptr).flags) as usize - ptr as usize },
-        16usize,
-        concat!(
-            "Offset of field: ",
-            stringify!(ModdableCreationRecord),
-            "::",
-            stringify!(flags),
-        ),
-    );
-    assert_eq!(
-        unsafe { ::core::ptr::addr_of!((*ptr).fxBuildFFI) as usize - ptr as usize },
-        20usize,
-        concat!(
-            "Offset of field: ",
-            stringify!(ModdableCreationRecord),
-            "::",
-            stringify!(fxBuildFFI),
-        ),
-    );
-}
+#[allow(clippy::unnecessary_operation, clippy::identity_op)]
+const _: () = {
+    [
+        "Size of ModdableCreationRecord",
+    ][::core::mem::size_of::<ModdableCreationRecord>() - 24usize];
+    [
+        "Alignment of ModdableCreationRecord",
+    ][::core::mem::align_of::<ModdableCreationRecord>() - 4usize];
+    [
+        "Offset of field: ModdableCreationRecord::recordSize",
+    ][::core::mem::offset_of!(ModdableCreationRecord, recordSize) - 0usize];
+    [
+        "Offset of field: ModdableCreationRecord::stack",
+    ][::core::mem::offset_of!(ModdableCreationRecord, stack) - 4usize];
+    [
+        "Offset of field: ModdableCreationRecord::slot",
+    ][::core::mem::offset_of!(ModdableCreationRecord, slot) - 8usize];
+    [
+        "Offset of field: ModdableCreationRecord::chunk",
+    ][::core::mem::offset_of!(ModdableCreationRecord, chunk) - 12usize];
+    [
+        "Offset of field: ModdableCreationRecord::flags",
+    ][::core::mem::offset_of!(ModdableCreationRecord, flags) - 16usize];
+    [
+        "Offset of field: ModdableCreationRecord::fxBuildFFI",
+    ][::core::mem::offset_of!(ModdableCreationRecord, fxBuildFFI) - 20usize];
+};
 ///! Success
 pub const AppWorkerResult_APP_WORKER_RESULT_SUCCESS: AppWorkerResult = 0;
 ///! No worker found for the current app
@@ -4892,51 +4706,22 @@ pub struct AppWorkerMessage {
     pub data1: u16,
     pub data2: u16,
 }
-#[test]
-fn bindgen_test_layout_AppWorkerMessage() {
-    const UNINIT: ::core::mem::MaybeUninit<AppWorkerMessage> = ::core::mem::MaybeUninit::uninit();
-    let ptr = UNINIT.as_ptr();
-    assert_eq!(
-        ::core::mem::size_of::<AppWorkerMessage>(),
-        6usize,
-        concat!("Size of: ", stringify!(AppWorkerMessage)),
-    );
-    assert_eq!(
-        ::core::mem::align_of::<AppWorkerMessage>(),
-        2usize,
-        concat!("Alignment of ", stringify!(AppWorkerMessage)),
-    );
-    assert_eq!(
-        unsafe { ::core::ptr::addr_of!((*ptr).data0) as usize - ptr as usize },
-        0usize,
-        concat!(
-            "Offset of field: ",
-            stringify!(AppWorkerMessage),
-            "::",
-            stringify!(data0),
-        ),
-    );
-    assert_eq!(
-        unsafe { ::core::ptr::addr_of!((*ptr).data1) as usize - ptr as usize },
-        2usize,
-        concat!(
-            "Offset of field: ",
-            stringify!(AppWorkerMessage),
-            "::",
-            stringify!(data1),
-        ),
-    );
-    assert_eq!(
-        unsafe { ::core::ptr::addr_of!((*ptr).data2) as usize - ptr as usize },
-        4usize,
-        concat!(
-            "Offset of field: ",
-            stringify!(AppWorkerMessage),
-            "::",
-            stringify!(data2),
-        ),
-    );
-}
+#[allow(clippy::unnecessary_operation, clippy::identity_op)]
+const _: () = {
+    ["Size of AppWorkerMessage"][::core::mem::size_of::<AppWorkerMessage>() - 6usize];
+    [
+        "Alignment of AppWorkerMessage",
+    ][::core::mem::align_of::<AppWorkerMessage>() - 2usize];
+    [
+        "Offset of field: AppWorkerMessage::data0",
+    ][::core::mem::offset_of!(AppWorkerMessage, data0) - 0usize];
+    [
+        "Offset of field: AppWorkerMessage::data1",
+    ][::core::mem::offset_of!(AppWorkerMessage, data1) - 2usize];
+    [
+        "Offset of field: AppWorkerMessage::data2",
+    ][::core::mem::offset_of!(AppWorkerMessage, data2) - 4usize];
+};
 /**! Determine if the worker for the current app is running
 ! @return true if running*/
 /** app_worker_is_running
@@ -5092,7 +4877,7 @@ pub unsafe extern "C" fn psleep(millis: ::core::ffi::c_int) {
     )
 }
 #[repr(C)]
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug)]
 pub struct AppTimer {
     _unused: [u8; 0],
 }
@@ -5643,44 +5428,21 @@ pub struct AppGlanceSliceLayout {
 ! to destroy after adding the slice to the glance. Use NULL if no string should be displayed.*/
     pub subtitle_template_string: *const ::core::ffi::c_char,
 }
-#[test]
-fn bindgen_test_layout_AppGlanceSliceLayout() {
-    const UNINIT: ::core::mem::MaybeUninit<AppGlanceSliceLayout> = ::core::mem::MaybeUninit::uninit();
-    let ptr = UNINIT.as_ptr();
-    assert_eq!(
-        ::core::mem::size_of::<AppGlanceSliceLayout>(),
-        8usize,
-        concat!("Size of: ", stringify!(AppGlanceSliceLayout)),
-    );
-    assert_eq!(
-        ::core::mem::align_of::<AppGlanceSliceLayout>(),
-        4usize,
-        concat!("Alignment of ", stringify!(AppGlanceSliceLayout)),
-    );
-    assert_eq!(
-        unsafe { ::core::ptr::addr_of!((*ptr).icon) as usize - ptr as usize },
-        0usize,
-        concat!(
-            "Offset of field: ",
-            stringify!(AppGlanceSliceLayout),
-            "::",
-            stringify!(icon),
-        ),
-    );
-    assert_eq!(
-        unsafe {
-            ::core::ptr::addr_of!((*ptr).subtitle_template_string) as usize
-                - ptr as usize
-        },
-        4usize,
-        concat!(
-            "Offset of field: ",
-            stringify!(AppGlanceSliceLayout),
-            "::",
-            stringify!(subtitle_template_string),
-        ),
-    );
-}
+#[allow(clippy::unnecessary_operation, clippy::identity_op)]
+const _: () = {
+    [
+        "Size of AppGlanceSliceLayout",
+    ][::core::mem::size_of::<AppGlanceSliceLayout>() - 8usize];
+    [
+        "Alignment of AppGlanceSliceLayout",
+    ][::core::mem::align_of::<AppGlanceSliceLayout>() - 4usize];
+    [
+        "Offset of field: AppGlanceSliceLayout::icon",
+    ][::core::mem::offset_of!(AppGlanceSliceLayout, icon) - 0usize];
+    [
+        "Offset of field: AppGlanceSliceLayout::subtitle_template_string",
+    ][::core::mem::offset_of!(AppGlanceSliceLayout, subtitle_template_string) - 4usize];
+};
 /**! An app's glance can change over time as defined by zero or more app glance slices that each
 ! describe the state of the app glance at a particular point in time. Slices are displayed in the
 ! order they are added, and they are removed at the specified expiration time.*/
@@ -5693,41 +5455,17 @@ pub struct AppGlanceSlice {
 ! APP_GLANCE_SLICE_NO_EXPIRATION if the slice should never expire.*/
     pub expiration_time: time_t,
 }
-#[test]
-fn bindgen_test_layout_AppGlanceSlice() {
-    const UNINIT: ::core::mem::MaybeUninit<AppGlanceSlice> = ::core::mem::MaybeUninit::uninit();
-    let ptr = UNINIT.as_ptr();
-    assert_eq!(
-        ::core::mem::size_of::<AppGlanceSlice>(),
-        12usize,
-        concat!("Size of: ", stringify!(AppGlanceSlice)),
-    );
-    assert_eq!(
-        ::core::mem::align_of::<AppGlanceSlice>(),
-        4usize,
-        concat!("Alignment of ", stringify!(AppGlanceSlice)),
-    );
-    assert_eq!(
-        unsafe { ::core::ptr::addr_of!((*ptr).layout) as usize - ptr as usize },
-        0usize,
-        concat!(
-            "Offset of field: ",
-            stringify!(AppGlanceSlice),
-            "::",
-            stringify!(layout),
-        ),
-    );
-    assert_eq!(
-        unsafe { ::core::ptr::addr_of!((*ptr).expiration_time) as usize - ptr as usize },
-        8usize,
-        concat!(
-            "Offset of field: ",
-            stringify!(AppGlanceSlice),
-            "::",
-            stringify!(expiration_time),
-        ),
-    );
-}
+#[allow(clippy::unnecessary_operation, clippy::identity_op)]
+const _: () = {
+    ["Size of AppGlanceSlice"][::core::mem::size_of::<AppGlanceSlice>() - 12usize];
+    ["Alignment of AppGlanceSlice"][::core::mem::align_of::<AppGlanceSlice>() - 4usize];
+    [
+        "Offset of field: AppGlanceSlice::layout",
+    ][::core::mem::offset_of!(AppGlanceSlice, layout) - 0usize];
+    [
+        "Offset of field: AppGlanceSlice::expiration_time",
+    ][::core::mem::offset_of!(AppGlanceSlice, expiration_time) - 8usize];
+};
 ///! The slice was successfully added to the app's glance.
 pub const AppGlanceResult_APP_GLANCE_RESULT_SUCCESS: AppGlanceResult = 0;
 ///! The subtitle_template_string provided in the slice was invalid.
@@ -5745,7 +5483,7 @@ pub const AppGlanceResult_APP_GLANCE_RESULT_INVALID_SESSION: AppGlanceResult = 3
 ///! Bitfield enum describing the result of trying to add an AppGlanceSlice to an app's glance.
 pub type AppGlanceResult = ::core::ffi::c_uint;
 #[repr(C)]
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug)]
 pub struct AppGlanceReloadSession {
     _unused: [u8; 0],
 }
@@ -5811,68 +5549,188 @@ pub union GColor8 {
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct GColor8__bindgen_ty_1 {
-    pub _bitfield_align_1: [u8; 0],
     pub _bitfield_1: __BindgenBitfieldUnit<[u8; 1usize]>,
 }
-#[test]
-fn bindgen_test_layout_GColor8__bindgen_ty_1() {
-    assert_eq!(
-        ::core::mem::size_of::<GColor8__bindgen_ty_1>(),
-        1usize,
-        concat!("Size of: ", stringify!(GColor8__bindgen_ty_1)),
-    );
-    assert_eq!(
-        ::core::mem::align_of::<GColor8__bindgen_ty_1>(),
-        1usize,
-        concat!("Alignment of ", stringify!(GColor8__bindgen_ty_1)),
-    );
-}
+#[allow(clippy::unnecessary_operation, clippy::identity_op)]
+const _: () = {
+    [
+        "Size of GColor8__bindgen_ty_1",
+    ][::core::mem::size_of::<GColor8__bindgen_ty_1>() - 1usize];
+    [
+        "Alignment of GColor8__bindgen_ty_1",
+    ][::core::mem::align_of::<GColor8__bindgen_ty_1>() - 1usize];
+};
 impl GColor8__bindgen_ty_1 {
     #[inline]
+    #[allow(unnecessary_transmutes)]
     pub fn b(&self) -> u8 {
-        unsafe { ::core::mem::transmute(self._bitfield_1.get(0usize, 2u8) as u8) }
+        unsafe {
+            ::core::mem::transmute(self._bitfield_1.get_const::<0usize, 2u8>() as u8)
+        }
     }
     #[inline]
+    #[allow(unnecessary_transmutes)]
     pub fn set_b(&mut self, val: u8) {
         unsafe {
             let val: u8 = ::core::mem::transmute(val);
-            self._bitfield_1.set(0usize, 2u8, val as u64)
+            self._bitfield_1.set_const::<0usize, 2u8>(val as u64)
         }
     }
     #[inline]
-    pub fn g(&self) -> u8 {
-        unsafe { ::core::mem::transmute(self._bitfield_1.get(2usize, 2u8) as u8) }
+    #[allow(unnecessary_transmutes)]
+    pub unsafe fn b_raw(this: *const Self) -> u8 {
+        unsafe {
+            ::core::mem::transmute(
+                <__BindgenBitfieldUnit<
+                    [u8; 1usize],
+                >>::raw_get_const::<
+                    0usize,
+                    2u8,
+                >(::core::ptr::addr_of!((* this)._bitfield_1)) as u8,
+            )
+        }
     }
     #[inline]
+    #[allow(unnecessary_transmutes)]
+    pub unsafe fn set_b_raw(this: *mut Self, val: u8) {
+        unsafe {
+            let val: u8 = ::core::mem::transmute(val);
+            <__BindgenBitfieldUnit<
+                [u8; 1usize],
+            >>::raw_set_const::<
+                0usize,
+                2u8,
+            >(::core::ptr::addr_of_mut!((* this)._bitfield_1), val as u64)
+        }
+    }
+    #[inline]
+    #[allow(unnecessary_transmutes)]
+    pub fn g(&self) -> u8 {
+        unsafe {
+            ::core::mem::transmute(self._bitfield_1.get_const::<2usize, 2u8>() as u8)
+        }
+    }
+    #[inline]
+    #[allow(unnecessary_transmutes)]
     pub fn set_g(&mut self, val: u8) {
         unsafe {
             let val: u8 = ::core::mem::transmute(val);
-            self._bitfield_1.set(2usize, 2u8, val as u64)
+            self._bitfield_1.set_const::<2usize, 2u8>(val as u64)
         }
     }
     #[inline]
-    pub fn r(&self) -> u8 {
-        unsafe { ::core::mem::transmute(self._bitfield_1.get(4usize, 2u8) as u8) }
+    #[allow(unnecessary_transmutes)]
+    pub unsafe fn g_raw(this: *const Self) -> u8 {
+        unsafe {
+            ::core::mem::transmute(
+                <__BindgenBitfieldUnit<
+                    [u8; 1usize],
+                >>::raw_get_const::<
+                    2usize,
+                    2u8,
+                >(::core::ptr::addr_of!((* this)._bitfield_1)) as u8,
+            )
+        }
     }
     #[inline]
+    #[allow(unnecessary_transmutes)]
+    pub unsafe fn set_g_raw(this: *mut Self, val: u8) {
+        unsafe {
+            let val: u8 = ::core::mem::transmute(val);
+            <__BindgenBitfieldUnit<
+                [u8; 1usize],
+            >>::raw_set_const::<
+                2usize,
+                2u8,
+            >(::core::ptr::addr_of_mut!((* this)._bitfield_1), val as u64)
+        }
+    }
+    #[inline]
+    #[allow(unnecessary_transmutes)]
+    pub fn r(&self) -> u8 {
+        unsafe {
+            ::core::mem::transmute(self._bitfield_1.get_const::<4usize, 2u8>() as u8)
+        }
+    }
+    #[inline]
+    #[allow(unnecessary_transmutes)]
     pub fn set_r(&mut self, val: u8) {
         unsafe {
             let val: u8 = ::core::mem::transmute(val);
-            self._bitfield_1.set(4usize, 2u8, val as u64)
+            self._bitfield_1.set_const::<4usize, 2u8>(val as u64)
         }
     }
     #[inline]
-    pub fn a(&self) -> u8 {
-        unsafe { ::core::mem::transmute(self._bitfield_1.get(6usize, 2u8) as u8) }
+    #[allow(unnecessary_transmutes)]
+    pub unsafe fn r_raw(this: *const Self) -> u8 {
+        unsafe {
+            ::core::mem::transmute(
+                <__BindgenBitfieldUnit<
+                    [u8; 1usize],
+                >>::raw_get_const::<
+                    4usize,
+                    2u8,
+                >(::core::ptr::addr_of!((* this)._bitfield_1)) as u8,
+            )
+        }
     }
     #[inline]
+    #[allow(unnecessary_transmutes)]
+    pub unsafe fn set_r_raw(this: *mut Self, val: u8) {
+        unsafe {
+            let val: u8 = ::core::mem::transmute(val);
+            <__BindgenBitfieldUnit<
+                [u8; 1usize],
+            >>::raw_set_const::<
+                4usize,
+                2u8,
+            >(::core::ptr::addr_of_mut!((* this)._bitfield_1), val as u64)
+        }
+    }
+    #[inline]
+    #[allow(unnecessary_transmutes)]
+    pub fn a(&self) -> u8 {
+        unsafe {
+            ::core::mem::transmute(self._bitfield_1.get_const::<6usize, 2u8>() as u8)
+        }
+    }
+    #[inline]
+    #[allow(unnecessary_transmutes)]
     pub fn set_a(&mut self, val: u8) {
         unsafe {
             let val: u8 = ::core::mem::transmute(val);
-            self._bitfield_1.set(6usize, 2u8, val as u64)
+            self._bitfield_1.set_const::<6usize, 2u8>(val as u64)
         }
     }
     #[inline]
+    #[allow(unnecessary_transmutes)]
+    pub unsafe fn a_raw(this: *const Self) -> u8 {
+        unsafe {
+            ::core::mem::transmute(
+                <__BindgenBitfieldUnit<
+                    [u8; 1usize],
+                >>::raw_get_const::<
+                    6usize,
+                    2u8,
+                >(::core::ptr::addr_of!((* this)._bitfield_1)) as u8,
+            )
+        }
+    }
+    #[inline]
+    #[allow(unnecessary_transmutes)]
+    pub unsafe fn set_a_raw(this: *mut Self, val: u8) {
+        unsafe {
+            let val: u8 = ::core::mem::transmute(val);
+            <__BindgenBitfieldUnit<
+                [u8; 1usize],
+            >>::raw_set_const::<
+                6usize,
+                2u8,
+            >(::core::ptr::addr_of_mut!((* this)._bitfield_1), val as u64)
+        }
+    }
+    #[inline]
+    #[allow(unnecessary_transmutes)]
     pub fn new_bitfield_1(
         b: u8,
         g: u8,
@@ -5881,64 +5739,46 @@ impl GColor8__bindgen_ty_1 {
     ) -> __BindgenBitfieldUnit<[u8; 1usize]> {
         let mut __bindgen_bitfield_unit: __BindgenBitfieldUnit<[u8; 1usize]> = Default::default();
         __bindgen_bitfield_unit
-            .set(
+            .set_const::<
                 0usize,
                 2u8,
-                {
-                    let b: u8 = unsafe { ::core::mem::transmute(b) };
-                    b as u64
-                },
-            );
+            >({
+                let b: u8 = unsafe { ::core::mem::transmute(b) };
+                b as u64
+            });
         __bindgen_bitfield_unit
-            .set(
+            .set_const::<
                 2usize,
                 2u8,
-                {
-                    let g: u8 = unsafe { ::core::mem::transmute(g) };
-                    g as u64
-                },
-            );
+            >({
+                let g: u8 = unsafe { ::core::mem::transmute(g) };
+                g as u64
+            });
         __bindgen_bitfield_unit
-            .set(
+            .set_const::<
                 4usize,
                 2u8,
-                {
-                    let r: u8 = unsafe { ::core::mem::transmute(r) };
-                    r as u64
-                },
-            );
+            >({
+                let r: u8 = unsafe { ::core::mem::transmute(r) };
+                r as u64
+            });
         __bindgen_bitfield_unit
-            .set(
+            .set_const::<
                 6usize,
                 2u8,
-                {
-                    let a: u8 = unsafe { ::core::mem::transmute(a) };
-                    a as u64
-                },
-            );
+            >({
+                let a: u8 = unsafe { ::core::mem::transmute(a) };
+                a as u64
+            });
         __bindgen_bitfield_unit
     }
 }
-#[test]
-fn bindgen_test_layout_GColor8() {
-    const UNINIT: ::core::mem::MaybeUninit<GColor8> = ::core::mem::MaybeUninit::uninit();
-    let ptr = UNINIT.as_ptr();
-    assert_eq!(
-        ::core::mem::size_of::<GColor8>(),
-        1usize,
-        concat!("Size of: ", stringify!(GColor8)),
-    );
-    assert_eq!(
-        ::core::mem::align_of::<GColor8>(),
-        1usize,
-        concat!("Alignment of ", stringify!(GColor8)),
-    );
-    assert_eq!(
-        unsafe { ::core::ptr::addr_of!((*ptr).argb) as usize - ptr as usize },
-        0usize,
-        concat!("Offset of field: ", stringify!(GColor8), "::", stringify!(argb)),
-    );
-}
+#[allow(clippy::unnecessary_operation, clippy::identity_op)]
+const _: () = {
+    ["Size of GColor8"][::core::mem::size_of::<GColor8>() - 1usize];
+    ["Alignment of GColor8"][::core::mem::align_of::<GColor8>() - 1usize];
+    ["Offset of field: GColor8::argb"][::core::mem::offset_of!(GColor8, argb) - 0usize];
+};
 /**! @addtogroup GraphicsTypes Graphics Types
 ! \brief Basic graphics types (point, rect, size, color, bitmaps, etc.) and utility functions.
 !
@@ -5984,31 +5824,13 @@ pub struct GPoint {
     ///! The y-coordinate.
     pub y: i16,
 }
-#[test]
-fn bindgen_test_layout_GPoint() {
-    const UNINIT: ::core::mem::MaybeUninit<GPoint> = ::core::mem::MaybeUninit::uninit();
-    let ptr = UNINIT.as_ptr();
-    assert_eq!(
-        ::core::mem::size_of::<GPoint>(),
-        4usize,
-        concat!("Size of: ", stringify!(GPoint)),
-    );
-    assert_eq!(
-        ::core::mem::align_of::<GPoint>(),
-        2usize,
-        concat!("Alignment of ", stringify!(GPoint)),
-    );
-    assert_eq!(
-        unsafe { ::core::ptr::addr_of!((*ptr).x) as usize - ptr as usize },
-        0usize,
-        concat!("Offset of field: ", stringify!(GPoint), "::", stringify!(x)),
-    );
-    assert_eq!(
-        unsafe { ::core::ptr::addr_of!((*ptr).y) as usize - ptr as usize },
-        2usize,
-        concat!("Offset of field: ", stringify!(GPoint), "::", stringify!(y)),
-    );
-}
+#[allow(clippy::unnecessary_operation, clippy::identity_op)]
+const _: () = {
+    ["Size of GPoint"][::core::mem::size_of::<GPoint>() - 4usize];
+    ["Alignment of GPoint"][::core::mem::align_of::<GPoint>() - 2usize];
+    ["Offset of field: GPoint::x"][::core::mem::offset_of!(GPoint, x) - 0usize];
+    ["Offset of field: GPoint::y"][::core::mem::offset_of!(GPoint, y) - 2usize];
+};
 /**! Tests whether 2 points are equal.
 ! @param point_a Pointer to the first point
 ! @param point_b Pointer to the second point
@@ -6036,31 +5858,13 @@ pub struct GSize {
     ///! The height
     pub h: i16,
 }
-#[test]
-fn bindgen_test_layout_GSize() {
-    const UNINIT: ::core::mem::MaybeUninit<GSize> = ::core::mem::MaybeUninit::uninit();
-    let ptr = UNINIT.as_ptr();
-    assert_eq!(
-        ::core::mem::size_of::<GSize>(),
-        4usize,
-        concat!("Size of: ", stringify!(GSize)),
-    );
-    assert_eq!(
-        ::core::mem::align_of::<GSize>(),
-        2usize,
-        concat!("Alignment of ", stringify!(GSize)),
-    );
-    assert_eq!(
-        unsafe { ::core::ptr::addr_of!((*ptr).w) as usize - ptr as usize },
-        0usize,
-        concat!("Offset of field: ", stringify!(GSize), "::", stringify!(w)),
-    );
-    assert_eq!(
-        unsafe { ::core::ptr::addr_of!((*ptr).h) as usize - ptr as usize },
-        2usize,
-        concat!("Offset of field: ", stringify!(GSize), "::", stringify!(h)),
-    );
-}
+#[allow(clippy::unnecessary_operation, clippy::identity_op)]
+const _: () = {
+    ["Size of GSize"][::core::mem::size_of::<GSize>() - 4usize];
+    ["Alignment of GSize"][::core::mem::align_of::<GSize>() - 2usize];
+    ["Offset of field: GSize::w"][::core::mem::offset_of!(GSize, w) - 0usize];
+    ["Offset of field: GSize::h"][::core::mem::offset_of!(GSize, h) - 2usize];
+};
 /**! Tests whether 2 sizes are equal.
 ! @param size_a Pointer to the first size
 ! @param size_b Pointer to the second size
@@ -6089,31 +5893,13 @@ pub struct GRect {
     ///! The size of the rectangle.
     pub size: GSize,
 }
-#[test]
-fn bindgen_test_layout_GRect() {
-    const UNINIT: ::core::mem::MaybeUninit<GRect> = ::core::mem::MaybeUninit::uninit();
-    let ptr = UNINIT.as_ptr();
-    assert_eq!(
-        ::core::mem::size_of::<GRect>(),
-        8usize,
-        concat!("Size of: ", stringify!(GRect)),
-    );
-    assert_eq!(
-        ::core::mem::align_of::<GRect>(),
-        2usize,
-        concat!("Alignment of ", stringify!(GRect)),
-    );
-    assert_eq!(
-        unsafe { ::core::ptr::addr_of!((*ptr).origin) as usize - ptr as usize },
-        0usize,
-        concat!("Offset of field: ", stringify!(GRect), "::", stringify!(origin)),
-    );
-    assert_eq!(
-        unsafe { ::core::ptr::addr_of!((*ptr).size) as usize - ptr as usize },
-        4usize,
-        concat!("Offset of field: ", stringify!(GRect), "::", stringify!(size)),
-    );
-}
+#[allow(clippy::unnecessary_operation, clippy::identity_op)]
+const _: () = {
+    ["Size of GRect"][::core::mem::size_of::<GRect>() - 8usize];
+    ["Alignment of GRect"][::core::mem::align_of::<GRect>() - 2usize];
+    ["Offset of field: GRect::origin"][::core::mem::offset_of!(GRect, origin) - 0usize];
+    ["Offset of field: GRect::size"][::core::mem::offset_of!(GRect, size) - 4usize];
+};
 /**! Tests whether 2 rectangles are equal.
 ! @param rect_a Pointer to the first rectangle
 ! @param rect_b Pointer to the second rectangle
@@ -6244,12 +6030,12 @@ pub const GBitmapFormat_GBitmapFormat8BitCircular: GBitmapFormat = 5;
 ///! The format of a GBitmap can either be 1-bit or 8-bit.
 pub type GBitmapFormat = ::core::ffi::c_uint;
 #[repr(C)]
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug)]
 pub struct GBitmap {
     _unused: [u8; 0],
 }
 #[repr(C)]
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug)]
 pub struct GBitmapSequence {
     _unused: [u8; 0],
 }
@@ -6792,51 +6578,24 @@ pub struct GBitmapDataRowInfo {
 ! grect_get_max_x(bitmap_bounds) - 1 and the physical data boundary.*/
     pub max_x: i16,
 }
-#[test]
-fn bindgen_test_layout_GBitmapDataRowInfo() {
-    const UNINIT: ::core::mem::MaybeUninit<GBitmapDataRowInfo> = ::core::mem::MaybeUninit::uninit();
-    let ptr = UNINIT.as_ptr();
-    assert_eq!(
-        ::core::mem::size_of::<GBitmapDataRowInfo>(),
-        8usize,
-        concat!("Size of: ", stringify!(GBitmapDataRowInfo)),
-    );
-    assert_eq!(
-        ::core::mem::align_of::<GBitmapDataRowInfo>(),
-        4usize,
-        concat!("Alignment of ", stringify!(GBitmapDataRowInfo)),
-    );
-    assert_eq!(
-        unsafe { ::core::ptr::addr_of!((*ptr).data) as usize - ptr as usize },
-        0usize,
-        concat!(
-            "Offset of field: ",
-            stringify!(GBitmapDataRowInfo),
-            "::",
-            stringify!(data),
-        ),
-    );
-    assert_eq!(
-        unsafe { ::core::ptr::addr_of!((*ptr).min_x) as usize - ptr as usize },
-        4usize,
-        concat!(
-            "Offset of field: ",
-            stringify!(GBitmapDataRowInfo),
-            "::",
-            stringify!(min_x),
-        ),
-    );
-    assert_eq!(
-        unsafe { ::core::ptr::addr_of!((*ptr).max_x) as usize - ptr as usize },
-        6usize,
-        concat!(
-            "Offset of field: ",
-            stringify!(GBitmapDataRowInfo),
-            "::",
-            stringify!(max_x),
-        ),
-    );
-}
+#[allow(clippy::unnecessary_operation, clippy::identity_op)]
+const _: () = {
+    [
+        "Size of GBitmapDataRowInfo",
+    ][::core::mem::size_of::<GBitmapDataRowInfo>() - 8usize];
+    [
+        "Alignment of GBitmapDataRowInfo",
+    ][::core::mem::align_of::<GBitmapDataRowInfo>() - 4usize];
+    [
+        "Offset of field: GBitmapDataRowInfo::data",
+    ][::core::mem::offset_of!(GBitmapDataRowInfo, data) - 0usize];
+    [
+        "Offset of field: GBitmapDataRowInfo::min_x",
+    ][::core::mem::offset_of!(GBitmapDataRowInfo, min_x) - 4usize];
+    [
+        "Offset of field: GBitmapDataRowInfo::max_x",
+    ][::core::mem::offset_of!(GBitmapDataRowInfo, max_x) - 6usize];
+};
 /**! Provides information about a pixel data row
 ! @param bitmap A pointer to the GBitmap to get row info
 ! @param y Absolute row number in the pixel data, independent from the bitmap's bounds
@@ -6959,7 +6718,7 @@ pub const GCompOp_GCompOpSet: GCompOp = 5;
 ! @see \ref graphics_draw_rotated_bitmap()*/
 pub type GCompOp = ::core::ffi::c_uint;
 #[repr(C)]
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug)]
 pub struct GContext {
     _unused: [u8; 0],
 }
@@ -6977,41 +6736,23 @@ pub struct GEdgeInsets {
     ///! The inset at the left of an object.
     pub left: i16,
 }
-#[test]
-fn bindgen_test_layout_GEdgeInsets() {
-    const UNINIT: ::core::mem::MaybeUninit<GEdgeInsets> = ::core::mem::MaybeUninit::uninit();
-    let ptr = UNINIT.as_ptr();
-    assert_eq!(
-        ::core::mem::size_of::<GEdgeInsets>(),
-        8usize,
-        concat!("Size of: ", stringify!(GEdgeInsets)),
-    );
-    assert_eq!(
-        ::core::mem::align_of::<GEdgeInsets>(),
-        2usize,
-        concat!("Alignment of ", stringify!(GEdgeInsets)),
-    );
-    assert_eq!(
-        unsafe { ::core::ptr::addr_of!((*ptr).top) as usize - ptr as usize },
-        0usize,
-        concat!("Offset of field: ", stringify!(GEdgeInsets), "::", stringify!(top)),
-    );
-    assert_eq!(
-        unsafe { ::core::ptr::addr_of!((*ptr).right) as usize - ptr as usize },
-        2usize,
-        concat!("Offset of field: ", stringify!(GEdgeInsets), "::", stringify!(right)),
-    );
-    assert_eq!(
-        unsafe { ::core::ptr::addr_of!((*ptr).bottom) as usize - ptr as usize },
-        4usize,
-        concat!("Offset of field: ", stringify!(GEdgeInsets), "::", stringify!(bottom)),
-    );
-    assert_eq!(
-        unsafe { ::core::ptr::addr_of!((*ptr).left) as usize - ptr as usize },
-        6usize,
-        concat!("Offset of field: ", stringify!(GEdgeInsets), "::", stringify!(left)),
-    );
-}
+#[allow(clippy::unnecessary_operation, clippy::identity_op)]
+const _: () = {
+    ["Size of GEdgeInsets"][::core::mem::size_of::<GEdgeInsets>() - 8usize];
+    ["Alignment of GEdgeInsets"][::core::mem::align_of::<GEdgeInsets>() - 2usize];
+    [
+        "Offset of field: GEdgeInsets::top",
+    ][::core::mem::offset_of!(GEdgeInsets, top) - 0usize];
+    [
+        "Offset of field: GEdgeInsets::right",
+    ][::core::mem::offset_of!(GEdgeInsets, right) - 2usize];
+    [
+        "Offset of field: GEdgeInsets::bottom",
+    ][::core::mem::offset_of!(GEdgeInsets, bottom) - 4usize];
+    [
+        "Offset of field: GEdgeInsets::left",
+    ][::core::mem::offset_of!(GEdgeInsets, left) - 6usize];
+};
 /**! Returns a rectangle that is shrinked or expanded by the given edge insets.
 ! @note The rectangle is standardized and then the inset parameters are applied.
 ! If the resulting rectangle would have a negative height or width, a GRectZero is returned.
@@ -7564,23 +7305,33 @@ pub unsafe extern "C" fn grect_centered_from_polar(
         ::shim::jump_to_pbl_function,
     )
 }
+/**! Draw commands are the basic building block of the draw command system, encoding the type of
+! command to draw, the stroke width and color, fill color, and points that define the path (or
+! center of a circle*/
 #[repr(C)]
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug)]
 pub struct GDrawCommand {
     _unused: [u8; 0],
 }
+/**! Draw command frames contain a list of commands to draw for that frame and a duration,
+! indicating the length of time for which the frame should be drawn in an animation sequence.
+! Frames form the building blocks of a \ref GDrawCommandSequence, which consists of multiple
+! frames.*/
 #[repr(C)]
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug)]
 pub struct GDrawCommandFrame {
     _unused: [u8; 0],
 }
+/**! Draw command images contain a list of commands that can be drawn. An image can be loaded from
+! PDC file data.*/
 #[repr(C)]
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug)]
 pub struct GDrawCommandImage {
     _unused: [u8; 0],
 }
+///! Draw command lists contain a list of commands that can be iterated over and drawn all at once
 #[repr(C)]
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug)]
 pub struct GDrawCommandList {
     _unused: [u8; 0],
 }
@@ -7596,8 +7347,11 @@ pub type GDrawCommandListIteratorCb = ::core::option::Option<
         context: *mut ::core::ffi::c_void,
     ) -> bool,
 >;
+/**! Draw command sequences allow the animation of frames over time. Each sequence has a list of
+! frames that can be accessed by the elapsed duration of the animation (not maintained internally)
+! or by index. Sequences can be loaded from PDC file data.*/
 #[repr(C)]
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug)]
 pub struct GDrawCommandSequence {
     _unused: [u8; 0],
 }
@@ -8351,31 +8105,17 @@ pub struct GPathInfo {
     ///! Pointer to an array of points.
     pub points: *mut GPoint,
 }
-#[test]
-fn bindgen_test_layout_GPathInfo() {
-    const UNINIT: ::core::mem::MaybeUninit<GPathInfo> = ::core::mem::MaybeUninit::uninit();
-    let ptr = UNINIT.as_ptr();
-    assert_eq!(
-        ::core::mem::size_of::<GPathInfo>(),
-        8usize,
-        concat!("Size of: ", stringify!(GPathInfo)),
-    );
-    assert_eq!(
-        ::core::mem::align_of::<GPathInfo>(),
-        4usize,
-        concat!("Alignment of ", stringify!(GPathInfo)),
-    );
-    assert_eq!(
-        unsafe { ::core::ptr::addr_of!((*ptr).num_points) as usize - ptr as usize },
-        0usize,
-        concat!("Offset of field: ", stringify!(GPathInfo), "::", stringify!(num_points)),
-    );
-    assert_eq!(
-        unsafe { ::core::ptr::addr_of!((*ptr).points) as usize - ptr as usize },
-        4usize,
-        concat!("Offset of field: ", stringify!(GPathInfo), "::", stringify!(points)),
-    );
-}
+#[allow(clippy::unnecessary_operation, clippy::identity_op)]
+const _: () = {
+    ["Size of GPathInfo"][::core::mem::size_of::<GPathInfo>() - 8usize];
+    ["Alignment of GPathInfo"][::core::mem::align_of::<GPathInfo>() - 4usize];
+    [
+        "Offset of field: GPathInfo::num_points",
+    ][::core::mem::offset_of!(GPathInfo, num_points) - 0usize];
+    [
+        "Offset of field: GPathInfo::points",
+    ][::core::mem::offset_of!(GPathInfo, points) - 4usize];
+};
 /**! Data structure describing a path, plus its rotation and translation.
 ! @note See the remark with \ref GPathInfo*/
 #[repr(C)]
@@ -8392,41 +8132,19 @@ pub struct GPath {
 ! \ref gpath_draw_filled() or \ref gpath_draw_outline()*/
     pub offset: GPoint,
 }
-#[test]
-fn bindgen_test_layout_GPath() {
-    const UNINIT: ::core::mem::MaybeUninit<GPath> = ::core::mem::MaybeUninit::uninit();
-    let ptr = UNINIT.as_ptr();
-    assert_eq!(
-        ::core::mem::size_of::<GPath>(),
-        16usize,
-        concat!("Size of: ", stringify!(GPath)),
-    );
-    assert_eq!(
-        ::core::mem::align_of::<GPath>(),
-        4usize,
-        concat!("Alignment of ", stringify!(GPath)),
-    );
-    assert_eq!(
-        unsafe { ::core::ptr::addr_of!((*ptr).num_points) as usize - ptr as usize },
-        0usize,
-        concat!("Offset of field: ", stringify!(GPath), "::", stringify!(num_points)),
-    );
-    assert_eq!(
-        unsafe { ::core::ptr::addr_of!((*ptr).points) as usize - ptr as usize },
-        4usize,
-        concat!("Offset of field: ", stringify!(GPath), "::", stringify!(points)),
-    );
-    assert_eq!(
-        unsafe { ::core::ptr::addr_of!((*ptr).rotation) as usize - ptr as usize },
-        8usize,
-        concat!("Offset of field: ", stringify!(GPath), "::", stringify!(rotation)),
-    );
-    assert_eq!(
-        unsafe { ::core::ptr::addr_of!((*ptr).offset) as usize - ptr as usize },
-        12usize,
-        concat!("Offset of field: ", stringify!(GPath), "::", stringify!(offset)),
-    );
-}
+#[allow(clippy::unnecessary_operation, clippy::identity_op)]
+const _: () = {
+    ["Size of GPath"][::core::mem::size_of::<GPath>() - 16usize];
+    ["Alignment of GPath"][::core::mem::align_of::<GPath>() - 4usize];
+    [
+        "Offset of field: GPath::num_points",
+    ][::core::mem::offset_of!(GPath, num_points) - 0usize];
+    ["Offset of field: GPath::points"][::core::mem::offset_of!(GPath, points) - 4usize];
+    [
+        "Offset of field: GPath::rotation",
+    ][::core::mem::offset_of!(GPath, rotation) - 8usize];
+    ["Offset of field: GPath::offset"][::core::mem::offset_of!(GPath, offset) - 12usize];
+};
 /**! Creates a new GPath on the heap based on a series of points described by a GPathInfo.
 !
 ! Values after initialization:
@@ -8554,7 +8272,7 @@ pub unsafe extern "C" fn gpath_draw_outline_open(ctx: *mut GContext, path: *mut 
 ! @see \ref graphics_draw_text
 ! @{*/
 #[repr(C)]
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug)]
 pub struct FontInfo {
     _unused: [u8; 0],
 }
@@ -8644,7 +8362,7 @@ pub const GTextAlignment_GTextAlignmentRight: GTextAlignment = 2;
 ! @see text_layer_set_text_alignment*/
 pub type GTextAlignment = ::core::ffi::c_uint;
 #[repr(C)]
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug)]
 pub struct GTextAttributes {
     _unused: [u8; 0],
 }
@@ -8864,8 +8582,10 @@ pub type SmartstrapResult = ::core::ffi::c_uint;
 pub type SmartstrapServiceId = u16;
 ///! A type representing a smartstrap AttributeId.
 pub type SmartstrapAttributeId = u16;
+/**! A type representing an attribute of a service provided by a smartstrap. This type is used when
+! issuing requests to the smartstrap.*/
 #[repr(C)]
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug)]
 pub struct SmartstrapAttribute {
     _unused: [u8; 0],
 }
@@ -8914,63 +8634,27 @@ pub struct SmartstrapHandlers {
     ///! The notified handler is called whenever a notification is received for an attribute.
     pub notified: SmartstrapNotifyHandler,
 }
-#[test]
-fn bindgen_test_layout_SmartstrapHandlers() {
-    const UNINIT: ::core::mem::MaybeUninit<SmartstrapHandlers> = ::core::mem::MaybeUninit::uninit();
-    let ptr = UNINIT.as_ptr();
-    assert_eq!(
-        ::core::mem::size_of::<SmartstrapHandlers>(),
-        16usize,
-        concat!("Size of: ", stringify!(SmartstrapHandlers)),
-    );
-    assert_eq!(
-        ::core::mem::align_of::<SmartstrapHandlers>(),
-        4usize,
-        concat!("Alignment of ", stringify!(SmartstrapHandlers)),
-    );
-    assert_eq!(
-        unsafe {
-            ::core::ptr::addr_of!((*ptr).availability_did_change) as usize - ptr as usize
-        },
-        0usize,
-        concat!(
-            "Offset of field: ",
-            stringify!(SmartstrapHandlers),
-            "::",
-            stringify!(availability_did_change),
-        ),
-    );
-    assert_eq!(
-        unsafe { ::core::ptr::addr_of!((*ptr).did_read) as usize - ptr as usize },
-        4usize,
-        concat!(
-            "Offset of field: ",
-            stringify!(SmartstrapHandlers),
-            "::",
-            stringify!(did_read),
-        ),
-    );
-    assert_eq!(
-        unsafe { ::core::ptr::addr_of!((*ptr).did_write) as usize - ptr as usize },
-        8usize,
-        concat!(
-            "Offset of field: ",
-            stringify!(SmartstrapHandlers),
-            "::",
-            stringify!(did_write),
-        ),
-    );
-    assert_eq!(
-        unsafe { ::core::ptr::addr_of!((*ptr).notified) as usize - ptr as usize },
-        12usize,
-        concat!(
-            "Offset of field: ",
-            stringify!(SmartstrapHandlers),
-            "::",
-            stringify!(notified),
-        ),
-    );
-}
+#[allow(clippy::unnecessary_operation, clippy::identity_op)]
+const _: () = {
+    [
+        "Size of SmartstrapHandlers",
+    ][::core::mem::size_of::<SmartstrapHandlers>() - 16usize];
+    [
+        "Alignment of SmartstrapHandlers",
+    ][::core::mem::align_of::<SmartstrapHandlers>() - 4usize];
+    [
+        "Offset of field: SmartstrapHandlers::availability_did_change",
+    ][::core::mem::offset_of!(SmartstrapHandlers, availability_did_change) - 0usize];
+    [
+        "Offset of field: SmartstrapHandlers::did_read",
+    ][::core::mem::offset_of!(SmartstrapHandlers, did_read) - 4usize];
+    [
+        "Offset of field: SmartstrapHandlers::did_write",
+    ][::core::mem::offset_of!(SmartstrapHandlers, did_write) - 8usize];
+    [
+        "Offset of field: SmartstrapHandlers::notified",
+    ][::core::mem::offset_of!(SmartstrapHandlers, notified) - 12usize];
+};
 /**! Subscribes handlers to be called after certain smartstrap events occur.
 ! @note Registering an availability_did_change handler will cause power to be applied to the
 ! smartstrap port and connection establishment to begin.
@@ -9305,7 +8989,7 @@ pub unsafe extern "C" fn click_recognizer_is_repeating(
 ! \endcode
 ! @{*/
 #[repr(C)]
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug)]
 pub struct Layer {
     _unused: [u8; 0],
 }
@@ -9565,7 +9249,7 @@ pub unsafe extern "C" fn layer_convert_rect_to_screen(
 ! overview of Window, the Window Stack and relevant code examples.
 ! @{*/
 #[repr(C)]
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug)]
 pub struct Window {
     _unused: [u8; 0],
 }
@@ -9826,7 +9510,7 @@ pub unsafe extern "C" fn layer_get_data(
 ! touch-bridge change) so its own recognizers receive the touch stream.
 ! @{*/
 #[repr(C)]
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug)]
 pub struct Recognizer {
     _unused: [u8; 0],
 }
@@ -9898,56 +9582,23 @@ pub struct WindowHandlers {
 ! free resources bound to windows that are not on screen.*/
     pub unload: WindowHandler,
 }
-#[test]
-fn bindgen_test_layout_WindowHandlers() {
-    const UNINIT: ::core::mem::MaybeUninit<WindowHandlers> = ::core::mem::MaybeUninit::uninit();
-    let ptr = UNINIT.as_ptr();
-    assert_eq!(
-        ::core::mem::size_of::<WindowHandlers>(),
-        16usize,
-        concat!("Size of: ", stringify!(WindowHandlers)),
-    );
-    assert_eq!(
-        ::core::mem::align_of::<WindowHandlers>(),
-        4usize,
-        concat!("Alignment of ", stringify!(WindowHandlers)),
-    );
-    assert_eq!(
-        unsafe { ::core::ptr::addr_of!((*ptr).load) as usize - ptr as usize },
-        0usize,
-        concat!("Offset of field: ", stringify!(WindowHandlers), "::", stringify!(load)),
-    );
-    assert_eq!(
-        unsafe { ::core::ptr::addr_of!((*ptr).appear) as usize - ptr as usize },
-        4usize,
-        concat!(
-            "Offset of field: ",
-            stringify!(WindowHandlers),
-            "::",
-            stringify!(appear),
-        ),
-    );
-    assert_eq!(
-        unsafe { ::core::ptr::addr_of!((*ptr).disappear) as usize - ptr as usize },
-        8usize,
-        concat!(
-            "Offset of field: ",
-            stringify!(WindowHandlers),
-            "::",
-            stringify!(disappear),
-        ),
-    );
-    assert_eq!(
-        unsafe { ::core::ptr::addr_of!((*ptr).unload) as usize - ptr as usize },
-        12usize,
-        concat!(
-            "Offset of field: ",
-            stringify!(WindowHandlers),
-            "::",
-            stringify!(unload),
-        ),
-    );
-}
+#[allow(clippy::unnecessary_operation, clippy::identity_op)]
+const _: () = {
+    ["Size of WindowHandlers"][::core::mem::size_of::<WindowHandlers>() - 16usize];
+    ["Alignment of WindowHandlers"][::core::mem::align_of::<WindowHandlers>() - 4usize];
+    [
+        "Offset of field: WindowHandlers::load",
+    ][::core::mem::offset_of!(WindowHandlers, load) - 0usize];
+    [
+        "Offset of field: WindowHandlers::appear",
+    ][::core::mem::offset_of!(WindowHandlers, appear) - 4usize];
+    [
+        "Offset of field: WindowHandlers::disappear",
+    ][::core::mem::offset_of!(WindowHandlers, disappear) - 8usize];
+    [
+        "Offset of field: WindowHandlers::unload",
+    ][::core::mem::offset_of!(WindowHandlers, unload) - 12usize];
+};
 /**! Creates a new Window on the heap and initalizes it with the default values.
 !
 ! * Background color : `GColorWhite`
@@ -10409,7 +10060,7 @@ pub unsafe extern "C" fn window_stack_contains_window(window: *mut Window) -> bo
 ! of the animation framework and on how to write custom animations.
 ! @{*/
 #[repr(C)]
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug)]
 pub struct Animation {
     _unused: [u8; 0],
 }
@@ -10882,41 +10533,19 @@ pub struct AnimationHandlers {
     ///! The handler that will be called when an animation is stopped.
     pub stopped: AnimationStoppedHandler,
 }
-#[test]
-fn bindgen_test_layout_AnimationHandlers() {
-    const UNINIT: ::core::mem::MaybeUninit<AnimationHandlers> = ::core::mem::MaybeUninit::uninit();
-    let ptr = UNINIT.as_ptr();
-    assert_eq!(
-        ::core::mem::size_of::<AnimationHandlers>(),
-        8usize,
-        concat!("Size of: ", stringify!(AnimationHandlers)),
-    );
-    assert_eq!(
-        ::core::mem::align_of::<AnimationHandlers>(),
-        4usize,
-        concat!("Alignment of ", stringify!(AnimationHandlers)),
-    );
-    assert_eq!(
-        unsafe { ::core::ptr::addr_of!((*ptr).started) as usize - ptr as usize },
-        0usize,
-        concat!(
-            "Offset of field: ",
-            stringify!(AnimationHandlers),
-            "::",
-            stringify!(started),
-        ),
-    );
-    assert_eq!(
-        unsafe { ::core::ptr::addr_of!((*ptr).stopped) as usize - ptr as usize },
-        4usize,
-        concat!(
-            "Offset of field: ",
-            stringify!(AnimationHandlers),
-            "::",
-            stringify!(stopped),
-        ),
-    );
-}
+#[allow(clippy::unnecessary_operation, clippy::identity_op)]
+const _: () = {
+    ["Size of AnimationHandlers"][::core::mem::size_of::<AnimationHandlers>() - 8usize];
+    [
+        "Alignment of AnimationHandlers",
+    ][::core::mem::align_of::<AnimationHandlers>() - 4usize];
+    [
+        "Offset of field: AnimationHandlers::started",
+    ][::core::mem::offset_of!(AnimationHandlers, started) - 0usize];
+    [
+        "Offset of field: AnimationHandlers::stopped",
+    ][::core::mem::offset_of!(AnimationHandlers, stopped) - 4usize];
+};
 /**! Sets the callbacks for the animation.
 ! Often an application needs to run code at the start or at the end of an animation.
 ! Using this function is possible to register callback functions with an animation,
@@ -11106,51 +10735,24 @@ pub struct AnimationImplementation {
 ! This callback is optional and can be left `NULL` when not needed.*/
     pub teardown: AnimationTeardownImplementation,
 }
-#[test]
-fn bindgen_test_layout_AnimationImplementation() {
-    const UNINIT: ::core::mem::MaybeUninit<AnimationImplementation> = ::core::mem::MaybeUninit::uninit();
-    let ptr = UNINIT.as_ptr();
-    assert_eq!(
-        ::core::mem::size_of::<AnimationImplementation>(),
-        12usize,
-        concat!("Size of: ", stringify!(AnimationImplementation)),
-    );
-    assert_eq!(
-        ::core::mem::align_of::<AnimationImplementation>(),
-        4usize,
-        concat!("Alignment of ", stringify!(AnimationImplementation)),
-    );
-    assert_eq!(
-        unsafe { ::core::ptr::addr_of!((*ptr).setup) as usize - ptr as usize },
-        0usize,
-        concat!(
-            "Offset of field: ",
-            stringify!(AnimationImplementation),
-            "::",
-            stringify!(setup),
-        ),
-    );
-    assert_eq!(
-        unsafe { ::core::ptr::addr_of!((*ptr).update) as usize - ptr as usize },
-        4usize,
-        concat!(
-            "Offset of field: ",
-            stringify!(AnimationImplementation),
-            "::",
-            stringify!(update),
-        ),
-    );
-    assert_eq!(
-        unsafe { ::core::ptr::addr_of!((*ptr).teardown) as usize - ptr as usize },
-        8usize,
-        concat!(
-            "Offset of field: ",
-            stringify!(AnimationImplementation),
-            "::",
-            stringify!(teardown),
-        ),
-    );
-}
+#[allow(clippy::unnecessary_operation, clippy::identity_op)]
+const _: () = {
+    [
+        "Size of AnimationImplementation",
+    ][::core::mem::size_of::<AnimationImplementation>() - 12usize];
+    [
+        "Alignment of AnimationImplementation",
+    ][::core::mem::align_of::<AnimationImplementation>() - 4usize];
+    [
+        "Offset of field: AnimationImplementation::setup",
+    ][::core::mem::offset_of!(AnimationImplementation, setup) - 0usize];
+    [
+        "Offset of field: AnimationImplementation::update",
+    ][::core::mem::offset_of!(AnimationImplementation, update) - 4usize];
+    [
+        "Offset of field: AnimationImplementation::teardown",
+    ][::core::mem::offset_of!(AnimationImplementation, teardown) - 8usize];
+};
 /**! Sets the implementation of the custom animation.
 ! When implementing custom animations, use this function to specify what functions need to be
 ! called to for the setup, frame update and teardown of the animation.
@@ -11194,7 +10796,7 @@ pub unsafe extern "C" fn animation_get_implementation(
     )
 }
 #[repr(C)]
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug)]
 pub struct PropertyAnimation {
     _unused: [u8; 0],
 }
@@ -11543,44 +11145,141 @@ pub type GColor8Getter = ::core::option::Option<
 ! \endcode
 ! @{*/
 #[repr(C)]
-#[derive(Debug, Copy, Clone)]
+#[derive(Copy, Clone)]
 pub struct PropertyAnimationAccessors {
-    pub _address: u8,
+    pub setter: PropertyAnimationAccessors__bindgen_ty_1,
+    pub getter: PropertyAnimationAccessors__bindgen_ty_2,
 }
-#[test]
-fn bindgen_test_layout_PropertyAnimationAccessors() {
-    assert_eq!(
-        ::core::mem::size_of::<PropertyAnimationAccessors>(),
-        8usize,
-        concat!("Size of: ", stringify!(PropertyAnimationAccessors)),
-    );
-    assert_eq!(
-        ::core::mem::align_of::<PropertyAnimationAccessors>(),
-        4usize,
-        concat!("Alignment of ", stringify!(PropertyAnimationAccessors)),
-    );
+/**! Function pointer to the implementation of the function that __sets__ the updated property
+! value. This function will be called repeatedly for each animation frame.
+! @see PropertyAnimationAccessors*/
+#[repr(C)]
+#[derive(Copy, Clone)]
+pub union PropertyAnimationAccessors__bindgen_ty_1 {
+    ///! Use if the property to animate is of int16_t type
+    pub int16: Int16Setter,
+    ///! Use if the property to animate is of GPoint type
+    pub gpoint: GPointSetter,
+    ///! Use if the property to animate is of GRect type
+    pub grect: GRectSetter,
+    ///! Use if the property to animate is of GColor8 type
+    pub gcolor8: GColor8Setter,
+    ///! Use if the property to animate is of uint32_t type
+    pub uint32: UInt32Setter,
 }
+#[allow(clippy::unnecessary_operation, clippy::identity_op)]
+const _: () = {
+    [
+        "Size of PropertyAnimationAccessors__bindgen_ty_1",
+    ][::core::mem::size_of::<PropertyAnimationAccessors__bindgen_ty_1>() - 4usize];
+    [
+        "Alignment of PropertyAnimationAccessors__bindgen_ty_1",
+    ][::core::mem::align_of::<PropertyAnimationAccessors__bindgen_ty_1>() - 4usize];
+    [
+        "Offset of field: PropertyAnimationAccessors__bindgen_ty_1::int16",
+    ][::core::mem::offset_of!(PropertyAnimationAccessors__bindgen_ty_1, int16) - 0usize];
+    [
+        "Offset of field: PropertyAnimationAccessors__bindgen_ty_1::gpoint",
+    ][::core::mem::offset_of!(PropertyAnimationAccessors__bindgen_ty_1, gpoint)
+        - 0usize];
+    [
+        "Offset of field: PropertyAnimationAccessors__bindgen_ty_1::grect",
+    ][::core::mem::offset_of!(PropertyAnimationAccessors__bindgen_ty_1, grect) - 0usize];
+    [
+        "Offset of field: PropertyAnimationAccessors__bindgen_ty_1::gcolor8",
+    ][::core::mem::offset_of!(PropertyAnimationAccessors__bindgen_ty_1, gcolor8)
+        - 0usize];
+    [
+        "Offset of field: PropertyAnimationAccessors__bindgen_ty_1::uint32",
+    ][::core::mem::offset_of!(PropertyAnimationAccessors__bindgen_ty_1, uint32)
+        - 0usize];
+};
+/**! Function pointer to the implementation of the function that __gets__ the current property
+! value. This function will be called during \ref property_animation_create(), to get the current
+! property value, in case the `from_value` or `to_value` argument is `NULL`.
+! @see PropertyAnimationAccessors*/
+#[repr(C)]
+#[derive(Copy, Clone)]
+pub union PropertyAnimationAccessors__bindgen_ty_2 {
+    ///! Use if the property to animate is of int16_t type
+    pub int16: Int16Getter,
+    ///! Use if the property to animate is of GPoint type
+    pub gpoint: GPointGetter,
+    ///! Use if the property to animate is of GRect type
+    pub grect: GRectGetter,
+    ///! Use if the property to animate is of GColor8 type
+    pub gcolor8: GColor8Getter,
+    ///! Use if the property to animate is of uint32_t type
+    pub uint32: UInt32Getter,
+}
+#[allow(clippy::unnecessary_operation, clippy::identity_op)]
+const _: () = {
+    [
+        "Size of PropertyAnimationAccessors__bindgen_ty_2",
+    ][::core::mem::size_of::<PropertyAnimationAccessors__bindgen_ty_2>() - 4usize];
+    [
+        "Alignment of PropertyAnimationAccessors__bindgen_ty_2",
+    ][::core::mem::align_of::<PropertyAnimationAccessors__bindgen_ty_2>() - 4usize];
+    [
+        "Offset of field: PropertyAnimationAccessors__bindgen_ty_2::int16",
+    ][::core::mem::offset_of!(PropertyAnimationAccessors__bindgen_ty_2, int16) - 0usize];
+    [
+        "Offset of field: PropertyAnimationAccessors__bindgen_ty_2::gpoint",
+    ][::core::mem::offset_of!(PropertyAnimationAccessors__bindgen_ty_2, gpoint)
+        - 0usize];
+    [
+        "Offset of field: PropertyAnimationAccessors__bindgen_ty_2::grect",
+    ][::core::mem::offset_of!(PropertyAnimationAccessors__bindgen_ty_2, grect) - 0usize];
+    [
+        "Offset of field: PropertyAnimationAccessors__bindgen_ty_2::gcolor8",
+    ][::core::mem::offset_of!(PropertyAnimationAccessors__bindgen_ty_2, gcolor8)
+        - 0usize];
+    [
+        "Offset of field: PropertyAnimationAccessors__bindgen_ty_2::uint32",
+    ][::core::mem::offset_of!(PropertyAnimationAccessors__bindgen_ty_2, uint32)
+        - 0usize];
+};
+#[allow(clippy::unnecessary_operation, clippy::identity_op)]
+const _: () = {
+    [
+        "Size of PropertyAnimationAccessors",
+    ][::core::mem::size_of::<PropertyAnimationAccessors>() - 8usize];
+    [
+        "Alignment of PropertyAnimationAccessors",
+    ][::core::mem::align_of::<PropertyAnimationAccessors>() - 4usize];
+    [
+        "Offset of field: PropertyAnimationAccessors::setter",
+    ][::core::mem::offset_of!(PropertyAnimationAccessors, setter) - 0usize];
+    [
+        "Offset of field: PropertyAnimationAccessors::getter",
+    ][::core::mem::offset_of!(PropertyAnimationAccessors, getter) - 4usize];
+};
 /**! Data structure containing a collection of function pointers that form the implementation of the
 ! property animation.
 ! See the code example at the top (\ref PropertyAnimation).*/
 #[repr(C)]
-#[derive(Debug, Copy, Clone)]
+#[derive(Copy, Clone)]
 pub struct PropertyAnimationImplementation {
-    pub _address: u8,
+    ///! The "inherited" fields from the Animation "base class".
+    pub base: AnimationImplementation,
+    ///! The accessors to set/get the property to be animated.
+    pub accessors: PropertyAnimationAccessors,
 }
-#[test]
-fn bindgen_test_layout_PropertyAnimationImplementation() {
-    assert_eq!(
-        ::core::mem::size_of::<PropertyAnimationImplementation>(),
-        20usize,
-        concat!("Size of: ", stringify!(PropertyAnimationImplementation)),
-    );
-    assert_eq!(
-        ::core::mem::align_of::<PropertyAnimationImplementation>(),
-        4usize,
-        concat!("Alignment of ", stringify!(PropertyAnimationImplementation)),
-    );
-}
+#[allow(clippy::unnecessary_operation, clippy::identity_op)]
+const _: () = {
+    [
+        "Size of PropertyAnimationImplementation",
+    ][::core::mem::size_of::<PropertyAnimationImplementation>() - 20usize];
+    [
+        "Alignment of PropertyAnimationImplementation",
+    ][::core::mem::align_of::<PropertyAnimationImplementation>() - 4usize];
+    [
+        "Offset of field: PropertyAnimationImplementation::base",
+    ][::core::mem::offset_of!(PropertyAnimationImplementation, base) - 0usize];
+    [
+        "Offset of field: PropertyAnimationImplementation::accessors",
+    ][::core::mem::offset_of!(PropertyAnimationImplementation, accessors) - 12usize];
+};
 /**! Convenience function to retrieve an animation instance from a property animation instance
 ! @param property_animation The property animation
 ! @return The \ref Animation within this PropertyAnimation*/
@@ -11692,51 +11391,24 @@ pub struct UnobstructedAreaHandlers {
     ///! Handler that will be called after the unobstructed area has finished changing.
     pub did_change: UnobstructedAreaDidChangeHandler,
 }
-#[test]
-fn bindgen_test_layout_UnobstructedAreaHandlers() {
-    const UNINIT: ::core::mem::MaybeUninit<UnobstructedAreaHandlers> = ::core::mem::MaybeUninit::uninit();
-    let ptr = UNINIT.as_ptr();
-    assert_eq!(
-        ::core::mem::size_of::<UnobstructedAreaHandlers>(),
-        12usize,
-        concat!("Size of: ", stringify!(UnobstructedAreaHandlers)),
-    );
-    assert_eq!(
-        ::core::mem::align_of::<UnobstructedAreaHandlers>(),
-        4usize,
-        concat!("Alignment of ", stringify!(UnobstructedAreaHandlers)),
-    );
-    assert_eq!(
-        unsafe { ::core::ptr::addr_of!((*ptr).will_change) as usize - ptr as usize },
-        0usize,
-        concat!(
-            "Offset of field: ",
-            stringify!(UnobstructedAreaHandlers),
-            "::",
-            stringify!(will_change),
-        ),
-    );
-    assert_eq!(
-        unsafe { ::core::ptr::addr_of!((*ptr).change) as usize - ptr as usize },
-        4usize,
-        concat!(
-            "Offset of field: ",
-            stringify!(UnobstructedAreaHandlers),
-            "::",
-            stringify!(change),
-        ),
-    );
-    assert_eq!(
-        unsafe { ::core::ptr::addr_of!((*ptr).did_change) as usize - ptr as usize },
-        8usize,
-        concat!(
-            "Offset of field: ",
-            stringify!(UnobstructedAreaHandlers),
-            "::",
-            stringify!(did_change),
-        ),
-    );
-}
+#[allow(clippy::unnecessary_operation, clippy::identity_op)]
+const _: () = {
+    [
+        "Size of UnobstructedAreaHandlers",
+    ][::core::mem::size_of::<UnobstructedAreaHandlers>() - 12usize];
+    [
+        "Alignment of UnobstructedAreaHandlers",
+    ][::core::mem::align_of::<UnobstructedAreaHandlers>() - 4usize];
+    [
+        "Offset of field: UnobstructedAreaHandlers::will_change",
+    ][::core::mem::offset_of!(UnobstructedAreaHandlers, will_change) - 0usize];
+    [
+        "Offset of field: UnobstructedAreaHandlers::change",
+    ][::core::mem::offset_of!(UnobstructedAreaHandlers, change) - 4usize];
+    [
+        "Offset of field: UnobstructedAreaHandlers::did_change",
+    ][::core::mem::offset_of!(UnobstructedAreaHandlers, did_change) - 8usize];
+};
 /**! Subscribe to be notified when the app's unobstructed area changes. When an unobstructed area
 ! begins changing, the `will_change` handler will be called, and every `will_change` call is
 ! always paired with a `did_change` call that occurs when it is done changing given that
@@ -11786,7 +11458,7 @@ pub unsafe extern "C" fn unobstructed_area_service_unsubscribe() {
 ! @see Fonts
 ! @{*/
 #[repr(C)]
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug)]
 pub struct TextLayer {
     _unused: [u8; 0],
 }
@@ -12077,7 +11749,7 @@ pub unsafe extern "C" fn text_layer_set_size(
 ! * Only vertical scrolling is supported at the moment.
 ! @{*/
 #[repr(C)]
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug)]
 pub struct ScrollLayer {
     _unused: [u8; 0],
 }
@@ -12103,46 +11775,22 @@ pub struct ScrollLayerCallbacks {
 ! animation, it will be called for each intermediary offset as well*/
     pub content_offset_changed_handler: ScrollLayerCallback,
 }
-#[test]
-fn bindgen_test_layout_ScrollLayerCallbacks() {
-    const UNINIT: ::core::mem::MaybeUninit<ScrollLayerCallbacks> = ::core::mem::MaybeUninit::uninit();
-    let ptr = UNINIT.as_ptr();
-    assert_eq!(
-        ::core::mem::size_of::<ScrollLayerCallbacks>(),
-        8usize,
-        concat!("Size of: ", stringify!(ScrollLayerCallbacks)),
-    );
-    assert_eq!(
-        ::core::mem::align_of::<ScrollLayerCallbacks>(),
-        4usize,
-        concat!("Alignment of ", stringify!(ScrollLayerCallbacks)),
-    );
-    assert_eq!(
-        unsafe {
-            ::core::ptr::addr_of!((*ptr).click_config_provider) as usize - ptr as usize
-        },
-        0usize,
-        concat!(
-            "Offset of field: ",
-            stringify!(ScrollLayerCallbacks),
-            "::",
-            stringify!(click_config_provider),
-        ),
-    );
-    assert_eq!(
-        unsafe {
-            ::core::ptr::addr_of!((*ptr).content_offset_changed_handler) as usize
-                - ptr as usize
-        },
-        4usize,
-        concat!(
-            "Offset of field: ",
-            stringify!(ScrollLayerCallbacks),
-            "::",
-            stringify!(content_offset_changed_handler),
-        ),
-    );
-}
+#[allow(clippy::unnecessary_operation, clippy::identity_op)]
+const _: () = {
+    [
+        "Size of ScrollLayerCallbacks",
+    ][::core::mem::size_of::<ScrollLayerCallbacks>() - 8usize];
+    [
+        "Alignment of ScrollLayerCallbacks",
+    ][::core::mem::align_of::<ScrollLayerCallbacks>() - 4usize];
+    [
+        "Offset of field: ScrollLayerCallbacks::click_config_provider",
+    ][::core::mem::offset_of!(ScrollLayerCallbacks, click_config_provider) - 0usize];
+    [
+        "Offset of field: ScrollLayerCallbacks::content_offset_changed_handler",
+    ][::core::mem::offset_of!(ScrollLayerCallbacks, content_offset_changed_handler)
+        - 4usize];
+};
 /**! Creates a new ScrollLayer on the heap and initalizes it with the default values:
 ! * Clips: `true`
 ! * Hidden: `false`
@@ -12500,7 +12148,7 @@ pub unsafe extern "C" fn scroll_layer_get_paging(
     )
 }
 #[repr(C)]
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug)]
 pub struct ContentIndicator {
     _unused: [u8; 0],
 }
@@ -12551,96 +12199,44 @@ pub struct ContentIndicatorConfig__bindgen_ty_1 {
     ///!< The color of the layer behind the arrow.
     pub background: GColor,
 }
-#[test]
-fn bindgen_test_layout_ContentIndicatorConfig__bindgen_ty_1() {
-    const UNINIT: ::core::mem::MaybeUninit<ContentIndicatorConfig__bindgen_ty_1> = ::core::mem::MaybeUninit::uninit();
-    let ptr = UNINIT.as_ptr();
-    assert_eq!(
-        ::core::mem::size_of::<ContentIndicatorConfig__bindgen_ty_1>(),
-        2usize,
-        concat!("Size of: ", stringify!(ContentIndicatorConfig__bindgen_ty_1)),
-    );
-    assert_eq!(
-        ::core::mem::align_of::<ContentIndicatorConfig__bindgen_ty_1>(),
-        1usize,
-        concat!("Alignment of ", stringify!(ContentIndicatorConfig__bindgen_ty_1)),
-    );
-    assert_eq!(
-        unsafe { ::core::ptr::addr_of!((*ptr).foreground) as usize - ptr as usize },
-        0usize,
-        concat!(
-            "Offset of field: ",
-            stringify!(ContentIndicatorConfig__bindgen_ty_1),
-            "::",
-            stringify!(foreground),
-        ),
-    );
-    assert_eq!(
-        unsafe { ::core::ptr::addr_of!((*ptr).background) as usize - ptr as usize },
-        1usize,
-        concat!(
-            "Offset of field: ",
-            stringify!(ContentIndicatorConfig__bindgen_ty_1),
-            "::",
-            stringify!(background),
-        ),
-    );
-}
-#[test]
-fn bindgen_test_layout_ContentIndicatorConfig() {
-    const UNINIT: ::core::mem::MaybeUninit<ContentIndicatorConfig> = ::core::mem::MaybeUninit::uninit();
-    let ptr = UNINIT.as_ptr();
-    assert_eq!(
-        ::core::mem::size_of::<ContentIndicatorConfig>(),
-        16usize,
-        concat!("Size of: ", stringify!(ContentIndicatorConfig)),
-    );
-    assert_eq!(
-        ::core::mem::align_of::<ContentIndicatorConfig>(),
-        4usize,
-        concat!("Alignment of ", stringify!(ContentIndicatorConfig)),
-    );
-    assert_eq!(
-        unsafe { ::core::ptr::addr_of!((*ptr).layer) as usize - ptr as usize },
-        0usize,
-        concat!(
-            "Offset of field: ",
-            stringify!(ContentIndicatorConfig),
-            "::",
-            stringify!(layer),
-        ),
-    );
-    assert_eq!(
-        unsafe { ::core::ptr::addr_of!((*ptr).times_out) as usize - ptr as usize },
-        4usize,
-        concat!(
-            "Offset of field: ",
-            stringify!(ContentIndicatorConfig),
-            "::",
-            stringify!(times_out),
-        ),
-    );
-    assert_eq!(
-        unsafe { ::core::ptr::addr_of!((*ptr).alignment) as usize - ptr as usize },
-        8usize,
-        concat!(
-            "Offset of field: ",
-            stringify!(ContentIndicatorConfig),
-            "::",
-            stringify!(alignment),
-        ),
-    );
-    assert_eq!(
-        unsafe { ::core::ptr::addr_of!((*ptr).colors) as usize - ptr as usize },
-        12usize,
-        concat!(
-            "Offset of field: ",
-            stringify!(ContentIndicatorConfig),
-            "::",
-            stringify!(colors),
-        ),
-    );
-}
+#[allow(clippy::unnecessary_operation, clippy::identity_op)]
+const _: () = {
+    [
+        "Size of ContentIndicatorConfig__bindgen_ty_1",
+    ][::core::mem::size_of::<ContentIndicatorConfig__bindgen_ty_1>() - 2usize];
+    [
+        "Alignment of ContentIndicatorConfig__bindgen_ty_1",
+    ][::core::mem::align_of::<ContentIndicatorConfig__bindgen_ty_1>() - 1usize];
+    [
+        "Offset of field: ContentIndicatorConfig__bindgen_ty_1::foreground",
+    ][::core::mem::offset_of!(ContentIndicatorConfig__bindgen_ty_1, foreground)
+        - 0usize];
+    [
+        "Offset of field: ContentIndicatorConfig__bindgen_ty_1::background",
+    ][::core::mem::offset_of!(ContentIndicatorConfig__bindgen_ty_1, background)
+        - 1usize];
+};
+#[allow(clippy::unnecessary_operation, clippy::identity_op)]
+const _: () = {
+    [
+        "Size of ContentIndicatorConfig",
+    ][::core::mem::size_of::<ContentIndicatorConfig>() - 16usize];
+    [
+        "Alignment of ContentIndicatorConfig",
+    ][::core::mem::align_of::<ContentIndicatorConfig>() - 4usize];
+    [
+        "Offset of field: ContentIndicatorConfig::layer",
+    ][::core::mem::offset_of!(ContentIndicatorConfig, layer) - 0usize];
+    [
+        "Offset of field: ContentIndicatorConfig::times_out",
+    ][::core::mem::offset_of!(ContentIndicatorConfig, times_out) - 4usize];
+    [
+        "Offset of field: ContentIndicatorConfig::alignment",
+    ][::core::mem::offset_of!(ContentIndicatorConfig, alignment) - 8usize];
+    [
+        "Offset of field: ContentIndicatorConfig::colors",
+    ][::core::mem::offset_of!(ContentIndicatorConfig, colors) - 12usize];
+};
 /**! Creates a ContentIndicator on the heap.
 ! @return A pointer to the ContentIndicator. `NULL` if the ContentIndicator could not be created.*/
 /** content_indicator_create
@@ -12817,31 +12413,17 @@ pub struct MenuIndex {
     ///! The index of the row within the section with index `.section`
     pub row: u16,
 }
-#[test]
-fn bindgen_test_layout_MenuIndex() {
-    const UNINIT: ::core::mem::MaybeUninit<MenuIndex> = ::core::mem::MaybeUninit::uninit();
-    let ptr = UNINIT.as_ptr();
-    assert_eq!(
-        ::core::mem::size_of::<MenuIndex>(),
-        4usize,
-        concat!("Size of: ", stringify!(MenuIndex)),
-    );
-    assert_eq!(
-        ::core::mem::align_of::<MenuIndex>(),
-        2usize,
-        concat!("Alignment of ", stringify!(MenuIndex)),
-    );
-    assert_eq!(
-        unsafe { ::core::ptr::addr_of!((*ptr).section) as usize - ptr as usize },
-        0usize,
-        concat!("Offset of field: ", stringify!(MenuIndex), "::", stringify!(section)),
-    );
-    assert_eq!(
-        unsafe { ::core::ptr::addr_of!((*ptr).row) as usize - ptr as usize },
-        2usize,
-        concat!("Offset of field: ", stringify!(MenuIndex), "::", stringify!(row)),
-    );
-}
+#[allow(clippy::unnecessary_operation, clippy::identity_op)]
+const _: () = {
+    ["Size of MenuIndex"][::core::mem::size_of::<MenuIndex>() - 4usize];
+    ["Alignment of MenuIndex"][::core::mem::align_of::<MenuIndex>() - 2usize];
+    [
+        "Offset of field: MenuIndex::section",
+    ][::core::mem::offset_of!(MenuIndex, section) - 0usize];
+    [
+        "Offset of field: MenuIndex::row",
+    ][::core::mem::offset_of!(MenuIndex, row) - 2usize];
+};
 /**! Comparator function to determine the order of two MenuIndex values.
 ! @param a Pointer to the menu index of the first item
 ! @param b Pointer to the menu index of the second item
@@ -12869,43 +12451,25 @@ pub struct MenuCellSpan {
     pub sep: i16,
     pub index: MenuIndex,
 }
-#[test]
-fn bindgen_test_layout_MenuCellSpan() {
-    const UNINIT: ::core::mem::MaybeUninit<MenuCellSpan> = ::core::mem::MaybeUninit::uninit();
-    let ptr = UNINIT.as_ptr();
-    assert_eq!(
-        ::core::mem::size_of::<MenuCellSpan>(),
-        10usize,
-        concat!("Size of: ", stringify!(MenuCellSpan)),
-    );
-    assert_eq!(
-        ::core::mem::align_of::<MenuCellSpan>(),
-        2usize,
-        concat!("Alignment of ", stringify!(MenuCellSpan)),
-    );
-    assert_eq!(
-        unsafe { ::core::ptr::addr_of!((*ptr).y) as usize - ptr as usize },
-        0usize,
-        concat!("Offset of field: ", stringify!(MenuCellSpan), "::", stringify!(y)),
-    );
-    assert_eq!(
-        unsafe { ::core::ptr::addr_of!((*ptr).h) as usize - ptr as usize },
-        2usize,
-        concat!("Offset of field: ", stringify!(MenuCellSpan), "::", stringify!(h)),
-    );
-    assert_eq!(
-        unsafe { ::core::ptr::addr_of!((*ptr).sep) as usize - ptr as usize },
-        4usize,
-        concat!("Offset of field: ", stringify!(MenuCellSpan), "::", stringify!(sep)),
-    );
-    assert_eq!(
-        unsafe { ::core::ptr::addr_of!((*ptr).index) as usize - ptr as usize },
-        6usize,
-        concat!("Offset of field: ", stringify!(MenuCellSpan), "::", stringify!(index)),
-    );
-}
+#[allow(clippy::unnecessary_operation, clippy::identity_op)]
+const _: () = {
+    ["Size of MenuCellSpan"][::core::mem::size_of::<MenuCellSpan>() - 10usize];
+    ["Alignment of MenuCellSpan"][::core::mem::align_of::<MenuCellSpan>() - 2usize];
+    [
+        "Offset of field: MenuCellSpan::y",
+    ][::core::mem::offset_of!(MenuCellSpan, y) - 0usize];
+    [
+        "Offset of field: MenuCellSpan::h",
+    ][::core::mem::offset_of!(MenuCellSpan, h) - 2usize];
+    [
+        "Offset of field: MenuCellSpan::sep",
+    ][::core::mem::offset_of!(MenuCellSpan, sep) - 4usize];
+    [
+        "Offset of field: MenuCellSpan::index",
+    ][::core::mem::offset_of!(MenuCellSpan, index) - 6usize];
+};
 #[repr(C)]
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug)]
 pub struct MenuLayer {
     _unused: [u8; 0],
 }
@@ -13176,163 +12740,54 @@ pub struct MenuLayerCallbacks {
 ! \ref menu_layer_set_normal_colors and \ref menu_layer_set_highlight_colors.*/
     pub draw_background: MenuLayerDrawBackgroundCallback,
 }
-#[test]
-fn bindgen_test_layout_MenuLayerCallbacks() {
-    const UNINIT: ::core::mem::MaybeUninit<MenuLayerCallbacks> = ::core::mem::MaybeUninit::uninit();
-    let ptr = UNINIT.as_ptr();
-    assert_eq!(
-        ::core::mem::size_of::<MenuLayerCallbacks>(),
-        52usize,
-        concat!("Size of: ", stringify!(MenuLayerCallbacks)),
-    );
-    assert_eq!(
-        ::core::mem::align_of::<MenuLayerCallbacks>(),
-        4usize,
-        concat!("Alignment of ", stringify!(MenuLayerCallbacks)),
-    );
-    assert_eq!(
-        unsafe {
-            ::core::ptr::addr_of!((*ptr).get_num_sections) as usize - ptr as usize
-        },
-        0usize,
-        concat!(
-            "Offset of field: ",
-            stringify!(MenuLayerCallbacks),
-            "::",
-            stringify!(get_num_sections),
-        ),
-    );
-    assert_eq!(
-        unsafe { ::core::ptr::addr_of!((*ptr).get_num_rows) as usize - ptr as usize },
-        4usize,
-        concat!(
-            "Offset of field: ",
-            stringify!(MenuLayerCallbacks),
-            "::",
-            stringify!(get_num_rows),
-        ),
-    );
-    assert_eq!(
-        unsafe { ::core::ptr::addr_of!((*ptr).get_cell_height) as usize - ptr as usize },
-        8usize,
-        concat!(
-            "Offset of field: ",
-            stringify!(MenuLayerCallbacks),
-            "::",
-            stringify!(get_cell_height),
-        ),
-    );
-    assert_eq!(
-        unsafe {
-            ::core::ptr::addr_of!((*ptr).get_header_height) as usize - ptr as usize
-        },
-        12usize,
-        concat!(
-            "Offset of field: ",
-            stringify!(MenuLayerCallbacks),
-            "::",
-            stringify!(get_header_height),
-        ),
-    );
-    assert_eq!(
-        unsafe { ::core::ptr::addr_of!((*ptr).draw_row) as usize - ptr as usize },
-        16usize,
-        concat!(
-            "Offset of field: ",
-            stringify!(MenuLayerCallbacks),
-            "::",
-            stringify!(draw_row),
-        ),
-    );
-    assert_eq!(
-        unsafe { ::core::ptr::addr_of!((*ptr).draw_header) as usize - ptr as usize },
-        20usize,
-        concat!(
-            "Offset of field: ",
-            stringify!(MenuLayerCallbacks),
-            "::",
-            stringify!(draw_header),
-        ),
-    );
-    assert_eq!(
-        unsafe { ::core::ptr::addr_of!((*ptr).select_click) as usize - ptr as usize },
-        24usize,
-        concat!(
-            "Offset of field: ",
-            stringify!(MenuLayerCallbacks),
-            "::",
-            stringify!(select_click),
-        ),
-    );
-    assert_eq!(
-        unsafe {
-            ::core::ptr::addr_of!((*ptr).select_long_click) as usize - ptr as usize
-        },
-        28usize,
-        concat!(
-            "Offset of field: ",
-            stringify!(MenuLayerCallbacks),
-            "::",
-            stringify!(select_long_click),
-        ),
-    );
-    assert_eq!(
-        unsafe {
-            ::core::ptr::addr_of!((*ptr).selection_changed) as usize - ptr as usize
-        },
-        32usize,
-        concat!(
-            "Offset of field: ",
-            stringify!(MenuLayerCallbacks),
-            "::",
-            stringify!(selection_changed),
-        ),
-    );
-    assert_eq!(
-        unsafe {
-            ::core::ptr::addr_of!((*ptr).get_separator_height) as usize - ptr as usize
-        },
-        36usize,
-        concat!(
-            "Offset of field: ",
-            stringify!(MenuLayerCallbacks),
-            "::",
-            stringify!(get_separator_height),
-        ),
-    );
-    assert_eq!(
-        unsafe { ::core::ptr::addr_of!((*ptr).draw_separator) as usize - ptr as usize },
-        40usize,
-        concat!(
-            "Offset of field: ",
-            stringify!(MenuLayerCallbacks),
-            "::",
-            stringify!(draw_separator),
-        ),
-    );
-    assert_eq!(
-        unsafe {
-            ::core::ptr::addr_of!((*ptr).selection_will_change) as usize - ptr as usize
-        },
-        44usize,
-        concat!(
-            "Offset of field: ",
-            stringify!(MenuLayerCallbacks),
-            "::",
-            stringify!(selection_will_change),
-        ),
-    );
-    assert_eq!(
-        unsafe { ::core::ptr::addr_of!((*ptr).draw_background) as usize - ptr as usize },
-        48usize,
-        concat!(
-            "Offset of field: ",
-            stringify!(MenuLayerCallbacks),
-            "::",
-            stringify!(draw_background),
-        ),
-    );
-}
+#[allow(clippy::unnecessary_operation, clippy::identity_op)]
+const _: () = {
+    [
+        "Size of MenuLayerCallbacks",
+    ][::core::mem::size_of::<MenuLayerCallbacks>() - 52usize];
+    [
+        "Alignment of MenuLayerCallbacks",
+    ][::core::mem::align_of::<MenuLayerCallbacks>() - 4usize];
+    [
+        "Offset of field: MenuLayerCallbacks::get_num_sections",
+    ][::core::mem::offset_of!(MenuLayerCallbacks, get_num_sections) - 0usize];
+    [
+        "Offset of field: MenuLayerCallbacks::get_num_rows",
+    ][::core::mem::offset_of!(MenuLayerCallbacks, get_num_rows) - 4usize];
+    [
+        "Offset of field: MenuLayerCallbacks::get_cell_height",
+    ][::core::mem::offset_of!(MenuLayerCallbacks, get_cell_height) - 8usize];
+    [
+        "Offset of field: MenuLayerCallbacks::get_header_height",
+    ][::core::mem::offset_of!(MenuLayerCallbacks, get_header_height) - 12usize];
+    [
+        "Offset of field: MenuLayerCallbacks::draw_row",
+    ][::core::mem::offset_of!(MenuLayerCallbacks, draw_row) - 16usize];
+    [
+        "Offset of field: MenuLayerCallbacks::draw_header",
+    ][::core::mem::offset_of!(MenuLayerCallbacks, draw_header) - 20usize];
+    [
+        "Offset of field: MenuLayerCallbacks::select_click",
+    ][::core::mem::offset_of!(MenuLayerCallbacks, select_click) - 24usize];
+    [
+        "Offset of field: MenuLayerCallbacks::select_long_click",
+    ][::core::mem::offset_of!(MenuLayerCallbacks, select_long_click) - 28usize];
+    [
+        "Offset of field: MenuLayerCallbacks::selection_changed",
+    ][::core::mem::offset_of!(MenuLayerCallbacks, selection_changed) - 32usize];
+    [
+        "Offset of field: MenuLayerCallbacks::get_separator_height",
+    ][::core::mem::offset_of!(MenuLayerCallbacks, get_separator_height) - 36usize];
+    [
+        "Offset of field: MenuLayerCallbacks::draw_separator",
+    ][::core::mem::offset_of!(MenuLayerCallbacks, draw_separator) - 40usize];
+    [
+        "Offset of field: MenuLayerCallbacks::selection_will_change",
+    ][::core::mem::offset_of!(MenuLayerCallbacks, selection_will_change) - 44usize];
+    [
+        "Offset of field: MenuLayerCallbacks::draw_background",
+    ][::core::mem::offset_of!(MenuLayerCallbacks, draw_background) - 48usize];
+};
 /**! Creates a new \ref MenuLayer on the heap and initalizes it with the default values.
 !
 ! * Clips: `true`
@@ -13705,7 +13160,7 @@ pub unsafe extern "C" fn menu_layer_is_index_selected(
 ! ![](simple_menu_layer.png)
 ! @{*/
 #[repr(C)]
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug)]
 pub struct SimpleMenuLayer {
     _unused: [u8; 0],
 }
@@ -13730,51 +13185,23 @@ pub struct SimpleMenuItem {
 ! Optional, leave `NULL` if unused.*/
     pub callback: SimpleMenuLayerSelectCallback,
 }
-#[test]
-fn bindgen_test_layout_SimpleMenuItem() {
-    const UNINIT: ::core::mem::MaybeUninit<SimpleMenuItem> = ::core::mem::MaybeUninit::uninit();
-    let ptr = UNINIT.as_ptr();
-    assert_eq!(
-        ::core::mem::size_of::<SimpleMenuItem>(),
-        16usize,
-        concat!("Size of: ", stringify!(SimpleMenuItem)),
-    );
-    assert_eq!(
-        ::core::mem::align_of::<SimpleMenuItem>(),
-        4usize,
-        concat!("Alignment of ", stringify!(SimpleMenuItem)),
-    );
-    assert_eq!(
-        unsafe { ::core::ptr::addr_of!((*ptr).title) as usize - ptr as usize },
-        0usize,
-        concat!("Offset of field: ", stringify!(SimpleMenuItem), "::", stringify!(title)),
-    );
-    assert_eq!(
-        unsafe { ::core::ptr::addr_of!((*ptr).subtitle) as usize - ptr as usize },
-        4usize,
-        concat!(
-            "Offset of field: ",
-            stringify!(SimpleMenuItem),
-            "::",
-            stringify!(subtitle),
-        ),
-    );
-    assert_eq!(
-        unsafe { ::core::ptr::addr_of!((*ptr).icon) as usize - ptr as usize },
-        8usize,
-        concat!("Offset of field: ", stringify!(SimpleMenuItem), "::", stringify!(icon)),
-    );
-    assert_eq!(
-        unsafe { ::core::ptr::addr_of!((*ptr).callback) as usize - ptr as usize },
-        12usize,
-        concat!(
-            "Offset of field: ",
-            stringify!(SimpleMenuItem),
-            "::",
-            stringify!(callback),
-        ),
-    );
-}
+#[allow(clippy::unnecessary_operation, clippy::identity_op)]
+const _: () = {
+    ["Size of SimpleMenuItem"][::core::mem::size_of::<SimpleMenuItem>() - 16usize];
+    ["Alignment of SimpleMenuItem"][::core::mem::align_of::<SimpleMenuItem>() - 4usize];
+    [
+        "Offset of field: SimpleMenuItem::title",
+    ][::core::mem::offset_of!(SimpleMenuItem, title) - 0usize];
+    [
+        "Offset of field: SimpleMenuItem::subtitle",
+    ][::core::mem::offset_of!(SimpleMenuItem, subtitle) - 4usize];
+    [
+        "Offset of field: SimpleMenuItem::icon",
+    ][::core::mem::offset_of!(SimpleMenuItem, icon) - 8usize];
+    [
+        "Offset of field: SimpleMenuItem::callback",
+    ][::core::mem::offset_of!(SimpleMenuItem, callback) - 12usize];
+};
 ///! Data structure containing the information of a menu section.
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
@@ -13786,51 +13213,22 @@ pub struct SimpleMenuSection {
     ///! Number of items in the `.items` array.
     pub num_items: u32,
 }
-#[test]
-fn bindgen_test_layout_SimpleMenuSection() {
-    const UNINIT: ::core::mem::MaybeUninit<SimpleMenuSection> = ::core::mem::MaybeUninit::uninit();
-    let ptr = UNINIT.as_ptr();
-    assert_eq!(
-        ::core::mem::size_of::<SimpleMenuSection>(),
-        12usize,
-        concat!("Size of: ", stringify!(SimpleMenuSection)),
-    );
-    assert_eq!(
-        ::core::mem::align_of::<SimpleMenuSection>(),
-        4usize,
-        concat!("Alignment of ", stringify!(SimpleMenuSection)),
-    );
-    assert_eq!(
-        unsafe { ::core::ptr::addr_of!((*ptr).title) as usize - ptr as usize },
-        0usize,
-        concat!(
-            "Offset of field: ",
-            stringify!(SimpleMenuSection),
-            "::",
-            stringify!(title),
-        ),
-    );
-    assert_eq!(
-        unsafe { ::core::ptr::addr_of!((*ptr).items) as usize - ptr as usize },
-        4usize,
-        concat!(
-            "Offset of field: ",
-            stringify!(SimpleMenuSection),
-            "::",
-            stringify!(items),
-        ),
-    );
-    assert_eq!(
-        unsafe { ::core::ptr::addr_of!((*ptr).num_items) as usize - ptr as usize },
-        8usize,
-        concat!(
-            "Offset of field: ",
-            stringify!(SimpleMenuSection),
-            "::",
-            stringify!(num_items),
-        ),
-    );
-}
+#[allow(clippy::unnecessary_operation, clippy::identity_op)]
+const _: () = {
+    ["Size of SimpleMenuSection"][::core::mem::size_of::<SimpleMenuSection>() - 12usize];
+    [
+        "Alignment of SimpleMenuSection",
+    ][::core::mem::align_of::<SimpleMenuSection>() - 4usize];
+    [
+        "Offset of field: SimpleMenuSection::title",
+    ][::core::mem::offset_of!(SimpleMenuSection, title) - 0usize];
+    [
+        "Offset of field: SimpleMenuSection::items",
+    ][::core::mem::offset_of!(SimpleMenuSection, items) - 4usize];
+    [
+        "Offset of field: SimpleMenuSection::num_items",
+    ][::core::mem::offset_of!(SimpleMenuSection, num_items) - 8usize];
+};
 /**! Creates a new SimpleMenuLayer on the heap and initializes it.
 ! It also sets the internal click configuration provider onto given window.
 ! @param frame The frame at which to initialize the menu
@@ -13949,7 +13347,7 @@ pub const ActionBarLayerIconPressAnimation_ActionBarLayerIconPressAnimationMoveR
 pub const ActionBarLayerIconPressAnimation_ActionBarLayerIconPressAnimationMoveDown: ActionBarLayerIconPressAnimation = 4;
 pub type ActionBarLayerIconPressAnimation = ::core::ffi::c_uint;
 #[repr(C)]
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug)]
 pub struct ActionBarLayer {
     _unused: [u8; 0],
 }
@@ -14222,7 +13620,7 @@ pub unsafe extern "C" fn action_bar_layer_set_icon_press_animation(
 ! \brief Layer that serves as a configurable status bar.
 ! @{*/
 #[repr(C)]
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug)]
 pub struct StatusBarLayer {
     _unused: [u8; 0],
 }
@@ -14381,7 +13779,7 @@ pub unsafe extern "C" fn status_bar_layer_set_separator_mode(
 ! the layout of the image and it uses \ref graphics_fill_rect() to draw the background plane.
 ! @{*/
 #[repr(C)]
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug)]
 pub struct BitmapLayer {
     _unused: [u8; 0],
 }
@@ -14566,7 +13964,7 @@ pub unsafe extern "C" fn bitmap_layer_set_compositing_mode(
 ! experience (see \ref graphics_draw_rotated_bitmap). Use sparingly.
 ! @{*/
 #[repr(C)]
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug)]
 pub struct RotBitmapLayer {
     _unused: [u8; 0],
 }
@@ -14705,7 +14103,7 @@ pub unsafe extern "C" fn rot_bitmap_set_compositing_mode(
 ! ![](number_window.png)
 ! @{*/
 #[repr(C)]
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug)]
 pub struct NumberWindow {
     _unused: [u8; 0],
 }
@@ -14731,51 +14129,24 @@ pub struct NumberWindowCallbacks {
 ! Optional, leave `NULL` if unused.*/
     pub selected: NumberWindowCallback,
 }
-#[test]
-fn bindgen_test_layout_NumberWindowCallbacks() {
-    const UNINIT: ::core::mem::MaybeUninit<NumberWindowCallbacks> = ::core::mem::MaybeUninit::uninit();
-    let ptr = UNINIT.as_ptr();
-    assert_eq!(
-        ::core::mem::size_of::<NumberWindowCallbacks>(),
-        12usize,
-        concat!("Size of: ", stringify!(NumberWindowCallbacks)),
-    );
-    assert_eq!(
-        ::core::mem::align_of::<NumberWindowCallbacks>(),
-        4usize,
-        concat!("Alignment of ", stringify!(NumberWindowCallbacks)),
-    );
-    assert_eq!(
-        unsafe { ::core::ptr::addr_of!((*ptr).incremented) as usize - ptr as usize },
-        0usize,
-        concat!(
-            "Offset of field: ",
-            stringify!(NumberWindowCallbacks),
-            "::",
-            stringify!(incremented),
-        ),
-    );
-    assert_eq!(
-        unsafe { ::core::ptr::addr_of!((*ptr).decremented) as usize - ptr as usize },
-        4usize,
-        concat!(
-            "Offset of field: ",
-            stringify!(NumberWindowCallbacks),
-            "::",
-            stringify!(decremented),
-        ),
-    );
-    assert_eq!(
-        unsafe { ::core::ptr::addr_of!((*ptr).selected) as usize - ptr as usize },
-        8usize,
-        concat!(
-            "Offset of field: ",
-            stringify!(NumberWindowCallbacks),
-            "::",
-            stringify!(selected),
-        ),
-    );
-}
+#[allow(clippy::unnecessary_operation, clippy::identity_op)]
+const _: () = {
+    [
+        "Size of NumberWindowCallbacks",
+    ][::core::mem::size_of::<NumberWindowCallbacks>() - 12usize];
+    [
+        "Alignment of NumberWindowCallbacks",
+    ][::core::mem::align_of::<NumberWindowCallbacks>() - 4usize];
+    [
+        "Offset of field: NumberWindowCallbacks::incremented",
+    ][::core::mem::offset_of!(NumberWindowCallbacks, incremented) - 0usize];
+    [
+        "Offset of field: NumberWindowCallbacks::decremented",
+    ][::core::mem::offset_of!(NumberWindowCallbacks, decremented) - 4usize];
+    [
+        "Offset of field: NumberWindowCallbacks::selected",
+    ][::core::mem::offset_of!(NumberWindowCallbacks, selected) - 8usize];
+};
 /**! Creates a new NumberWindow on the heap and initalizes it with the default values.
 !
 ! @param label The title or prompt to display in the NumberWindow. Must be long-lived and cannot be stack-allocated.
@@ -14938,12 +14309,12 @@ pub unsafe extern "C" fn number_window_get_window(
 /**! @addtogroup ActionMenu
 ! @{*/
 #[repr(C)]
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug)]
 pub struct ActionMenuItem {
     _unused: [u8; 0],
 }
 #[repr(C)]
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug)]
 pub struct ActionMenuLevel {
     _unused: [u8; 0],
 }
@@ -14951,7 +14322,7 @@ pub const ActionMenuAlign_ActionMenuAlignTop: ActionMenuAlign = 0;
 pub const ActionMenuAlign_ActionMenuAlignCenter: ActionMenuAlign = 1;
 pub type ActionMenuAlign = ::core::ffi::c_uint;
 #[repr(C)]
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug)]
 pub struct ActionMenu {
     _unused: [u8; 0],
 }
@@ -15016,116 +14387,46 @@ pub struct ActionMenuConfig__bindgen_ty_1 {
     ///!< the color of the individual "crumbs" that indicate menu depth
     pub foreground: GColor,
 }
-#[test]
-fn bindgen_test_layout_ActionMenuConfig__bindgen_ty_1() {
-    const UNINIT: ::core::mem::MaybeUninit<ActionMenuConfig__bindgen_ty_1> = ::core::mem::MaybeUninit::uninit();
-    let ptr = UNINIT.as_ptr();
-    assert_eq!(
-        ::core::mem::size_of::<ActionMenuConfig__bindgen_ty_1>(),
-        2usize,
-        concat!("Size of: ", stringify!(ActionMenuConfig__bindgen_ty_1)),
-    );
-    assert_eq!(
-        ::core::mem::align_of::<ActionMenuConfig__bindgen_ty_1>(),
-        1usize,
-        concat!("Alignment of ", stringify!(ActionMenuConfig__bindgen_ty_1)),
-    );
-    assert_eq!(
-        unsafe { ::core::ptr::addr_of!((*ptr).background) as usize - ptr as usize },
-        0usize,
-        concat!(
-            "Offset of field: ",
-            stringify!(ActionMenuConfig__bindgen_ty_1),
-            "::",
-            stringify!(background),
-        ),
-    );
-    assert_eq!(
-        unsafe { ::core::ptr::addr_of!((*ptr).foreground) as usize - ptr as usize },
-        1usize,
-        concat!(
-            "Offset of field: ",
-            stringify!(ActionMenuConfig__bindgen_ty_1),
-            "::",
-            stringify!(foreground),
-        ),
-    );
-}
-#[test]
-fn bindgen_test_layout_ActionMenuConfig() {
-    const UNINIT: ::core::mem::MaybeUninit<ActionMenuConfig> = ::core::mem::MaybeUninit::uninit();
-    let ptr = UNINIT.as_ptr();
-    assert_eq!(
-        ::core::mem::size_of::<ActionMenuConfig>(),
-        24usize,
-        concat!("Size of: ", stringify!(ActionMenuConfig)),
-    );
-    assert_eq!(
-        ::core::mem::align_of::<ActionMenuConfig>(),
-        4usize,
-        concat!("Alignment of ", stringify!(ActionMenuConfig)),
-    );
-    assert_eq!(
-        unsafe { ::core::ptr::addr_of!((*ptr).root_level) as usize - ptr as usize },
-        0usize,
-        concat!(
-            "Offset of field: ",
-            stringify!(ActionMenuConfig),
-            "::",
-            stringify!(root_level),
-        ),
-    );
-    assert_eq!(
-        unsafe { ::core::ptr::addr_of!((*ptr).context) as usize - ptr as usize },
-        4usize,
-        concat!(
-            "Offset of field: ",
-            stringify!(ActionMenuConfig),
-            "::",
-            stringify!(context),
-        ),
-    );
-    assert_eq!(
-        unsafe { ::core::ptr::addr_of!((*ptr).colors) as usize - ptr as usize },
-        8usize,
-        concat!(
-            "Offset of field: ",
-            stringify!(ActionMenuConfig),
-            "::",
-            stringify!(colors),
-        ),
-    );
-    assert_eq!(
-        unsafe { ::core::ptr::addr_of!((*ptr).will_close) as usize - ptr as usize },
-        12usize,
-        concat!(
-            "Offset of field: ",
-            stringify!(ActionMenuConfig),
-            "::",
-            stringify!(will_close),
-        ),
-    );
-    assert_eq!(
-        unsafe { ::core::ptr::addr_of!((*ptr).did_close) as usize - ptr as usize },
-        16usize,
-        concat!(
-            "Offset of field: ",
-            stringify!(ActionMenuConfig),
-            "::",
-            stringify!(did_close),
-        ),
-    );
-    assert_eq!(
-        unsafe { ::core::ptr::addr_of!((*ptr).align) as usize - ptr as usize },
-        20usize,
-        concat!(
-            "Offset of field: ",
-            stringify!(ActionMenuConfig),
-            "::",
-            stringify!(align),
-        ),
-    );
-}
+#[allow(clippy::unnecessary_operation, clippy::identity_op)]
+const _: () = {
+    [
+        "Size of ActionMenuConfig__bindgen_ty_1",
+    ][::core::mem::size_of::<ActionMenuConfig__bindgen_ty_1>() - 2usize];
+    [
+        "Alignment of ActionMenuConfig__bindgen_ty_1",
+    ][::core::mem::align_of::<ActionMenuConfig__bindgen_ty_1>() - 1usize];
+    [
+        "Offset of field: ActionMenuConfig__bindgen_ty_1::background",
+    ][::core::mem::offset_of!(ActionMenuConfig__bindgen_ty_1, background) - 0usize];
+    [
+        "Offset of field: ActionMenuConfig__bindgen_ty_1::foreground",
+    ][::core::mem::offset_of!(ActionMenuConfig__bindgen_ty_1, foreground) - 1usize];
+};
+#[allow(clippy::unnecessary_operation, clippy::identity_op)]
+const _: () = {
+    ["Size of ActionMenuConfig"][::core::mem::size_of::<ActionMenuConfig>() - 24usize];
+    [
+        "Alignment of ActionMenuConfig",
+    ][::core::mem::align_of::<ActionMenuConfig>() - 4usize];
+    [
+        "Offset of field: ActionMenuConfig::root_level",
+    ][::core::mem::offset_of!(ActionMenuConfig, root_level) - 0usize];
+    [
+        "Offset of field: ActionMenuConfig::context",
+    ][::core::mem::offset_of!(ActionMenuConfig, context) - 4usize];
+    [
+        "Offset of field: ActionMenuConfig::colors",
+    ][::core::mem::offset_of!(ActionMenuConfig, colors) - 8usize];
+    [
+        "Offset of field: ActionMenuConfig::will_close",
+    ][::core::mem::offset_of!(ActionMenuConfig, will_close) - 12usize];
+    [
+        "Offset of field: ActionMenuConfig::did_close",
+    ][::core::mem::offset_of!(ActionMenuConfig, did_close) - 16usize];
+    [
+        "Offset of field: ActionMenuConfig::align",
+    ][::core::mem::offset_of!(ActionMenuConfig, align) - 20usize];
+};
 /**! Getter for the label of a given \ref ActionMenuItem
 ! @param item the \ref ActionMenuItem of interest
 ! @return a pointer to the string label. NULL if invalid.*/
@@ -15400,41 +14701,17 @@ The maximum allowed duration is 10000ms.*/
     ///The length of the array of durations.
     pub num_segments: u32,
 }
-#[test]
-fn bindgen_test_layout_VibePattern() {
-    const UNINIT: ::core::mem::MaybeUninit<VibePattern> = ::core::mem::MaybeUninit::uninit();
-    let ptr = UNINIT.as_ptr();
-    assert_eq!(
-        ::core::mem::size_of::<VibePattern>(),
-        8usize,
-        concat!("Size of: ", stringify!(VibePattern)),
-    );
-    assert_eq!(
-        ::core::mem::align_of::<VibePattern>(),
-        4usize,
-        concat!("Alignment of ", stringify!(VibePattern)),
-    );
-    assert_eq!(
-        unsafe { ::core::ptr::addr_of!((*ptr).durations) as usize - ptr as usize },
-        0usize,
-        concat!(
-            "Offset of field: ",
-            stringify!(VibePattern),
-            "::",
-            stringify!(durations),
-        ),
-    );
-    assert_eq!(
-        unsafe { ::core::ptr::addr_of!((*ptr).num_segments) as usize - ptr as usize },
-        4usize,
-        concat!(
-            "Offset of field: ",
-            stringify!(VibePattern),
-            "::",
-            stringify!(num_segments),
-        ),
-    );
-}
+#[allow(clippy::unnecessary_operation, clippy::identity_op)]
+const _: () = {
+    ["Size of VibePattern"][::core::mem::size_of::<VibePattern>() - 8usize];
+    ["Alignment of VibePattern"][::core::mem::align_of::<VibePattern>() - 4usize];
+    [
+        "Offset of field: VibePattern::durations",
+    ][::core::mem::offset_of!(VibePattern, durations) - 0usize];
+    [
+        "Offset of field: VibePattern::num_segments",
+    ][::core::mem::offset_of!(VibePattern, num_segments) - 4usize];
+};
 /**! Cancel any in-flight vibe patterns; this is a no-op if there is no
 ! on-going vibe.*/
 /** vibes_cancel
@@ -15530,46 +14807,26 @@ pub struct PACKED {
     pub velocity: u8,
     pub reserved: u8,
 }
-#[test]
-fn bindgen_test_layout_PACKED() {
-    const UNINIT: ::core::mem::MaybeUninit<PACKED> = ::core::mem::MaybeUninit::uninit();
-    let ptr = UNINIT.as_ptr();
-    assert_eq!(
-        ::core::mem::size_of::<PACKED>(),
-        6usize,
-        concat!("Size of: ", stringify!(PACKED)),
-    );
-    assert_eq!(
-        ::core::mem::align_of::<PACKED>(),
-        2usize,
-        concat!("Alignment of ", stringify!(PACKED)),
-    );
-    assert_eq!(
-        unsafe { ::core::ptr::addr_of!((*ptr).midi_note) as usize - ptr as usize },
-        0usize,
-        concat!("Offset of field: ", stringify!(PACKED), "::", stringify!(midi_note)),
-    );
-    assert_eq!(
-        unsafe { ::core::ptr::addr_of!((*ptr).waveform) as usize - ptr as usize },
-        1usize,
-        concat!("Offset of field: ", stringify!(PACKED), "::", stringify!(waveform)),
-    );
-    assert_eq!(
-        unsafe { ::core::ptr::addr_of!((*ptr).duration_ms) as usize - ptr as usize },
-        2usize,
-        concat!("Offset of field: ", stringify!(PACKED), "::", stringify!(duration_ms)),
-    );
-    assert_eq!(
-        unsafe { ::core::ptr::addr_of!((*ptr).velocity) as usize - ptr as usize },
-        4usize,
-        concat!("Offset of field: ", stringify!(PACKED), "::", stringify!(velocity)),
-    );
-    assert_eq!(
-        unsafe { ::core::ptr::addr_of!((*ptr).reserved) as usize - ptr as usize },
-        5usize,
-        concat!("Offset of field: ", stringify!(PACKED), "::", stringify!(reserved)),
-    );
-}
+#[allow(clippy::unnecessary_operation, clippy::identity_op)]
+const _: () = {
+    ["Size of PACKED"][::core::mem::size_of::<PACKED>() - 6usize];
+    ["Alignment of PACKED"][::core::mem::align_of::<PACKED>() - 2usize];
+    [
+        "Offset of field: PACKED::midi_note",
+    ][::core::mem::offset_of!(PACKED, midi_note) - 0usize];
+    [
+        "Offset of field: PACKED::waveform",
+    ][::core::mem::offset_of!(PACKED, waveform) - 1usize];
+    [
+        "Offset of field: PACKED::duration_ms",
+    ][::core::mem::offset_of!(PACKED, duration_ms) - 2usize];
+    [
+        "Offset of field: PACKED::velocity",
+    ][::core::mem::offset_of!(PACKED, velocity) - 4usize];
+    [
+        "Offset of field: PACKED::reserved",
+    ][::core::mem::offset_of!(PACKED, reserved) - 5usize];
+};
 /**! A single note in a sequence.
 ! midi_note: MIDI note number (0-127, 60=C4). 0 = rest (silence).
 ! waveform: SpeakerWaveform value.
@@ -15627,56 +14884,26 @@ pub struct SpeakerSample {
     pub base_midi_note: u8,
     pub loop_: bool,
 }
-#[test]
-fn bindgen_test_layout_SpeakerSample() {
-    const UNINIT: ::core::mem::MaybeUninit<SpeakerSample> = ::core::mem::MaybeUninit::uninit();
-    let ptr = UNINIT.as_ptr();
-    assert_eq!(
-        ::core::mem::size_of::<SpeakerSample>(),
-        16usize,
-        concat!("Size of: ", stringify!(SpeakerSample)),
-    );
-    assert_eq!(
-        ::core::mem::align_of::<SpeakerSample>(),
-        4usize,
-        concat!("Alignment of ", stringify!(SpeakerSample)),
-    );
-    assert_eq!(
-        unsafe { ::core::ptr::addr_of!((*ptr).data) as usize - ptr as usize },
-        0usize,
-        concat!("Offset of field: ", stringify!(SpeakerSample), "::", stringify!(data)),
-    );
-    assert_eq!(
-        unsafe { ::core::ptr::addr_of!((*ptr).num_bytes) as usize - ptr as usize },
-        4usize,
-        concat!(
-            "Offset of field: ",
-            stringify!(SpeakerSample),
-            "::",
-            stringify!(num_bytes),
-        ),
-    );
-    assert_eq!(
-        unsafe { ::core::ptr::addr_of!((*ptr).format) as usize - ptr as usize },
-        8usize,
-        concat!("Offset of field: ", stringify!(SpeakerSample), "::", stringify!(format)),
-    );
-    assert_eq!(
-        unsafe { ::core::ptr::addr_of!((*ptr).base_midi_note) as usize - ptr as usize },
-        12usize,
-        concat!(
-            "Offset of field: ",
-            stringify!(SpeakerSample),
-            "::",
-            stringify!(base_midi_note),
-        ),
-    );
-    assert_eq!(
-        unsafe { ::core::ptr::addr_of!((*ptr).loop_) as usize - ptr as usize },
-        13usize,
-        concat!("Offset of field: ", stringify!(SpeakerSample), "::", stringify!(loop_)),
-    );
-}
+#[allow(clippy::unnecessary_operation, clippy::identity_op)]
+const _: () = {
+    ["Size of SpeakerSample"][::core::mem::size_of::<SpeakerSample>() - 16usize];
+    ["Alignment of SpeakerSample"][::core::mem::align_of::<SpeakerSample>() - 4usize];
+    [
+        "Offset of field: SpeakerSample::data",
+    ][::core::mem::offset_of!(SpeakerSample, data) - 0usize];
+    [
+        "Offset of field: SpeakerSample::num_bytes",
+    ][::core::mem::offset_of!(SpeakerSample, num_bytes) - 4usize];
+    [
+        "Offset of field: SpeakerSample::format",
+    ][::core::mem::offset_of!(SpeakerSample, format) - 8usize];
+    [
+        "Offset of field: SpeakerSample::base_midi_note",
+    ][::core::mem::offset_of!(SpeakerSample, base_midi_note) - 12usize];
+    [
+        "Offset of field: SpeakerSample::loop_",
+    ][::core::mem::offset_of!(SpeakerSample, loop_) - 13usize];
+};
 /**! A single monophonic voice. Multiple tracks are mixed together by
 ! speaker_play_tracks() to produce polyphony.
 ! notes: array of notes to play sequentially.
@@ -15690,41 +14917,20 @@ pub struct SpeakerTrack {
     pub num_notes: u32,
     pub sample: *const SpeakerSample,
 }
-#[test]
-fn bindgen_test_layout_SpeakerTrack() {
-    const UNINIT: ::core::mem::MaybeUninit<SpeakerTrack> = ::core::mem::MaybeUninit::uninit();
-    let ptr = UNINIT.as_ptr();
-    assert_eq!(
-        ::core::mem::size_of::<SpeakerTrack>(),
-        12usize,
-        concat!("Size of: ", stringify!(SpeakerTrack)),
-    );
-    assert_eq!(
-        ::core::mem::align_of::<SpeakerTrack>(),
-        4usize,
-        concat!("Alignment of ", stringify!(SpeakerTrack)),
-    );
-    assert_eq!(
-        unsafe { ::core::ptr::addr_of!((*ptr).notes) as usize - ptr as usize },
-        0usize,
-        concat!("Offset of field: ", stringify!(SpeakerTrack), "::", stringify!(notes)),
-    );
-    assert_eq!(
-        unsafe { ::core::ptr::addr_of!((*ptr).num_notes) as usize - ptr as usize },
-        4usize,
-        concat!(
-            "Offset of field: ",
-            stringify!(SpeakerTrack),
-            "::",
-            stringify!(num_notes),
-        ),
-    );
-    assert_eq!(
-        unsafe { ::core::ptr::addr_of!((*ptr).sample) as usize - ptr as usize },
-        8usize,
-        concat!("Offset of field: ", stringify!(SpeakerTrack), "::", stringify!(sample)),
-    );
-}
+#[allow(clippy::unnecessary_operation, clippy::identity_op)]
+const _: () = {
+    ["Size of SpeakerTrack"][::core::mem::size_of::<SpeakerTrack>() - 12usize];
+    ["Alignment of SpeakerTrack"][::core::mem::align_of::<SpeakerTrack>() - 4usize];
+    [
+        "Offset of field: SpeakerTrack::notes",
+    ][::core::mem::offset_of!(SpeakerTrack, notes) - 0usize];
+    [
+        "Offset of field: SpeakerTrack::num_notes",
+    ][::core::mem::offset_of!(SpeakerTrack, num_notes) - 4usize];
+    [
+        "Offset of field: SpeakerTrack::sample",
+    ][::core::mem::offset_of!(SpeakerTrack, sample) - 8usize];
+};
 /**! Trigger the backlight and schedule a timer to automatically disable the backlight
 ! after a short delay. This is the preferred method of interacting with the backlight.*/
 /** light_enable_interaction
@@ -15812,21 +15018,46 @@ pub unsafe extern "C" fn quiet_time_is_active() -> bool {
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct tm {
-    pub _address: u8,
+    ///< Seconds. [0-60] (1 leap second)
+    pub tm_sec: ::core::ffi::c_int,
+    ///< Minutes. [0-59]
+    pub tm_min: ::core::ffi::c_int,
+    ///< Hours.  [0-23]
+    pub tm_hour: ::core::ffi::c_int,
+    ///< Day. [1-31]
+    pub tm_mday: ::core::ffi::c_int,
+    ///< Month. [0-11]
+    pub tm_mon: ::core::ffi::c_int,
+    ///< Years since 1900
+    pub tm_year: ::core::ffi::c_int,
+    ///< Day of week. [0-6]
+    pub tm_wday: ::core::ffi::c_int,
+    ///< Days in year.[0-365]
+    pub tm_yday: ::core::ffi::c_int,
+    ///< DST. [-1/0/1]
+    pub tm_isdst: ::core::ffi::c_int,
+    /**< Total seconds east of UTC, DST included. tm_isdst is an indicator only --
+never add it to this value.*/
+    pub tm_gmtoff: ::core::ffi::c_int,
+    ///< Timezone abbreviation
+    pub tm_zone: [::core::ffi::c_char; 6usize],
 }
-#[test]
-fn bindgen_test_layout_tm() {
-    assert_eq!(
-        ::core::mem::size_of::<tm>(),
-        48usize,
-        concat!("Size of: ", stringify!(tm)),
-    );
-    assert_eq!(
-        ::core::mem::align_of::<tm>(),
-        4usize,
-        concat!("Alignment of ", stringify!(tm)),
-    );
-}
+#[allow(clippy::unnecessary_operation, clippy::identity_op)]
+const _: () = {
+    ["Size of tm"][::core::mem::size_of::<tm>() - 48usize];
+    ["Alignment of tm"][::core::mem::align_of::<tm>() - 4usize];
+    ["Offset of field: tm::tm_sec"][::core::mem::offset_of!(tm, tm_sec) - 0usize];
+    ["Offset of field: tm::tm_min"][::core::mem::offset_of!(tm, tm_min) - 4usize];
+    ["Offset of field: tm::tm_hour"][::core::mem::offset_of!(tm, tm_hour) - 8usize];
+    ["Offset of field: tm::tm_mday"][::core::mem::offset_of!(tm, tm_mday) - 12usize];
+    ["Offset of field: tm::tm_mon"][::core::mem::offset_of!(tm, tm_mon) - 16usize];
+    ["Offset of field: tm::tm_year"][::core::mem::offset_of!(tm, tm_year) - 20usize];
+    ["Offset of field: tm::tm_wday"][::core::mem::offset_of!(tm, tm_wday) - 24usize];
+    ["Offset of field: tm::tm_yday"][::core::mem::offset_of!(tm, tm_yday) - 28usize];
+    ["Offset of field: tm::tm_isdst"][::core::mem::offset_of!(tm, tm_isdst) - 32usize];
+    ["Offset of field: tm::tm_gmtoff"][::core::mem::offset_of!(tm, tm_gmtoff) - 36usize];
+    ["Offset of field: tm::tm_zone"][::core::mem::offset_of!(tm, tm_zone) - 40usize];
+};
 /**! Format the time value at tm according to fmt and place the result in a buffer s of size max
 ! @param s A preallocation char array of size max
 ! @param maxsize the size of the array s
