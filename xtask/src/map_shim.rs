@@ -85,7 +85,12 @@ fn build_syscall_vtable_map(
 	// occupy a slot, like removed/deprecated fns.
 	let slot_count = exported_fns.len();
 	let to_skip = |func: &Function| -> bool {
-		func.removed.is_set() || func.deprecated.is_set() || func.skip_definition
+		// The allocator family is `skipDefinition` in the SDK but we still want shims for
+		// it — gneiss's GlobalAlloc binds these.
+		const FORCE_EMIT: &[&str] = &["malloc", "free", "realloc"];
+		func.removed.is_set()
+			|| func.deprecated.is_set()
+			|| (func.skip_definition && !FORCE_EMIT.contains(&func.name.as_str()))
 	};
 	let removed_count = exported_fns.iter().filter(|f| to_skip(f)).count();
 	let exported_fns: HashMap<&str, (usize, &Function)> = exported_fns

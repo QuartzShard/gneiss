@@ -1,3 +1,5 @@
+#![allow(unused)]
+#![allow(clippy::needless_pass_by_value)]
 mod entry;
 mod service;
 

@@ -245,6 +245,8 @@ impl NewProject {
 				#![no_std]
 				#![no_main]
 
+				extern crate alloc;
+
 				use gneiss::sys;
 
 				#[gneiss::entry]

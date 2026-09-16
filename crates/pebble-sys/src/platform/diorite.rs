@@ -639,6 +639,42 @@ pub const HOURS_PER_DAY: u32 = 24;
 pub const MINUTES_PER_DAY: u32 = 1440;
 pub const SECONDS_PER_DAY: u32 = 86400;
 pub type wchar_t = ::core::ffi::c_uint;
+/** malloc
+  -> Added in 0
+gneiss: Vtable Slot 161, Offset 644*/
+#[unsafe(naked)]
+#[unsafe(link_section = ".text.malloc")]
+pub unsafe extern "C" fn malloc(arg1: ::core::ffi::c_uint) -> *mut ::core::ffi::c_void {
+    core::arch::naked_asm!(
+        "push  {{r0-r3}}", "ldr   r1, =644", "b     {resolver}", resolver = sym crate
+        ::shim::jump_to_pbl_function,
+    )
+}
+/** free
+  -> Added in 0
+gneiss: Vtable Slot 99, Offset 396*/
+#[unsafe(naked)]
+#[unsafe(link_section = ".text.free")]
+pub unsafe extern "C" fn free(arg1: *mut ::core::ffi::c_void) {
+    core::arch::naked_asm!(
+        "push  {{r0-r3}}", "ldr   r1, =396", "b     {resolver}", resolver = sym crate
+        ::shim::jump_to_pbl_function,
+    )
+}
+/** realloc
+  -> Added in 12
+gneiss: Vtable Slot 323, Offset 1292*/
+#[unsafe(naked)]
+#[unsafe(link_section = ".text.realloc")]
+pub unsafe extern "C" fn realloc(
+    arg1: *mut ::core::ffi::c_void,
+    arg2: ::core::ffi::c_uint,
+) -> *mut ::core::ffi::c_void {
+    core::arch::naked_asm!(
+        "push  {{r0-r3}}", "ldr   r1, =1292", "b     {resolver}", resolver = sym crate
+        ::shim::jump_to_pbl_function,
+    )
+}
 pub type int_least64_t = i64;
 pub type uint_least64_t = u64;
 pub type int_fast64_t = i64;

@@ -53,7 +53,14 @@ fn regen_sys() -> Result<()> {
 		// pull stddef.h (clang freestanding, reachable via -isystem) so size_t
 		// is defined for every platform. emery limped along because xsffi.h
 		// happened to include stddef.h transitively; other platforms don't.
-		("stdlib.h", "#pragma once\n#include <stddef.h>\n"),
+		// The allocator family has no applib prototype (the SDK exports it via
+		// `implName` aliasing onto `task_malloc` &c.), so declare it here for
+		// bindgen; the shim carve-out in map_shim un-skips these slots.
+		(
+			"stdlib.h",
+			"#pragma once\n#include <stddef.h>\n\
+			 void *malloc(size_t);\nvoid free(void *);\nvoid *realloc(void *, size_t);\n",
+		),
 		("stdio.h", "#pragma once\n"),
 		("string.h", "#pragma once\n"),
 		("locale.h", "#pragma once\n"),
