@@ -1,0 +1,7 @@
+{
+	"notes": [
+		{ "id": "buzz", "vibe_duration_ms": 150, "brake_duration_ms": 30, "strength": 100 },
+		{ "id": "gap", "vibe_duration_ms": 100, "brake_duration_ms": 0, "strength": 0 }
+	],
+	"pattern": ["buzz", "gap", "buzz"]
+}

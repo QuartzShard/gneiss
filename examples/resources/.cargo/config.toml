@@ -1,0 +1,9 @@
+[build]
+target = "thumbv7m-pebble.json"
+
+[target.thumbv7m-pebble]
+rustflags = ["-C", "link-arg=-Tpebble_app.ld", "-C", "link-arg=--gc-sections", "-C", "link-arg=--emit-relocs"]
+
+[unstable]
+build-std = ["core", "alloc"]
+json-target-spec = true

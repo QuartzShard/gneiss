@@ -1,0 +1,85 @@
+[package]
+name = "resources"
+# authors[0] used as the watch-menu "company"
+authors = ["quartzshard"]
+version = "0.1.0"
+edition = "2024"
+
+[package.metadata.pebble]
+uuid = "bfccfe59-e1a6-4b31-848c-697a5becda85"
+watchface = false
+
+# Every resource entry needs `file`, `target_platforms`, and `type`. The name of
+# the table (e.g. APP_ICON) becomes a `resources::APP_ICON: u32` const in the app.
+
+# The menu icon: a special-case bitmap, at most one per app, wired into the app
+# header automatically. You do not normally load it from code.
+[package.metadata.pebble.resources.APP_ICON]
+type = "icon"
+file = "icon.png"
+target_platforms = ["emery"]
+
+# Arbitrary bytes, copied verbatim. Read back at runtime with resource_load.
+[package.metadata.pebble.resources.DATA_RAW]
+type = "raw"
+file = "data.bin"
+target_platforms = ["emery"]
+
+# Any `image`-supported file -> an indexed PNG the firmware decodes on load.
+[package.metadata.pebble.resources.IMAGE_PNG]
+type = "png"
+file = "image.png"
+target_platforms = ["emery"]
+
+# Any `image`-supported file -> a .pbi (raw pebble bitmap, no runtime decode).
+[package.metadata.pebble.resources.IMAGE_BITMAP]
+type = "bitmap"
+file = "image.png"
+target_platforms = ["emery"]
+
+# An already-baked .pbi, copied verbatim (only validated). Loads like a bitmap.
+[package.metadata.pebble.resources.IMAGE_PBI]
+type = "pbi"
+file = "image.pbi"
+target_platforms = ["emery"]
+
+# A freetype-rasterised font -> .pbf. FontSettings (camelCase) tune it:
+#   pixelHeight, characterRegex / characterList, compress, extended, trackingAdjust
+[package.metadata.pebble.resources.FONT_ROBOTO_18]
+type = "font"
+file = "font.ttf"
+target_platforms = ["emery"]
+pixelHeight = 18
+characterRegex = "[ -~]"
+compress = true
+
+# An already-baked .pbf, copied verbatim (only validated). Loads like a font.
+[package.metadata.pebble.resources.FONT_PBF]
+type = "pbf"
+file = "font.pbf"
+target_platforms = ["emery"]
+
+# A vibration score compiled from a JSON pattern (see buzz.json).
+[package.metadata.pebble.resources.BUZZ]
+type = "vibe"
+file = "buzz.json"
+target_platforms = ["emery"]
+
+[dependencies.gneiss]
+path = "../../crates/gneiss"
+features = []
+
+[build-dependencies.pebble-build]
+path = "../../crates/pebble-build"
+features = []
+
+[features]
+emery = ["gneiss/emery"]
+
+[profile.release]
+opt-level = "z"
+lto = "fat"
+codegen-units = 1
+panic = "abort"
+strip = "none"
+overflow-checks = false
