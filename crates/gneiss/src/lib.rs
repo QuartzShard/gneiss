@@ -7,4 +7,5 @@
 )]
 #![warn(clippy::unreachable, clippy::unimplemented, clippy::todo)]
 
-pub use gneiss_macros::service;
+pub use gneiss_macros::{entry, service};
+pub use pebble_sys as sys;

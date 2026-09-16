@@ -7,3 +7,4 @@ gen-sys = "run --package xtask --release -- regen-sys"
 # path is resolved against cwd.
 check-sys  = ["check",  "-p", "pebble-sys", "--features", "emery", "--target", "crates/cargo-pebble/thumbv7m-pebble.json", "-Zbuild-std=core", "-Zjson-target-spec"]
 clippy-sys = ["clippy", "-p", "pebble-sys", "--features", "emery", "--target", "crates/cargo-pebble/thumbv7m-pebble.json", "-Zbuild-std=core", "-Zjson-target-spec"]
+doc-sys    = ["doc",    "-p", "pebble-sys", "-p", "pebble-types", "-p", "gneiss", "--features", "pebble-sys/emery", "--target", "crates/cargo-pebble/thumbv7m-pebble.json", "-Zbuild-std=core", "-Zjson-target-spec"]

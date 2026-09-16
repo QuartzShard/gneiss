@@ -215,9 +215,10 @@ fn pretty_fn_please(fun: &syn::ItemFn) {
 	log::debug!(
 		"{}",
 		prettyplease::unparse(&syn::File {
-			shebang: None,
-			attrs:   vec![],
-			items:   vec![syn::Item::Fn(fun.clone())],
+			shebang:     None,
+			frontmatter: None,
+			attrs:       vec![],
+			items:       vec![syn::Item::Fn(fun.clone())],
 		})
 	);
 }

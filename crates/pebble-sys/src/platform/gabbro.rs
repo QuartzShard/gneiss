@@ -34,10 +34,10 @@ where
     }
     #[inline]
     pub unsafe fn raw_get_bit(this: *const Self, index: usize) -> bool {
-        debug_assert!(index / 8 < core::mem::size_of::< Storage > ());
+        debug_assert!(index / 8 < core::mem::size_of::<Storage>());
         let byte_index = index / 8;
         let byte = unsafe {
-            *(core::ptr::addr_of!((* this).storage) as *const u8)
+            *(core::ptr::addr_of!((*this).storage) as *const u8)
                 .offset(byte_index as isize)
         };
         Self::extract_bit(byte, index)
@@ -61,10 +61,10 @@ where
     }
     #[inline]
     pub unsafe fn raw_set_bit(this: *mut Self, index: usize, val: bool) {
-        debug_assert!(index / 8 < core::mem::size_of::< Storage > ());
+        debug_assert!(index / 8 < core::mem::size_of::<Storage>());
         let byte_index = index / 8;
         let byte = unsafe {
-            (core::ptr::addr_of_mut!((* this).storage) as *mut u8)
+            (core::ptr::addr_of_mut!((*this).storage) as *mut u8)
                 .offset(byte_index as isize)
         };
         unsafe { *byte = Self::change_bit(*byte, index, val) };
@@ -74,7 +74,7 @@ where
         debug_assert!(bit_width <= 64);
         debug_assert!(bit_offset / 8 < self.storage.as_ref().len());
         debug_assert!(
-            (bit_offset + (bit_width as usize) + 7) / 8 <= self.storage.as_ref().len()
+            (bit_offset + (bit_width as usize) + 7) / 8 <= self.storage.as_ref().len(),
         );
         if bit_width == 0 {
             return 0;
@@ -105,10 +105,10 @@ where
     #[inline]
     pub unsafe fn raw_get(this: *const Self, bit_offset: usize, bit_width: u8) -> u64 {
         debug_assert!(bit_width <= 64);
-        debug_assert!(bit_offset / 8 < core::mem::size_of::< Storage > ());
+        debug_assert!(bit_offset / 8 < core::mem::size_of::<Storage>());
         debug_assert!(
-            (bit_offset + (bit_width as usize) + 7) / 8 <= core::mem::size_of::< Storage
-            > ()
+            (bit_offset + (bit_width as usize) + 7) / 8
+                <= core::mem::size_of::<Storage>(),
         );
         if bit_width == 0 {
             return 0;
@@ -117,7 +117,7 @@ where
         let start_byte = bit_offset / 8;
         let bit_shift = bit_offset % 8;
         let bytes_needed = (bit_width as usize + bit_shift + 7) / 8;
-        let storage_ptr = unsafe { core::ptr::addr_of!((* this).storage) as *const u8 };
+        let storage_ptr = unsafe { core::ptr::addr_of!((*this).storage) as *const u8 };
         if cfg!(target_endian = "big") {
             for i in 0..bytes_needed {
                 let byte = unsafe { *storage_ptr.add(start_byte + i) };
@@ -143,7 +143,7 @@ where
         debug_assert!(bit_width <= 64);
         debug_assert!(bit_offset / 8 < self.storage.as_ref().len());
         debug_assert!(
-            (bit_offset + (bit_width as usize) + 7) / 8 <= self.storage.as_ref().len()
+            (bit_offset + (bit_width as usize) + 7) / 8 <= self.storage.as_ref().len(),
         );
         if bit_width == 0 {
             return;
@@ -181,10 +181,10 @@ where
     #[inline]
     pub unsafe fn raw_set(this: *mut Self, bit_offset: usize, bit_width: u8, val: u64) {
         debug_assert!(bit_width <= 64);
-        debug_assert!(bit_offset / 8 < core::mem::size_of::< Storage > ());
+        debug_assert!(bit_offset / 8 < core::mem::size_of::<Storage>());
         debug_assert!(
-            (bit_offset + (bit_width as usize) + 7) / 8 <= core::mem::size_of::< Storage
-            > ()
+            (bit_offset + (bit_width as usize) + 7) / 8
+                <= core::mem::size_of::<Storage>(),
         );
         if bit_width == 0 {
             return;
@@ -205,9 +205,7 @@ where
         } else {
             ((1u64 << bit_width) - 1) << bit_shift
         };
-        let storage_ptr = unsafe {
-            core::ptr::addr_of_mut!((* this).storage) as *mut u8
-        };
+        let storage_ptr = unsafe { core::ptr::addr_of_mut!((*this).storage) as *mut u8 };
         for i in 0..bytes_needed {
             let byte_val = (val >> (i * 8)) as u8;
             let byte_mask = (field_mask >> (i * 8)) as u8;
@@ -376,7 +374,7 @@ impl<const N: usize> __BindgenBitfieldUnit<[u8; N]> {
         let start_byte = BIT_OFFSET / 8;
         let bit_shift = BIT_OFFSET % 8;
         let bytes_needed = (BIT_WIDTH as usize + bit_shift + 7) / 8;
-        let storage_ptr = unsafe { core::ptr::addr_of!((* this).storage) as *const u8 };
+        let storage_ptr = unsafe { core::ptr::addr_of!((*this).storage) as *const u8 };
         if BIT_WIDTH as usize + bit_shift <= usize::BITS as usize {
             let mut val = 0usize;
             if cfg!(target_endian = "big") {
@@ -1868,7 +1866,7 @@ impl TouchEvent {
                 >>::raw_get_const::<
                     0usize,
                     8u8,
-                >(::core::ptr::addr_of!((* this)._bitfield_1)) as u32,
+                >(::core::ptr::addr_of!((*this)._bitfield_1)) as u32,
             )
         }
     }
@@ -1882,7 +1880,7 @@ impl TouchEvent {
             >>::raw_set_const::<
                 0usize,
                 8u8,
-            >(::core::ptr::addr_of_mut!((* this)._bitfield_1), val as u64)
+            >(::core::ptr::addr_of_mut!((*this)._bitfield_1), val as u64)
         }
     }
     #[inline]
@@ -2637,7 +2635,7 @@ impl HealthMinuteData {
                 >>::raw_get_const::<
                     0usize,
                     1u8,
-                >(::core::ptr::addr_of!((* this)._bitfield_1)) as u8,
+                >(::core::ptr::addr_of!((*this)._bitfield_1)) as u8,
             )
         }
     }
@@ -2651,7 +2649,7 @@ impl HealthMinuteData {
             >>::raw_set_const::<
                 0usize,
                 1u8,
-            >(::core::ptr::addr_of_mut!((* this)._bitfield_1), val as u64)
+            >(::core::ptr::addr_of_mut!((*this)._bitfield_1), val as u64)
         }
     }
     #[inline]
@@ -2679,7 +2677,7 @@ impl HealthMinuteData {
                 >>::raw_get_const::<
                     1usize,
                     3u8,
-                >(::core::ptr::addr_of!((* this)._bitfield_1)) as u32,
+                >(::core::ptr::addr_of!((*this)._bitfield_1)) as u32,
             )
         }
     }
@@ -2693,7 +2691,7 @@ impl HealthMinuteData {
             >>::raw_set_const::<
                 1usize,
                 3u8,
-            >(::core::ptr::addr_of_mut!((* this)._bitfield_1), val as u64)
+            >(::core::ptr::addr_of_mut!((*this)._bitfield_1), val as u64)
         }
     }
     #[inline]
@@ -2721,7 +2719,7 @@ impl HealthMinuteData {
                 >>::raw_get_const::<
                     4usize,
                     4u8,
-                >(::core::ptr::addr_of!((* this)._bitfield_1)) as u8,
+                >(::core::ptr::addr_of!((*this)._bitfield_1)) as u8,
             )
         }
     }
@@ -2735,7 +2733,7 @@ impl HealthMinuteData {
             >>::raw_set_const::<
                 4usize,
                 4u8,
-            >(::core::ptr::addr_of_mut!((* this)._bitfield_1), val as u64)
+            >(::core::ptr::addr_of_mut!((*this)._bitfield_1), val as u64)
         }
     }
     #[inline]
@@ -3232,7 +3230,7 @@ impl Tuple {
                 >>::raw_get_const::<
                     0usize,
                     8u8,
-                >(::core::ptr::addr_of!((* this)._bitfield_1)) as u32,
+                >(::core::ptr::addr_of!((*this)._bitfield_1)) as u32,
             )
         }
     }
@@ -3246,7 +3244,7 @@ impl Tuple {
             >>::raw_set_const::<
                 0usize,
                 8u8,
-            >(::core::ptr::addr_of_mut!((* this)._bitfield_1), val as u64)
+            >(::core::ptr::addr_of_mut!((*this)._bitfield_1), val as u64)
         }
     }
     #[inline]
@@ -5749,7 +5747,7 @@ impl GColor8__bindgen_ty_1 {
                 >>::raw_get_const::<
                     0usize,
                     2u8,
-                >(::core::ptr::addr_of!((* this)._bitfield_1)) as u8,
+                >(::core::ptr::addr_of!((*this)._bitfield_1)) as u8,
             )
         }
     }
@@ -5763,7 +5761,7 @@ impl GColor8__bindgen_ty_1 {
             >>::raw_set_const::<
                 0usize,
                 2u8,
-            >(::core::ptr::addr_of_mut!((* this)._bitfield_1), val as u64)
+            >(::core::ptr::addr_of_mut!((*this)._bitfield_1), val as u64)
         }
     }
     #[inline]
@@ -5791,7 +5789,7 @@ impl GColor8__bindgen_ty_1 {
                 >>::raw_get_const::<
                     2usize,
                     2u8,
-                >(::core::ptr::addr_of!((* this)._bitfield_1)) as u8,
+                >(::core::ptr::addr_of!((*this)._bitfield_1)) as u8,
             )
         }
     }
@@ -5805,7 +5803,7 @@ impl GColor8__bindgen_ty_1 {
             >>::raw_set_const::<
                 2usize,
                 2u8,
-            >(::core::ptr::addr_of_mut!((* this)._bitfield_1), val as u64)
+            >(::core::ptr::addr_of_mut!((*this)._bitfield_1), val as u64)
         }
     }
     #[inline]
@@ -5833,7 +5831,7 @@ impl GColor8__bindgen_ty_1 {
                 >>::raw_get_const::<
                     4usize,
                     2u8,
-                >(::core::ptr::addr_of!((* this)._bitfield_1)) as u8,
+                >(::core::ptr::addr_of!((*this)._bitfield_1)) as u8,
             )
         }
     }
@@ -5847,7 +5845,7 @@ impl GColor8__bindgen_ty_1 {
             >>::raw_set_const::<
                 4usize,
                 2u8,
-            >(::core::ptr::addr_of_mut!((* this)._bitfield_1), val as u64)
+            >(::core::ptr::addr_of_mut!((*this)._bitfield_1), val as u64)
         }
     }
     #[inline]
@@ -5875,7 +5873,7 @@ impl GColor8__bindgen_ty_1 {
                 >>::raw_get_const::<
                     6usize,
                     2u8,
-                >(::core::ptr::addr_of!((* this)._bitfield_1)) as u8,
+                >(::core::ptr::addr_of!((*this)._bitfield_1)) as u8,
             )
         }
     }
@@ -5889,7 +5887,7 @@ impl GColor8__bindgen_ty_1 {
             >>::raw_set_const::<
                 6usize,
                 2u8,
-            >(::core::ptr::addr_of_mut!((* this)._bitfield_1), val as u64)
+            >(::core::ptr::addr_of_mut!((*this)._bitfield_1), val as u64)
         }
     }
     #[inline]

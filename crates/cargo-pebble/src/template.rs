@@ -156,22 +156,18 @@ impl NewProject {
 		} else {
 			"gneiss"
 		};
+		let dep_path = self.dep_path.canonicalize()?;
+		let crates_dir = dep_path.parent().ok_or_eyre("no parent")?;
 		let mut dependencies = BTreeMap::new();
 		dependencies.insert(dep_name.to_string(), Dependency::Path {
-			path:     self.dep_path.canonicalize()?,
+			path:     crates_dir.join(dep_name),
 			features: vec![],
 		});
 		let build_dependencies =
 			BTreeMap::from_iter([("pebble-build".to_string(), Dependency::Path {
-				path:     self
-					.dep_path
-					.parent()
-					.ok_or_eyre("no parent")?
-					.join("pebble-build"),
+				path:     crates_dir.join("pebble-build"),
 				features: vec![],
 			})]);
-		// One feature per target platform, each forwarding to the SDK dep, so
-		// `cargo build --features emery` selects the board.
 		let features: BTreeMap<String, Vec<String>> = self
 			.platform
 			.iter()
@@ -205,66 +201,74 @@ impl NewProject {
 	}
 
 	fn main_rs(&self, path: &Path) -> Result<()> {
-		let (includes, main): (proc_macro2::TokenStream, syn::ItemFn) = if self.sys_only {
-			(
-				syn::parse_quote!(
-					use pebble_sys::*;
-					mod resources {
-						include!(concat!(env!("OUT_DIR"), "/resources.rs"));
+		let main: syn::File = if self.sys_only {
+			syn::parse_quote! {
+				#![no_std]
+				#![no_main]
+
+				#[doc = " See pebble_sys::panic for options"]
+				#[panic_handler]
+				fn pbl_panic(info: &core::panic::PanicInfo<'_>) -> ! {
+					pebble_sys::panic::panic_minimal(info)
+				}
+
+				use pebble_sys::*;
+				mod resources {
+					include!(concat!(env!("OUT_DIR"), "/resources.rs"));
+				}
+
+				#[unsafe(no_mangle)]
+				pub extern "C" fn main() {
+					unsafe {
+						let window = window_create();
+						let root = window_get_root_layer(window);
+						let bounds = layer_get_bounds(root);
+
+						let text_layer = text_layer_create(GRect {
+							origin: GPoint { x: 0, y: (bounds.size.h - 40) / 2 },
+							size:   GSize { w: bounds.size.w, h: 40 },
+						});
+						text_layer_set_text(text_layer, c"Write a cool watch app!".as_ptr());
+						text_layer_set_text_alignment(
+							text_layer,
+							GTextAlignment_GTextAlignmentCenter,
+						);
+						layer_add_child(root, text_layer_get_layer(text_layer));
+
+						window_stack_push(window, false);
+						app_event_loop();
 					}
-				),
-				syn::parse_quote! {
-
-					#[unsafe(no_mangle)]
-					pub extern "C" fn main() {
-						unsafe {
-							let window = window_create();
-							let root = window_get_root_layer(window);
-							let bounds = layer_get_bounds(root);
-
-							let text_layer = text_layer_create(GRect {
-								origin: GPoint { x: 0, y: (bounds.size.h - 40) / 2 },
-								size:   GSize { w: bounds.size.w, h: 40 },
-							});
-							text_layer_set_text(text_layer, c"Write a cool watch app!".as_ptr());
-							text_layer_set_text_alignment(
-								text_layer,
-								GTextAlignment_GTextAlignmentCenter,
-							);
-							layer_add_child(root, text_layer_get_layer(text_layer));
-
-							window_stack_push(window, false);
-							app_event_loop();
-						}
-					}
-				},
-			)
-		} else {
-			(
-				syn::parse_quote!(
-					use gneiss;
-				),
-				syn::parse_quote! {
-					#[gneiss::entry]
-					fn main() {
-						todo!("Write a cool watch app")
-					}
-				},
-			)
-		};
-		let main: syn::File = syn::parse_quote! {
-			#![no_std]
-			#![no_main]
-
-			#[doc = " See pebble_sys::panic for options"]
-			#[panic_handler]
-			fn pbl_panic(info: &core::panic::PanicInfo<'_>) -> ! {
-				panic::panic_minimal(info)
+				}
 			}
+		} else {
+			syn::parse_quote! {
+				#![no_std]
+				#![no_main]
 
-			#includes
+				use gneiss::sys;
 
-			#main
+				#[gneiss::entry]
+				fn main() {
+					unsafe {
+						let window = sys::window_create();
+						let root = sys::window_get_root_layer(window);
+						let bounds = sys::layer_get_bounds(root);
+
+						let text_layer = sys::text_layer_create(sys::GRect {
+							origin: sys::GPoint { x: 0, y: (bounds.size.h - 40) / 2 },
+							size:   sys::GSize { w: bounds.size.w, h: 40 },
+						});
+						sys::text_layer_set_text(text_layer, c"Write a cool watch app!".as_ptr());
+						sys::text_layer_set_text_alignment(
+							text_layer,
+							sys::GTextAlignment_GTextAlignmentCenter,
+						);
+						sys::layer_add_child(root, sys::text_layer_get_layer(text_layer));
+
+						sys::window_stack_push(window, false);
+					}
+				}
+			}
 		};
 		std::fs::write(path.join("src/main.rs"), prettyplease::unparse(&main))
 			.wrap_err("Cannot write main.rs")

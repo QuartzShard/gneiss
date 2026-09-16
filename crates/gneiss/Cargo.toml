@@ -18,3 +18,13 @@ linkme        = { workspace = true }
 [features]
 default = ["alloc"]
 alloc   = []
+
+# Platform selection forwards to pebble-sys, where the mutually-exclusive check
+# lives. An app enables exactly one; `gneiss::sys` then resolves for that board.
+emery   = ["pebble-sys/emery"]
+flint   = ["pebble-sys/flint"]
+gabbro  = ["pebble-sys/gabbro"]
+aplite  = ["pebble-sys/aplite"]
+basalt  = ["pebble-sys/basalt"]
+chalk   = ["pebble-sys/chalk"]
+diorite = ["pebble-sys/diorite"]
