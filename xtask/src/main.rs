@@ -18,6 +18,9 @@ mod map_shim;
 enum TaskArgs {
 	RegenSys,
 	SnapshotVendor { repo: PathBuf },
+	/// Check + clippy across the workspace: watch crates on the app target
+	/// (emery), host crates on the host.
+	Ci,
 }
 
 fn main() -> Result<()> {
@@ -34,7 +37,51 @@ fn main() -> Result<()> {
 			snapshot_vendor(&repo.canonicalize()?)?;
 			regen_sys()
 		}
+		TaskArgs::Ci => ci(),
 	}
+}
+
+/// Check + clippy across the whole workspace: on-watch crates against the app
+/// target (emery), host crates against the host. Runs every step and reports
+/// which failed, so one break doesn't hide the rest.
+fn ci() -> Result<()> {
+	let root = workspace_root();
+	let watch: &[&str] = &[
+		"-p", "pebble-types",
+		"-p", "pebble-sys",
+		"-p", "gneiss",
+		"--features", "pebble-sys/emery",
+		"--target", "crates/cargo-pebble/thumbv7m-pebble.json",
+		"-Zbuild-std=core,alloc",
+		"-Zjson-target-spec",
+	];
+	let host: &[&str] = &["-p", "cargo-pebble", "-p", "pebble-build", "-p", "xtask"];
+
+	let steps: [(&str, &str, &[&str]); 4] = [
+		("check", "watch", watch),
+		("check", "host", host),
+		("clippy", "watch", watch),
+		("clippy", "host", host),
+	];
+
+	let mut failed = Vec::new();
+	for (cmd, side, args) in steps {
+		log::info!("cargo {cmd} ({side})");
+		let ok = Command::new("cargo")
+			.arg(cmd)
+			.args(args)
+			.current_dir(&root)
+			.status()?
+			.success();
+		if !ok {
+			failed.push(format!("{cmd} ({side})"));
+		}
+	}
+
+	if !failed.is_empty() {
+		bail!("ci failed: {}", failed.join(", "));
+	}
+	Ok(())
 }
 
 /// Invoke bindgen on pebble.h, then map declarations -> shims to remove pebble.a runtime dep

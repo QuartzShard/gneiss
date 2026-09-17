@@ -1,0 +1,10 @@
+# Build this crate for the watch app ABI without a CWD-relative --target. Cargo
+# resolves `[build] target` against this file's directory, so `cargo`/`bacon`
+# here (or in any subdir) build for the app target from anywhere. Launch bacon
+# in-crate: `bacon --features emery`.
+[build]
+target = "../cargo-pebble/thumbv7m-pebble.json"
+
+[unstable]
+build-std = ["core", "alloc"]
+json-target-spec = true

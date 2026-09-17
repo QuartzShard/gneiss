@@ -1,6 +1,10 @@
 [alias]
 xtask   = "run --package xtask --release --"
 gen-sys = "run --package xtask --release -- regen-sys"
+# Check + clippy everything from root: watch crates on the app target, host
+# crates on the host. bacon runs per-crate now (see bacon.toml), so `check-sys`
+# / `clippy-sys` below are largely superseded.
+ci      = "run --package xtask --release -- ci"
 
 # On-watch crates need the app target; the workspace default stays host for
 # xtask/cargo-pebble/pebble-build. Run from the workspace root: the --target

@@ -12,3 +12,5 @@ pub use pebble_sys as sys;
 
 #[cfg(feature = "alloc")]
 pub mod alloc;
+
+pub mod log;
