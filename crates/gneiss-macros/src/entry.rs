@@ -45,9 +45,17 @@ pub fn entry(attr: TokenStream, item: TokenStream) -> TokenStream {
 			#[unsafe(export_name = "main")]
 			#[doc = " Exported entry point, calls registration routines for `#[service]`s and other init chores"]
 			pub extern "C" fn __gneiss_entry() {
+                for service_init in GNEISS_SERVICES {
+                    service_init()
+                }
+                ::gneiss::log::debug!("gneiss init complete, starting app...");
 				#fn_name();
 				unsafe { ::gneiss::sys::app_event_loop() };
 			}
+
+            #[::gneiss::linkme::distributed_slice]
+			#[linkme(crate = ::gneiss::linkme)]
+            pub static GNEISS_SERVICES: [fn()];
 		});
 	}
 

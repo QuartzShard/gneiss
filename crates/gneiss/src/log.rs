@@ -86,8 +86,6 @@ pub use verbose;
 
 /// Call through to the variadic sys::app_log for formatting runtime values.
 ///
-/// Literal `&'static str` are NUL-terminated at compile time.
-///
 /// # Safety
 /// You must ensure that `fmt` is a valid `vsnprintf` fmt string (see upstream Pebble docs), and
 /// that you have passed the correct number and type of varargs.
@@ -120,7 +118,7 @@ macro_rules! log_sys_fmt {
 			// const concat a nul-byte onto the str == valid cstr literal
 			concat!(file!(), "\0").as_ptr(),
 			line!() as i32,
-			// const concat a nul-byte onto the str == valid cstr literal
+			// if the thing we got was already NUL terminated, this is harmless.
 			concat!($fmt, "\0").as_ptr(),
 			$($arg),*
 		)

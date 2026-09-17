@@ -14,6 +14,7 @@ workspace = true
 pebble-sys    = { workspace = true }
 gneiss-macros = { workspace = true }
 linkme        = { workspace = true }
+bitflags = "2.13.2"
 
 [features]
 default = ["alloc"]

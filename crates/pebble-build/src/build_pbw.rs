@@ -51,10 +51,12 @@ fn read_elf(elf_file: &[u8]) -> Result<(object::File<'_>, Vec<u32>)> {
 		});
 	let relocations: Vec<u32> = elf
 		.sections()
-		.find(|s| s.name() == Ok(".data"))
-		.into_iter()
+		.filter(is_loadable)
 		.flat_map(|s| s.relocations())
-		.map(|rel| rel.0 as u32)
+		.filter_map(|(offset, rel)| match rel.kind() {
+			object::RelocationKind::Absolute => Some(offset as u32),
+			_ => None,
+		})
 		.chain(got)
 		.collect();
 	log::debug!("Relocations: {relocations:?}");
@@ -62,14 +64,7 @@ fn read_elf(elf_file: &[u8]) -> Result<(object::File<'_>, Vec<u32>)> {
 }
 
 fn objcopy(elf: &object::File<'_>) -> Result<(usize, Vec<u8>)> {
-	let loadable: Vec<_> = elf
-		.sections()
-		.filter(|s| {
-			let alloc = matches!(s.flags(), object::SectionFlags::Elf { sh_flags } if sh_flags & u64::from(SHF_ALLOC) != 0);
-			let bss = matches!(s.kind(), SectionKind::UninitializedData);
-			alloc && !bss
-		})
-		.collect();
+	let loadable: Vec<_> = elf.sections().filter(is_loadable).collect();
 	let bin_size = loadable
 		.iter()
 		.map(|sec| sec.address() + sec.size())
@@ -83,6 +78,12 @@ fn objcopy(elf: &object::File<'_>) -> Result<(usize, Vec<u8>)> {
 		bin_buf[offset..offset + section.data()?.len()].copy_from_slice(section.data()?);
 	}
 	Ok((bin_size, bin_buf))
+}
+
+fn is_loadable(s: &object::Section<'_, '_>) -> bool {
+	let alloc = matches!(s.flags(), object::SectionFlags::Elf { sh_flags } if sh_flags & u64::from(SHF_ALLOC) != 0);
+	let bss = matches!(s.kind(), SectionKind::UninitializedData);
+	alloc && !bss
 }
 
 #[allow(clippy::too_many_arguments)]
