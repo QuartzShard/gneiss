@@ -17,7 +17,9 @@ mod map_shim;
 #[derive(clap::Parser)]
 enum TaskArgs {
 	RegenSys,
-	SnapshotVendor { repo: PathBuf },
+	SnapshotVendor {
+		repo: PathBuf,
+	},
 	/// Check + clippy across the workspace: watch crates on the app target
 	/// (emery), host crates on the host.
 	Ci,
@@ -47,11 +49,16 @@ fn main() -> Result<()> {
 fn ci() -> Result<()> {
 	let root = workspace_root();
 	let watch: &[&str] = &[
-		"-p", "pebble-types",
-		"-p", "pebble-sys",
-		"-p", "gneiss",
-		"--features", "pebble-sys/emery",
-		"--target", "crates/cargo-pebble/thumbv7m-pebble.json",
+		"-p",
+		"pebble-types",
+		"-p",
+		"pebble-sys",
+		"-p",
+		"gneiss",
+		"--features",
+		"pebble-sys/emery",
+		"--target",
+		"crates/cargo-pebble/thumbv7m-pebble.json",
 		"-Zbuild-std=core,alloc",
 		"-Zjson-target-spec",
 	];
@@ -125,6 +132,8 @@ fn regen_sys() -> Result<()> {
 		"-mthumb",
 		"-mcpu=cortex-m3",
 		"-nostdinc",
+		"-fshort-enums",
+		// Must preceed resource_inc
 		"-isystem",
 		&resource_inc,
 		"-DRELEASE",

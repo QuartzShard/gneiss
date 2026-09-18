@@ -706,7 +706,7 @@ pub const ButtonId_BUTTON_ID_DOWN: ButtonId = 3;
 pub const ButtonId_NUM_BUTTONS: ButtonId = 4;
 /**! Button ID values
 ! @see \ref click_recognizer_get_button_id()*/
-pub type ButtonId = ::core::ffi::c_uint;
+pub type ButtonId = ::core::ffi::c_uchar;
 /**! Get the ISO locale name for the language currently set on the watch
 ! @return A string containing the ISO locale name (e.g. "fr", "en_US", ...)
 ! @note It is possible for the locale to change while your app is running.
@@ -750,7 +750,7 @@ pub const WatchInfoModel_WATCH_INFO_MODEL_COREDEVICES_PT2: WatchInfoModel = 11;
 pub const WatchInfoModel_WATCH_INFO_MODEL_COREDEVICES_PR2: WatchInfoModel = 12;
 pub const WatchInfoModel_WATCH_INFO_MODEL__MAX: WatchInfoModel = 13;
 ///! The different watch models.
-pub type WatchInfoModel = ::core::ffi::c_uint;
+pub type WatchInfoModel = ::core::ffi::c_uchar;
 ///!< Unknown color
 pub const WatchInfoColor_WATCH_INFO_COLOR_UNKNOWN: WatchInfoColor = 0;
 ///!< Black
@@ -837,7 +837,7 @@ pub const WatchInfoColor_WATCH_INFO_COLOR_COREDEVICES_PR2_GOLD_14: WatchInfoColo
 pub const WatchInfoColor_WATCH_INFO_COLOR_COREDEVICES_PR2_SILVER_14: WatchInfoColor = 43;
 pub const WatchInfoColor_WATCH_INFO_COLOR__MAX: WatchInfoColor = 44;
 ///! The different watch colors.
-pub type WatchInfoColor = ::core::ffi::c_uint;
+pub type WatchInfoColor = ::core::ffi::c_uchar;
 /**! Data structure containing the version of the firmware running on the watch.
 ! The version of the firmware has the form X.[X.[X]]. If a version number is not present it will be 0.
 ! For example: the version numbers of 2.4.1 are 2, 4, and 1. The version numbers of 2.4 are 2, 4, and 0.*/
@@ -963,7 +963,7 @@ pub const WeekDay_FRIDAY: WeekDay = 6;
 ///!< Saturday
 pub const WeekDay_SATURDAY: WeekDay = 7;
 ///! Weekday values
-pub type WeekDay = ::core::ffi::c_uint;
+pub type WeekDay = ::core::ffi::c_uchar;
 /**! Copies a time string into the buffer, formatted according to the user's time display preferences (such as 12h/24h
 ! time).
 ! Example results: "7:30" or "15:00".
@@ -1061,7 +1061,7 @@ pub const PlatformType_PlatformTypeFlint: PlatformType = 5;
 pub const PlatformType_PlatformTypeGabbro: PlatformType = 6;
 /**! @addtogroup Platform
 ! @{*/
-pub type PlatformType = ::core::ffi::c_uint;
+pub type PlatformType = ::core::ffi::c_uchar;
 /**! @addtogroup ConnectionService
 ! \brief Determine what the Pebble watch is connected to
 !
@@ -1468,7 +1468,7 @@ pub const AccelAxisType_ACCEL_AXIS_Y: AccelAxisType = 1;
 ! vertically out of the watchface.*/
 pub const AccelAxisType_ACCEL_AXIS_Z: AccelAxisType = 2;
 ///! Enumerated values defining the three accelerometer axes.
-pub type AccelAxisType = ::core::ffi::c_uint;
+pub type AccelAxisType = ::core::ffi::c_uchar;
 /**! Callback type for accelerometer data events
 ! @param data Pointer to the collected accelerometer samples.
 ! @param num_samples the number of samples stored in data.*/
@@ -1497,7 +1497,7 @@ pub const AccelSamplingRate_ACCEL_SAMPLING_50HZ: AccelSamplingRate = 50;
 ///! 100 HZ sampling rate
 pub const AccelSamplingRate_ACCEL_SAMPLING_100HZ: AccelSamplingRate = 100;
 ///! Valid accelerometer sampling rates, in Hz
-pub type AccelSamplingRate = ::core::ffi::c_uint;
+pub type AccelSamplingRate = ::core::ffi::c_uchar;
 /**! Peek at the last recorded reading.
 ! @param[out] data a pointer to a pre-allocated AccelData item
 ! @note Cannot be used when subscribed to accelerometer data events.
@@ -1632,7 +1632,7 @@ pub const CompassStatus_CompassStatusCalibrating: CompassStatus = 1;
 ///! Compass data is valid and the calibration has completed
 pub const CompassStatus_CompassStatusCalibrated: CompassStatus = 2;
 ///! Enum describing the current state of the Compass Service
-pub type CompassStatus = ::core::ffi::c_int;
+pub type CompassStatus = ::core::ffi::c_schar;
 /**! Represents an angle relative to get to a reference direction, e.g. (magnetic) north.
 ! The angle value is scaled linearly, such that a value of TRIG_MAX_ANGLE
 ! corresponds to 360 degrees or 2 PI radians.
@@ -1658,7 +1658,7 @@ pub struct CompassHeadingData {
 const _: () = {
     [
         "Size of CompassHeadingData",
-    ][::core::mem::size_of::<CompassHeadingData>() - 16usize];
+    ][::core::mem::size_of::<CompassHeadingData>() - 12usize];
     [
         "Alignment of CompassHeadingData",
     ][::core::mem::align_of::<CompassHeadingData>() - 4usize];
@@ -1673,7 +1673,7 @@ const _: () = {
     ][::core::mem::offset_of!(CompassHeadingData, compass_status) - 8usize];
     [
         "Offset of field: CompassHeadingData::is_declination_valid",
-    ][::core::mem::offset_of!(CompassHeadingData, is_declination_valid) - 12usize];
+    ][::core::mem::offset_of!(CompassHeadingData, is_declination_valid) - 9usize];
 };
 /**! Callback type for compass heading events
 ! @param heading copy of last recorded heading*/
@@ -1762,7 +1762,7 @@ pub const TimeUnits_MONTH_UNIT: TimeUnits = 16;
 pub const TimeUnits_YEAR_UNIT: TimeUnits = 32;
 /**! Time unit flags that can be used to create a bitmask for use in \ref tick_timer_service_subscribe().
 ! This will also be passed to \ref TickHandler.*/
-pub type TimeUnits = ::core::ffi::c_uint;
+pub type TimeUnits = ::core::ffi::c_uchar;
 /**! Callback type for tick timer events
 ! @param tick_time the time at which the tick event was triggered
 ! @param units_changed which unit change triggered this tick event*/
@@ -1806,12 +1806,11 @@ pub const TouchEventType_TouchEvent_Touchdown: TouchEventType = 0;
 pub const TouchEventType_TouchEvent_Liftoff: TouchEventType = 1;
 pub const TouchEventType_TouchEvent_PositionUpdate: TouchEventType = 2;
 ///! Touch event type
-pub type TouchEventType = ::core::ffi::c_uint;
+pub type TouchEventType = ::core::ffi::c_uchar;
 ///! Touch event data, carried directly in PebbleTouchEvent
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct TouchEvent {
-    pub _bindgen_align: [u32; 0],
     pub _bitfield_1: __BindgenBitfieldUnit<[u8; 1usize]>,
     /**! true when the touch must not drive navigation: the interaction session
 ! was inactive at Touchdown (unarmed contact on the idle watchface).
@@ -1822,8 +1821,8 @@ pub struct TouchEvent {
 }
 #[allow(clippy::unnecessary_operation, clippy::identity_op)]
 const _: () = {
-    ["Size of TouchEvent"][::core::mem::size_of::<TouchEvent>() - 8usize];
-    ["Alignment of TouchEvent"][::core::mem::align_of::<TouchEvent>() - 4usize];
+    ["Size of TouchEvent"][::core::mem::size_of::<TouchEvent>() - 6usize];
+    ["Alignment of TouchEvent"][::core::mem::align_of::<TouchEvent>() - 2usize];
     [
         "Offset of field: TouchEvent::non_navigational",
     ][::core::mem::offset_of!(TouchEvent, non_navigational) - 1usize];
@@ -1835,14 +1834,14 @@ impl TouchEvent {
     #[allow(unnecessary_transmutes)]
     pub fn type_(&self) -> TouchEventType {
         unsafe {
-            ::core::mem::transmute(self._bitfield_1.get_const::<0usize, 8u8>() as u32)
+            ::core::mem::transmute(self._bitfield_1.get_const::<0usize, 8u8>() as u8)
         }
     }
     #[inline]
     #[allow(unnecessary_transmutes)]
     pub fn set_type(&mut self, val: TouchEventType) {
         unsafe {
-            let val: u32 = ::core::mem::transmute(val);
+            let val: u8 = ::core::mem::transmute(val);
             self._bitfield_1.set_const::<0usize, 8u8>(val as u64)
         }
     }
@@ -1856,7 +1855,7 @@ impl TouchEvent {
                 >>::raw_get_const::<
                     0usize,
                     8u8,
-                >(::core::ptr::addr_of!((*this)._bitfield_1)) as u32,
+                >(::core::ptr::addr_of!((*this)._bitfield_1)) as u8,
             )
         }
     }
@@ -1864,7 +1863,7 @@ impl TouchEvent {
     #[allow(unnecessary_transmutes)]
     pub unsafe fn set_type_raw(this: *mut Self, val: TouchEventType) {
         unsafe {
-            let val: u32 = ::core::mem::transmute(val);
+            let val: u8 = ::core::mem::transmute(val);
             <__BindgenBitfieldUnit<
                 [u8; 1usize],
             >>::raw_set_const::<
@@ -1882,7 +1881,7 @@ impl TouchEvent {
                 0usize,
                 8u8,
             >({
-                let type_: u32 = unsafe { ::core::mem::transmute(type_) };
+                let type_: u8 = unsafe { ::core::mem::transmute(type_) };
                 type_ as u64
             });
         __bindgen_bitfield_unit
@@ -1914,7 +1913,7 @@ pub const HealthMetric_HealthMetricHeartRateBPM: HealthMetric = 7;
 pub const HealthMetric_HealthMetricHeartRateRawBPM: HealthMetric = 8;
 /**! Health metric values used to retrieve health data.
 ! For example, using \ref health_service_sum().*/
-pub type HealthMetric = ::core::ffi::c_uint;
+pub type HealthMetric = ::core::ffi::c_uchar;
 ///! Type used to represent HealthMetric values
 pub type HealthValue = i32;
 /**! Type used as a handle to a registered metric alert (returned by
@@ -1972,7 +1971,7 @@ pub const HealthServiceTimeScope_HealthServiceTimeScopeDailyWeekdayOrWeekend: He
 ///! Compute average across all days of the week.
 pub const HealthServiceTimeScope_HealthServiceTimeScopeDaily: HealthServiceTimeScope = 3;
 ///! Used by \ref health_service_sum_averaged() to specify how the average is computed.
-pub type HealthServiceTimeScope = ::core::ffi::c_uint;
+pub type HealthServiceTimeScope = ::core::ffi::c_uchar;
 /**! Return the value of a metric's sum over a given time range between `time_start`
 ! and `time_end`. Using this call you can specify the time range that you are interested in
 ! getting the average for, as well as a `scope` specifier on how to compute an average of the sum.
@@ -2032,7 +2031,7 @@ pub const HealthAggregation_HealthAggregationMin: HealthAggregation = 2;
 pub const HealthAggregation_HealthAggregationMax: HealthAggregation = 3;
 /**! Used by \ref health_service_aggregate_averaged() to specify what type of aggregation to perform.
 ! This aggregation is applied to the metric before the average is computed.*/
-pub type HealthAggregation = ::core::ffi::c_uint;
+pub type HealthAggregation = ::core::ffi::c_uchar;
 ///! Expresses a set of \ref HealthActivity values as a bitmask.
 pub type HealthActivityMask = u32;
 ///! No special activity.
@@ -2048,7 +2047,7 @@ pub const HealthActivity_HealthActivityRun: HealthActivity = 8;
 ///! The 'generic' activity.
 pub const HealthActivity_HealthActivityOpenWorkout: HealthActivity = 16;
 ///! Health-related activities that can be accessed using
-pub type HealthActivity = ::core::ffi::c_uint;
+pub type HealthActivity = ::core::ffi::c_uchar;
 /**! Return a \ref HealthActivityMask containing a set of bits, one set for each
 ! activity that is currently active.
 ! @return A bitmask with zero or more \ref HealthActivityMask bits set as appropriate.*/
@@ -2087,7 +2086,7 @@ pub const HealthIterationDirection_HealthIterationDirectionFuture: HealthIterati
 ! for `time_end` come first.
 ! When iterating forward (`HealthIterationDirectionFuture`), activities that have a smaller value
 ! for `time_start` come first.*/
-pub type HealthIterationDirection = ::core::ffi::c_uint;
+pub type HealthIterationDirection = ::core::ffi::c_uchar;
 /**! Iterates backwards or forward within a given time span to list all recorded activities.
 ! For example, this can be used to find the last recorded sleep phase or all deep sleep phases in
 ! a given time range. Any activity that overlaps with `time_start` and `time_end` will be
@@ -2129,7 +2128,7 @@ pub const HealthServiceAccessibilityMask_HealthServiceAccessibilityMaskNotAvaila
 ! The values are used in combination as a bitmask.
 ! For example, to check if any data is available for a given request use:
 ! bool any_data_available = value & HealthServiceAccessibilityMaskAvailable;*/
-pub type HealthServiceAccessibilityMask = ::core::ffi::c_uint;
+pub type HealthServiceAccessibilityMask = ::core::ffi::c_uchar;
 /**! Check if a certain combination of metric and time span is accessible using
 ! \ref health_service_sum by returning a value of \ref HealthServiceAccessibilityMask. Developers
 ! should check if the return value is \ref HealthServiceAccessibilityMaskAvailable before calling
@@ -2229,7 +2228,7 @@ pub const HealthEventType_HealthEventHeartRateUpdate: HealthEventType = 4;
 ///! A new HRV peak-to-peak interval reading is available.
 pub const HealthEventType_HealthEventHRVUpdate: HealthEventType = 5;
 ///! Health event enum. Passed into the \ref HealthEventHandler.
-pub type HealthEventType = ::core::ffi::c_uint;
+pub type HealthEventType = ::core::ffi::c_uchar;
 /**! Developer-supplied event handler, called when a health-related event occurs after subscribing
 ! via \ref health_service_events_subscribe();
 ! @param event The type of health-related event that occured.
@@ -2277,7 +2276,7 @@ pub const AmbientLightLevel_AmbientLightLevelDark: AmbientLightLevel = 2;
 pub const AmbientLightLevel_AmbientLightLevelLight: AmbientLightLevel = 3;
 pub const AmbientLightLevel_AmbientLightLevelVeryLight: AmbientLightLevel = 4;
 ///! Light level enum
-pub type AmbientLightLevel = ::core::ffi::c_uint;
+pub type AmbientLightLevel = ::core::ffi::c_uchar;
 /**! Structure representing a single minute data record returned
 ! by \ref health_service_get_minute_history().
 ! The `orientation` field encodes the angle of the watch in the x-y plane (the "yaw") in the
@@ -2288,7 +2287,6 @@ pub type AmbientLightLevel = ::core::ffi::c_uint;
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct HealthMinuteData {
-    pub _bindgen_align: [u32; 0],
     ///!< Number of steps taken in this minute.
     pub steps: u8,
     ///!< Quantized average orientation.
@@ -2306,7 +2304,7 @@ const _: () = {
     ["Size of HealthMinuteData"][::core::mem::size_of::<HealthMinuteData>() - 12usize];
     [
         "Alignment of HealthMinuteData",
-    ][::core::mem::align_of::<HealthMinuteData>() - 4usize];
+    ][::core::mem::align_of::<HealthMinuteData>() - 2usize];
     [
         "Offset of field: HealthMinuteData::steps",
     ][::core::mem::offset_of!(HealthMinuteData, steps) - 0usize];
@@ -2370,14 +2368,14 @@ impl HealthMinuteData {
     #[allow(unnecessary_transmutes)]
     pub fn light(&self) -> AmbientLightLevel {
         unsafe {
-            ::core::mem::transmute(self._bitfield_1.get_const::<1usize, 3u8>() as u32)
+            ::core::mem::transmute(self._bitfield_1.get_const::<1usize, 3u8>() as u8)
         }
     }
     #[inline]
     #[allow(unnecessary_transmutes)]
     pub fn set_light(&mut self, val: AmbientLightLevel) {
         unsafe {
-            let val: u32 = ::core::mem::transmute(val);
+            let val: u8 = ::core::mem::transmute(val);
             self._bitfield_1.set_const::<1usize, 3u8>(val as u64)
         }
     }
@@ -2391,7 +2389,7 @@ impl HealthMinuteData {
                 >>::raw_get_const::<
                     1usize,
                     3u8,
-                >(::core::ptr::addr_of!((*this)._bitfield_1)) as u32,
+                >(::core::ptr::addr_of!((*this)._bitfield_1)) as u8,
             )
         }
     }
@@ -2399,7 +2397,7 @@ impl HealthMinuteData {
     #[allow(unnecessary_transmutes)]
     pub unsafe fn set_light_raw(this: *mut Self, val: AmbientLightLevel) {
         unsafe {
-            let val: u32 = ::core::mem::transmute(val);
+            let val: u8 = ::core::mem::transmute(val);
             <__BindgenBitfieldUnit<
                 [u8; 1usize],
             >>::raw_set_const::<
@@ -2471,7 +2469,7 @@ impl HealthMinuteData {
                 1usize,
                 3u8,
             >({
-                let light: u32 = unsafe { ::core::mem::transmute(light) };
+                let light: u8 = unsafe { ::core::mem::transmute(light) };
                 light as u64
             });
         __bindgen_bitfield_unit
@@ -2527,7 +2525,7 @@ pub const MeasurementSystem_MeasurementSystemMetric: MeasurementSystem = 1;
 ///! The imperial measurement system.
 pub const MeasurementSystem_MeasurementSystemImperial: MeasurementSystem = 2;
 ///! Types of measurement system a \ref HealthMetric may be measured in.
-pub type MeasurementSystem = ::core::ffi::c_uint;
+pub type MeasurementSystem = ::core::ffi::c_uchar;
 /**! Get the preferred measurement system for a given \ref HealthMetric, if the user has chosen
 ! a preferred system and it is applicable to that metric.
 ! @param metric A metric value chosen from \ref HealthMetric.
@@ -2598,7 +2596,7 @@ pub const DataLoggingItemType_DATA_LOGGING_UINT: DataLoggingItemType = 2;
 pub const DataLoggingItemType_DATA_LOGGING_INT: DataLoggingItemType = 3;
 /**! The different types of session data that Pebble supports. This type describes the type of a
 ! singular item in the data session. Every item in a given session is the same type and size.*/
-pub type DataLoggingItemType = ::core::ffi::c_uint;
+pub type DataLoggingItemType = ::core::ffi::c_uchar;
 ///!< Successful operation
 pub const DataLoggingResult_DATA_LOGGING_SUCCESS: DataLoggingResult = 0;
 ///!< Someone else is writing to this logging session
@@ -2614,7 +2612,7 @@ pub const DataLoggingResult_DATA_LOGGING_INVALID_PARAMS: DataLoggingResult = 5;
 ///!< An internal error occurred
 pub const DataLoggingResult_DATA_LOGGING_INTERNAL_ERR: DataLoggingResult = 6;
 ///! Enumerated values describing the possible outcomes of data logging operations
-pub type DataLoggingResult = ::core::ffi::c_uint;
+pub type DataLoggingResult = ::core::ffi::c_uchar;
 /**! Create a new data logging session.
 !
 ! @param tag A tag associated with the logging session.
@@ -2807,7 +2805,7 @@ pub const AppLogLevel_APP_LOG_LEVEL_DEBUG: AppLogLevel = 200;
 ///! Verbose Debug level log message
 pub const AppLogLevel_APP_LOG_LEVEL_DEBUG_VERBOSE: AppLogLevel = 255;
 ///! Suggested log level values
-pub type AppLogLevel = ::core::ffi::c_uint;
+pub type AppLogLevel = ::core::ffi::c_uchar;
 ///! The operation returned successfully
 pub const DictionaryResult_DICT_OK: DictionaryResult = 0;
 ///! There was not enough backing storage to complete the operation
@@ -2820,7 +2818,7 @@ pub const DictionaryResult_DICT_INTERNAL_INCONSISTENCY: DictionaryResult = 8;
 ! the allocation failed, likely due to insufficient remaining heap memory.*/
 pub const DictionaryResult_DICT_MALLOC_FAILED: DictionaryResult = 16;
 ///! Return values for dictionary write/conversion functions.
-pub type DictionaryResult = ::core::ffi::c_uint;
+pub type DictionaryResult = ::core::ffi::c_uchar;
 ///! The value is an array of bytes
 pub const TupleType_TUPLE_BYTE_ARRAY: TupleType = 0;
 ///! The value is a zero-terminated, UTF-8 C-string
@@ -2832,7 +2830,7 @@ pub const TupleType_TUPLE_UINT: TupleType = 2;
 ! determine the size of the integer (1, 2, or 4 bytes).*/
 pub const TupleType_TUPLE_INT: TupleType = 3;
 ///! Values representing the type of data that the `value` field of a Tuple contains
-pub type TupleType = ::core::ffi::c_uint;
+pub type TupleType = ::core::ffi::c_uchar;
 /**! Data structure for one serialized key/value tuple
 ! @note The structure is variable length! The length depends on the value data that the tuple
 ! contains.*/
@@ -2923,14 +2921,14 @@ impl Tuple {
     #[allow(unnecessary_transmutes)]
     pub fn type_(&self) -> TupleType {
         unsafe {
-            ::core::mem::transmute(self._bitfield_1.get_const::<0usize, 8u8>() as u32)
+            ::core::mem::transmute(self._bitfield_1.get_const::<0usize, 8u8>() as u8)
         }
     }
     #[inline]
     #[allow(unnecessary_transmutes)]
     pub fn set_type(&mut self, val: TupleType) {
         unsafe {
-            let val: u32 = ::core::mem::transmute(val);
+            let val: u8 = ::core::mem::transmute(val);
             self._bitfield_1.set_const::<0usize, 8u8>(val as u64)
         }
     }
@@ -2944,7 +2942,7 @@ impl Tuple {
                 >>::raw_get_const::<
                     0usize,
                     8u8,
-                >(::core::ptr::addr_of!((*this)._bitfield_1)) as u32,
+                >(::core::ptr::addr_of!((*this)._bitfield_1)) as u8,
             )
         }
     }
@@ -2952,7 +2950,7 @@ impl Tuple {
     #[allow(unnecessary_transmutes)]
     pub unsafe fn set_type_raw(this: *mut Self, val: TupleType) {
         unsafe {
-            let val: u32 = ::core::mem::transmute(val);
+            let val: u8 = ::core::mem::transmute(val);
             <__BindgenBitfieldUnit<
                 [u8; 1usize],
             >>::raw_set_const::<
@@ -2970,7 +2968,7 @@ impl Tuple {
                 0usize,
                 8u8,
             >({
-                let type_: u32 = unsafe { ::core::mem::transmute(type_) };
+                let type_: u8 = unsafe { ::core::mem::transmute(type_) };
                 type_ as u64
             });
         __bindgen_bitfield_unit
@@ -3649,7 +3647,7 @@ pub const DictationSessionStatus_DictationSessionStatusFailureDisabled: Dictatio
 pub const DictationSessionStatus_DictationSessionStatusFailureInternalError: DictationSessionStatus = 7;
 ///! Cloud recognizer failed to transcribe speech (only possible if error dialogs disabled)
 pub const DictationSessionStatus_DictationSessionStatusFailureRecognizerError: DictationSessionStatus = 8;
-pub type DictationSessionStatus = ::core::ffi::c_uint;
+pub type DictationSessionStatus = ::core::ffi::c_uchar;
 /**! Dictation status callback. Indicates success or failure of the dictation session and, if
 ! successful, passes the transcribed string to the user of the dictation session. The transcribed
 ! string will be freed after this call returns, so the string should be copied if it needs to be
@@ -3814,7 +3812,7 @@ pub const AppMessageResult_APP_MSG_INTERNAL_ERROR: AppMessageResult = 16384;
 ///! (32768) The function was called while App Message was not in the appropriate state.
 pub const AppMessageResult_APP_MSG_INVALID_STATE: AppMessageResult = 32768;
 ///! AppMessage result codes.
-pub type AppMessageResult = ::core::ffi::c_uint;
+pub type AppMessageResult = ::core::ffi::c_ushort;
 /**! Open AppMessage to transfers.
 !
 ! Use \ref dict_calc_buffer_size_from_tuplets() or \ref dict_calc_buffer_size() to estimate the size you need.
@@ -4516,7 +4514,7 @@ pub const AppWorkerResult_APP_WORKER_RESULT_ALREADY_RUNNING: AppWorkerResult = 4
 ///! The user will be asked for confirmation
 pub const AppWorkerResult_APP_WORKER_RESULT_ASKING_CONFIRMATION: AppWorkerResult = 5;
 ///! Possible error codes from app_worker_launch, app_worker_kill
-pub type AppWorkerResult = ::core::ffi::c_uint;
+pub type AppWorkerResult = ::core::ffi::c_uchar;
 ///! Generic structure of a worker message that can be sent between an app and its worker
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
@@ -4653,7 +4651,7 @@ pub const SniffInterval_SNIFF_INTERVAL_REDUCED: SniffInterval = 1;
 ! during the process. Frequent switching between modes is thus
 ! discouraged. Ensure you do not drop to normal frequently. The Bluetooth module
 ! is a major consumer of the Pebble's energy.*/
-pub type SniffInterval = ::core::ffi::c_uint;
+pub type SniffInterval = ::core::ffi::c_uchar;
 /**! Set the Bluetooth module's sniff interval.
 ! The sniff interval will be restored to normal by the OS after the app's
 ! de-init handler is called. Set the sniff interval to normal whenever
@@ -4819,7 +4817,7 @@ pub const StatusCode_S_NO_MORE_ITEMS: StatusCode = 2;
 ///! No action was taken as none was required.
 pub const StatusCode_S_NO_ACTION_REQUIRED: StatusCode = 3;
 ///! Status codes. See \ref status_t
-pub type StatusCode = ::core::ffi::c_int;
+pub type StatusCode = ::core::ffi::c_schar;
 ///! Return value for system operations. See \ref StatusCode for possible values.
 pub type status_t = i32;
 /**! Checks whether a value has been set for a given key in persistent storage.
@@ -5151,7 +5149,7 @@ pub const AppLaunchReason_APP_LAUNCH_SMARTSTRAP: AppLaunchReason = 7;
 ! @note New launch reasons may be added in the future. As a best practice, it
 ! is recommended to only handle the cases that the app needs to know about,
 ! rather than trying to handle all possible launch reasons.*/
-pub type AppLaunchReason = ::core::ffi::c_uint;
+pub type AppLaunchReason = ::core::ffi::c_uchar;
 ///!< App was not launched via Quick Launch
 pub const AppQuickLaunchAction_APP_QUICK_LAUNCH_ACTION_NONE: AppQuickLaunchAction = 0;
 ///!< User held a single button
@@ -5162,7 +5160,7 @@ pub const AppQuickLaunchAction_APP_QUICK_LAUNCH_ACTION_TAP: AppQuickLaunchAction
 pub const AppQuickLaunchAction_APP_QUICK_LAUNCH_ACTION_COMBO: AppQuickLaunchAction = 3;
 /**! Details about how an app was quick launched.
 ! Returned by \ref app_launch_get_quick_launch_action.*/
-pub type AppQuickLaunchAction = ::core::ffi::c_uint;
+pub type AppQuickLaunchAction = ::core::ffi::c_uchar;
 /**! Provides the method used to launch the current application.
 ! @return The method or reason the current application was launched*/
 /** launch_reason
@@ -5199,7 +5197,7 @@ pub const AppExitReason_APP_EXIT_ACTION_PERFORMED_SUCCESSFULLY: AppExitReason = 
 pub const AppExitReason_NUM_EXIT_REASONS: AppExitReason = 2;
 /**! AppExitReason is used to notify the system of the reason of an application exiting, which may
 ! affect the part of the system UI that is presented after the application terminates.*/
-pub type AppExitReason = ::core::ffi::c_uint;
+pub type AppExitReason = ::core::ffi::c_uchar;
 ///! The ID of a published app resource defined within the publishedMedia section of package.json.
 pub type PublishedId = u32;
 ///! Describes how the slice should be visualized in the app's glance in the launcher.
@@ -5266,7 +5264,7 @@ pub const AppGlanceResult_APP_GLANCE_RESULT_EXPIRES_IN_THE_PAST: AppGlanceResult
 ///! The \ref AppGlanceReloadSession provided was invalid.
 pub const AppGlanceResult_APP_GLANCE_RESULT_INVALID_SESSION: AppGlanceResult = 32;
 ///! Bitfield enum describing the result of trying to add an AppGlanceSlice to an app's glance.
-pub type AppGlanceResult = ::core::ffi::c_uint;
+pub type AppGlanceResult = ::core::ffi::c_uchar;
 #[repr(C)]
 #[derive(Debug)]
 pub struct AppGlanceReloadSession {
@@ -5775,7 +5773,7 @@ pub const GBitmapFormat_GBitmapFormat2BitPalette: GBitmapFormat = 3;
 pub const GBitmapFormat_GBitmapFormat4BitPalette: GBitmapFormat = 4;
 pub const GBitmapFormat_GBitmapFormat8BitCircular: GBitmapFormat = 5;
 ///! The format of a GBitmap can either be 1-bit or 8-bit.
-pub type GBitmapFormat = ::core::ffi::c_uint;
+pub type GBitmapFormat = ::core::ffi::c_uchar;
 #[repr(C)]
 #[derive(Debug)]
 pub struct GBitmap {
@@ -6386,7 +6384,7 @@ pub const GAlign_GAlignBottomLeft: GAlign = 8;
 /**! Values to specify how two things should be aligned relative to each other.
 ! ![](galign.png)
 ! @see \ref bitmap_layer_set_alignment()*/
-pub type GAlign = ::core::ffi::c_uint;
+pub type GAlign = ::core::ffi::c_uchar;
 /**! Aligns one rectangle within another rectangle, using an alignment parameter.
 ! The relative coordinate systems of both rectangles are assumed to be the same.
 ! When clip is true, `rect` is also clipped by the constraint.
@@ -6463,7 +6461,7 @@ pub const GCompOp_GCompOpSet: GCompOp = 5;
 ! @see \ref graphics_context_set_compositing_mode()
 ! @see \ref graphics_draw_bitmap_in_rect()
 ! @see \ref graphics_draw_rotated_bitmap()*/
-pub type GCompOp = ::core::ffi::c_uint;
+pub type GCompOp = ::core::ffi::c_uchar;
 #[repr(C)]
 #[derive(Debug)]
 pub struct GContext {
@@ -6661,7 +6659,7 @@ pub const GCornerMask_GCornersRight: GCornerMask = 10;
 ! The values can be combines using binary OR (`|`),
 ! For example: the mask to indicate top left and bottom right corners can:
 ! be created as follows: `(GCornerTopLeft | GCornerBottomRight)`*/
-pub type GCornerMask = ::core::ffi::c_uint;
+pub type GCornerMask = ::core::ffi::c_uchar;
 /**! Draws a pixel at given point in the current stroke color
 ! @param ctx The destination graphics context in which to draw
 ! @param point The point at which to draw the pixel*/
@@ -6940,7 +6938,7 @@ pub const GOvalScaleMode_GOvalScaleModeFillCircle: GOvalScaleMode = 1;
 ! @see \ref graphics_draw_arc_internal
 ! @see \ref gpoint_from_polar_internal
 ! @see \ref grect_centered_from_polar*/
-pub type GOvalScaleMode = ::core::ffi::c_uint;
+pub type GOvalScaleMode = ::core::ffi::c_uchar;
 /**! Draws a line arc clockwise between `angle_start` and `angle_end`, where 0° is
 ! the top of the circle. If the difference between `angle_start` and `angle_end` is greater
 ! than 360°, a full circle will be drawn.
@@ -7110,7 +7108,7 @@ pub const GDrawCommandType_GDrawCommandTypePath: GDrawCommandType = 1;
 pub const GDrawCommandType_GDrawCommandTypeCircle: GDrawCommandType = 2;
 ///!< Arbitrary path drawn with sub-pixel precision (1/8th precision)
 pub const GDrawCommandType_GDrawCommandTypePrecisePath: GDrawCommandType = 3;
-pub type GDrawCommandType = ::core::ffi::c_uint;
+pub type GDrawCommandType = ::core::ffi::c_uchar;
 /**! Draw a command
 ! @param ctx The destination graphics context in which to draw
 ! @param command \ref GDrawCommand to draw*/
@@ -8097,7 +8095,7 @@ pub const GTextOverflowMode_GTextOverflowModeFill: GTextOverflowMode = 2;
 ! inside the area constraint.
 ! @see graphics_draw_text
 ! @see text_layer_set_overflow_mode*/
-pub type GTextOverflowMode = ::core::ffi::c_uint;
+pub type GTextOverflowMode = ::core::ffi::c_uchar;
 ///! Aligns the text to the left of the drawing box
 pub const GTextAlignment_GTextAlignmentLeft: GTextAlignment = 0;
 ///! Aligns the text centered inside the drawing box
@@ -8107,7 +8105,7 @@ pub const GTextAlignment_GTextAlignmentRight: GTextAlignment = 2;
 /**! Text aligment controls the way the text is aligned inside the box the text is drawn into.
 ! @see graphics_draw_text
 ! @see text_layer_set_text_alignment*/
-pub type GTextAlignment = ::core::ffi::c_uint;
+pub type GTextAlignment = ::core::ffi::c_uchar;
 #[repr(C)]
 #[derive(Debug)]
 pub struct GTextAttributes {
@@ -8324,7 +8322,7 @@ pub const SmartstrapResult_SmartstrapResultAttributeUnsupported: SmartstrapResul
 ///! A time-out occured during the request.
 pub const SmartstrapResult_SmartstrapResultTimeOut: SmartstrapResult = 6;
 ///! Error values which may be returned from the smartstrap APIs.
-pub type SmartstrapResult = ::core::ffi::c_uint;
+pub type SmartstrapResult = ::core::ffi::c_uchar;
 ///! A type representing a smartstrap ServiceId.
 pub type SmartstrapServiceId = u16;
 ///! A type representing a smartstrap AttributeId.
@@ -9250,7 +9248,7 @@ pub const RecognizerEventType_RecognizerEvent_Started: RecognizerEventType = 0;
 pub const RecognizerEventType_RecognizerEvent_Updated: RecognizerEventType = 1;
 pub const RecognizerEventType_RecognizerEvent_Completed: RecognizerEventType = 2;
 pub const RecognizerEventType_RecognizerEvent_Cancelled: RecognizerEventType = 3;
-pub type RecognizerEventType = ::core::ffi::c_uint;
+pub type RecognizerEventType = ::core::ffi::c_uchar;
 pub use self::RecognizerEventType as RecognizerEvent;
 /**! User event callback. When a recognizer changes state to any state other than the failed state
 ! the user callback of this type will be called.
@@ -9275,7 +9273,7 @@ pub const PanAxis_PanAxis_Horizontal: PanAxis = 0;
 pub const PanAxis_PanAxis_Vertical: PanAxis = 1;
 /**! Axis to which a pan recognizer is locked. A pan is only recognized when the
 ! finger moves unambiguously along this axis.*/
-pub type PanAxis = ::core::ffi::c_uint;
+pub type PanAxis = ::core::ffi::c_uchar;
 pub const SwipeDirection_SwipeDirection_None: SwipeDirection = 0;
 pub const SwipeDirection_SwipeDirection_Up: SwipeDirection = 1;
 pub const SwipeDirection_SwipeDirection_Down: SwipeDirection = 2;
@@ -9283,7 +9281,7 @@ pub const SwipeDirection_SwipeDirection_Left: SwipeDirection = 4;
 pub const SwipeDirection_SwipeDirection_Right: SwipeDirection = 8;
 /**! Swipe direction, also used as a bitmask when configuring which directions a swipe recognizer
 ! accepts. Screen coordinates grow downward, so a positive y delta is a downward swipe.*/
-pub type SwipeDirection = ::core::ffi::c_uint;
+pub type SwipeDirection = ::core::ffi::c_uchar;
 /**! Function signature for a handler that deals with transition events of a window.
 ! @see WindowHandlers
 ! @see \ref window_set_window_handlers()*/
@@ -9819,7 +9817,7 @@ pub const AnimationCurve_AnimationCurve_Reserved1: AnimationCurve = 6;
 pub const AnimationCurve_AnimationCurve_Reserved2: AnimationCurve = 7;
 /**! Values that are used to indicate the different animation curves,
 ! which determine the speed at which the animated value(s) change(s).*/
-pub type AnimationCurve = ::core::ffi::c_uint;
+pub type AnimationCurve = ::core::ffi::c_uchar;
 /**! Creates a new Animation on the heap and initalizes it with the default values.
 !
 ! * Duration: 250ms,
@@ -11874,7 +11872,7 @@ pub const ContentIndicatorDirection_NumContentIndicatorDirections: ContentIndica
 /**! Value to describe directions for \ref ContentIndicator.
 ! @see \ref content_indicator_configure_direction
 ! @see \ref content_indicator_set_content_available*/
-pub type ContentIndicatorDirection = ::core::ffi::c_uint;
+pub type ContentIndicatorDirection = ::core::ffi::c_uchar;
 /**! Struct used to configure directions for \ref ContentIndicator.
 ! @see \ref content_indicator_configure_direction*/
 #[repr(C)]
@@ -11917,7 +11915,7 @@ const _: () = {
 const _: () = {
     [
         "Size of ContentIndicatorConfig",
-    ][::core::mem::size_of::<ContentIndicatorConfig>() - 16usize];
+    ][::core::mem::size_of::<ContentIndicatorConfig>() - 8usize];
     [
         "Alignment of ContentIndicatorConfig",
     ][::core::mem::align_of::<ContentIndicatorConfig>() - 4usize];
@@ -11929,10 +11927,10 @@ const _: () = {
     ][::core::mem::offset_of!(ContentIndicatorConfig, times_out) - 4usize];
     [
         "Offset of field: ContentIndicatorConfig::alignment",
-    ][::core::mem::offset_of!(ContentIndicatorConfig, alignment) - 8usize];
+    ][::core::mem::offset_of!(ContentIndicatorConfig, alignment) - 5usize];
     [
         "Offset of field: ContentIndicatorConfig::colors",
-    ][::core::mem::offset_of!(ContentIndicatorConfig, colors) - 12usize];
+    ][::core::mem::offset_of!(ContentIndicatorConfig, colors) - 6usize];
 };
 /**! Creates a ContentIndicator on the heap.
 ! @return A pointer to the ContentIndicator. `NULL` if the ContentIndicator could not be created.*/
@@ -12619,7 +12617,7 @@ pub const MenuRowAlign_MenuRowAlignTop: MenuRowAlign = 2;
 pub const MenuRowAlign_MenuRowAlignBottom: MenuRowAlign = 3;
 /**! Values to specify how a (selected) row should be aligned relative to the
 ! visible area of the \ref MenuLayer.*/
-pub type MenuRowAlign = ::core::ffi::c_uint;
+pub type MenuRowAlign = ::core::ffi::c_uchar;
 /**! Selects the next or previous item, relative to the current selection.
 ! @param menu_layer The \ref MenuLayer for which to select the next item
 ! @param up Supply `false` to select the next item in the list (downwards),
@@ -13042,7 +13040,7 @@ pub const ActionBarLayerIconPressAnimation_ActionBarLayerIconPressAnimationMoveL
 pub const ActionBarLayerIconPressAnimation_ActionBarLayerIconPressAnimationMoveUp: ActionBarLayerIconPressAnimation = 2;
 pub const ActionBarLayerIconPressAnimation_ActionBarLayerIconPressAnimationMoveRight: ActionBarLayerIconPressAnimation = 3;
 pub const ActionBarLayerIconPressAnimation_ActionBarLayerIconPressAnimationMoveDown: ActionBarLayerIconPressAnimation = 4;
-pub type ActionBarLayerIconPressAnimation = ::core::ffi::c_uint;
+pub type ActionBarLayerIconPressAnimation = ::core::ffi::c_uchar;
 #[repr(C)]
 #[derive(Debug)]
 pub struct ActionBarLayer {
@@ -13326,7 +13324,7 @@ pub const StatusBarLayerSeparatorMode_StatusBarLayerSeparatorModeNone: StatusBar
 ///! A dotted separator at the bottom of the status bar.
 pub const StatusBarLayerSeparatorMode_StatusBarLayerSeparatorModeDotted: StatusBarLayerSeparatorMode = 1;
 ///! Values that are used to indicate the different status bar separator modes.
-pub type StatusBarLayerSeparatorMode = ::core::ffi::c_uint;
+pub type StatusBarLayerSeparatorMode = ::core::ffi::c_uchar;
 /**! Creates a new StatusBarLayer on the heap and initializes it with the default values.
 !
 ! * Text color: \ref GColorBlack
@@ -14017,7 +14015,7 @@ pub struct ActionMenuLevel {
 }
 pub const ActionMenuAlign_ActionMenuAlignTop: ActionMenuAlign = 0;
 pub const ActionMenuAlign_ActionMenuAlignCenter: ActionMenuAlign = 1;
-pub type ActionMenuAlign = ::core::ffi::c_uint;
+pub type ActionMenuAlign = ::core::ffi::c_uchar;
 #[repr(C)]
 #[derive(Debug)]
 pub struct ActionMenu {
@@ -14041,7 +14039,7 @@ pub const ActionMenuLevelDisplayMode_ActionMenuLevelDisplayModeWide: ActionMenuL
 pub const ActionMenuLevelDisplayMode_ActionMenuLevelDisplayModeThin: ActionMenuLevelDisplayMode = 1;
 /**! enum value that controls whether menu items are displayed in a grid
 ! (similarly to the emoji replies) or in a single column (reminiscent of \ref MenuLayer)*/
-pub type ActionMenuLevelDisplayMode = ::core::ffi::c_uint;
+pub type ActionMenuLevelDisplayMode = ::core::ffi::c_uchar;
 /**! Callback executed when a given action is selected
 ! @param action_menu the action menu currently on screen
 ! @param action the action that was triggered
@@ -14489,7 +14487,7 @@ pub const SpeakerWaveform_SpeakerWaveformCount: SpeakerWaveform = 4;
 !
 ! Raw PCM streaming allows apps to generate arbitrary audio in configurable formats.
 ! @{*/
-pub type SpeakerWaveform = ::core::ffi::c_uint;
+pub type SpeakerWaveform = ::core::ffi::c_uchar;
 /**! A single note in a sequence.
 ! midi_note: MIDI note number (0-127, 60=C4). 0 = rest (silence).
 ! waveform: SpeakerWaveform value.
@@ -14542,12 +14540,12 @@ pub const SpeakerPcmFormat_SpeakerPcmFormatCount: SpeakerPcmFormat = 4;
 /**! PCM audio format for speaker streaming.
 ! Bit layout: bit0 = sample rate (0=8kHz, 1=16kHz), bit1 = bit depth (0=8-bit, 1=16-bit).
 ! All formats are mono signed PCM (8-bit samples are signed [-128,127], not unsigned).*/
-pub type SpeakerPcmFormat = ::core::ffi::c_uint;
+pub type SpeakerPcmFormat = ::core::ffi::c_uchar;
 pub const SpeakerStatus_SpeakerStatusIdle: SpeakerStatus = 0;
 pub const SpeakerStatus_SpeakerStatusPlaying: SpeakerStatus = 1;
 pub const SpeakerStatus_SpeakerStatusDraining: SpeakerStatus = 2;
 ///! Speaker status
-pub type SpeakerStatus = ::core::ffi::c_uint;
+pub type SpeakerStatus = ::core::ffi::c_uchar;
 ///!< Playback completed naturally
 pub const SpeakerFinishReason_SpeakerFinishReasonDone: SpeakerFinishReason = 0;
 ///!< Playback was stopped by the app
@@ -14557,7 +14555,7 @@ pub const SpeakerFinishReason_SpeakerFinishReasonPreempted: SpeakerFinishReason 
 ///!< An error occurred
 pub const SpeakerFinishReason_SpeakerFinishReasonError: SpeakerFinishReason = 3;
 ///! Reason reported when speaker playback ends.
-pub type SpeakerFinishReason = ::core::ffi::c_uint;
+pub type SpeakerFinishReason = ::core::ffi::c_uchar;
 /**! Callback invoked when playback finishes.
 ! @param reason Why playback ended
 ! @param ctx User context*/
@@ -14583,7 +14581,7 @@ pub struct SpeakerSample {
 }
 #[allow(clippy::unnecessary_operation, clippy::identity_op)]
 const _: () = {
-    ["Size of SpeakerSample"][::core::mem::size_of::<SpeakerSample>() - 16usize];
+    ["Size of SpeakerSample"][::core::mem::size_of::<SpeakerSample>() - 12usize];
     ["Alignment of SpeakerSample"][::core::mem::align_of::<SpeakerSample>() - 4usize];
     [
         "Offset of field: SpeakerSample::data",
@@ -14596,10 +14594,10 @@ const _: () = {
     ][::core::mem::offset_of!(SpeakerSample, format) - 8usize];
     [
         "Offset of field: SpeakerSample::base_midi_note",
-    ][::core::mem::offset_of!(SpeakerSample, base_midi_note) - 12usize];
+    ][::core::mem::offset_of!(SpeakerSample, base_midi_note) - 9usize];
     [
         "Offset of field: SpeakerSample::loop_",
-    ][::core::mem::offset_of!(SpeakerSample, loop_) - 13usize];
+    ][::core::mem::offset_of!(SpeakerSample, loop_) - 10usize];
 };
 /**! A single monophonic voice. Multiple tracks are mixed together by
 ! speaker_play_tracks() to produce polyphony.
@@ -14666,7 +14664,7 @@ pub const PreferredContentSize_NumPreferredContentSizes: PreferredContentSize = 
 ! platform may not be able to display all sizes.
 ! @note As of version 4.1, platforms other than Emery cannot display extra large and Emery itself
 ! cannot display small.*/
-pub type PreferredContentSize = ::core::ffi::c_uint;
+pub type PreferredContentSize = ::core::ffi::c_uchar;
 /**! structure containing broken-down time for expressing calendar time
 ! (ie. Year, Month, Day of Month, Hour of Day) and timezone information*/
 #[repr(C)]

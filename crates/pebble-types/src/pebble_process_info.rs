@@ -72,7 +72,7 @@ pub const PebbleProcessInfoFlags_PROCESS_INFO_PLATFORM_FLINT: PebbleProcessInfoF
 #[doc = "! Values that are actually added by SDK 4.9+"]
 pub const PebbleProcessInfoFlags_PROCESS_INFO_PLATFORM_GABBRO: PebbleProcessInfoFlags = 448;
 #[doc = "! Application metadata flags.\n! Flags can be combined using the `|` operator.\n! @see PBL_PROCESS_INFO"]
-pub type PebbleProcessInfoFlags = ::core::ffi::c_uint;
+pub type PebbleProcessInfoFlags = ::core::ffi::c_ushort;
 #[doc = "! @internal\n! Version data structure with minor & major versions: When making non-backwards-compatible changes,\n! the major version should get bumped. When making a change (e.g. to the PebbleProcessInfo struct) that is backwards\n! compatible (e.g. adding a field at the end), you should only bump the minor version."]
 #[repr(C, packed)]
 #[derive(Debug, Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
