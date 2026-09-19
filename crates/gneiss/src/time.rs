@@ -1,8 +1,10 @@
+//! Types for comminicating about time with PebbleOS
+
 use crate::sys;
 pub use crate::sys::tm as TickTime;
 
 bitflags::bitflags! {
-	pub struct TimeUnits: u32 {
+	pub struct TimeUnits: u8 {
 		const SECONDS   = sys::TimeUnits_SECOND_UNIT;
 		const MINUTES   = sys::TimeUnits_MINUTE_UNIT;
 		const HOURS     = sys::TimeUnits_HOUR_UNIT;

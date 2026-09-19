@@ -46,6 +46,7 @@ pub fn service(
 
 		let handler_check = quote_spanned! { fn_ident.span() =>
 			const _: <#service as ::gneiss::service::Service>::Handler = #fn_ident;
+			const _: <#service as ::gneiss::service::Service>::RawHandler = #raw_fn_ident;
 		};
 		let config_fn = quote_spanned! { cfg_span =>
 			fn #cfg_fn_ident() -> <#service as ::gneiss::service::Service>::SubscribeArg {

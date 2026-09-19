@@ -4,8 +4,6 @@
 // pebble-sys and other no_std consumers should depend on pebble-types without
 // features — that path stays no_std.
 #![cfg_attr(not(feature = "std"), no_std)]
-#![allow(incomplete_features)]
-#![feature(generic_const_exprs)]
 #![deny(
 	clippy::panic,
 	clippy::panic_in_result_fn,

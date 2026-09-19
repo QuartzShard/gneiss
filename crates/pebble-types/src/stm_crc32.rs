@@ -5,14 +5,14 @@ extern crate std;
 use std::borrow::Cow;
 
 const CRC_POLY: u32 = 0x04C1_1DB7;
-const CRC_TABLE: [u32; 256] = compute_table::<8>();
-const fn compute_table<const BITS: usize>() -> [u32; 1 << BITS] {
-	let mut table = [0; 1 << BITS];
+const CRC_TABLE: [u32; 256] = compute_table();
+const fn compute_table() -> [u32; 1 << 8] {
+	let mut table = [0; 1 << 8];
 	let mut i: usize = 0;
-	while i < (1 << BITS) {
-		let mut rr = (i as u32) << (32 - BITS);
+	while i < (1 << 8) {
+		let mut rr = (i as u32) << (32 - 8);
 		let mut j = 0;
-		while j < BITS {
+		while j < 8 {
 			if rr & 0x8000_0000 != 0 {
 				rr = (rr << 1) ^ CRC_POLY;
 			} else {
@@ -25,6 +25,28 @@ const fn compute_table<const BITS: usize>() -> [u32; 1 << BITS] {
 	}
 	table
 }
+
+// I'm Not Allowed to `generic_const_exprs`, but it was beautiful...
+// const CRC_TABLE: [u32; 256] = compute_table::<8>();
+// const fn compute_table<const BITS: usize>() -> [u32; 1 << BITS] {
+// 	let mut table = [0; 1 << BITS];
+// 	let mut i: usize = 0;
+// 	while i < (1 << BITS) {
+// 		let mut rr = (i as u32) << (32 - BITS);
+// 		let mut j = 0;
+// 		while j < BITS {
+// 			if rr & 0x8000_0000 != 0 {
+// 				rr = (rr << 1) ^ CRC_POLY;
+// 			} else {
+// 				rr <<= 1;
+// 			}
+// 			j += 1;
+// 		}
+// 		table[i] = rr;
+// 		i += 1;
+// 	}
+// 	table
+// }
 
 fn process_word(mut crc: u32, mut data: Cow<[u8]>) -> u32 {
 	if data.len() < 4 {

@@ -38,7 +38,7 @@ pub fn panic_minimal(info: &PanicInfo) -> ! {
 
 	unsafe {
 		app_log(
-			crate::sys_raw::AppLogLevel_APP_LOG_LEVEL_ERROR as u8,
+			crate::sys_raw::AppLogLevel_APP_LOG_LEVEL_ERROR,
 			src_filename.as_ptr(),
 			src_line_number,
 			c"Panic! %s".as_ptr(),

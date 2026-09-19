@@ -17,4 +17,7 @@ pub mod alloc;
 pub mod log;
 pub mod service;
 
+pub mod accel;
+pub mod compass;
 pub mod time;
+pub mod wakeup;

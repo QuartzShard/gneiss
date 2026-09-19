@@ -2,11 +2,11 @@ use crate::sys;
 
 #[repr(u8)]
 pub enum LogLevel {
-	Info    = sys::AppLogLevel_APP_LOG_LEVEL_INFO as u8,
-	Warn    = sys::AppLogLevel_APP_LOG_LEVEL_WARNING as u8,
-	Error   = sys::AppLogLevel_APP_LOG_LEVEL_ERROR as u8,
-	Debug   = sys::AppLogLevel_APP_LOG_LEVEL_DEBUG as u8,
-	Verbose = sys::AppLogLevel_APP_LOG_LEVEL_DEBUG_VERBOSE as u8,
+	Info    = sys::AppLogLevel_APP_LOG_LEVEL_INFO,
+	Warn    = sys::AppLogLevel_APP_LOG_LEVEL_WARNING,
+	Error   = sys::AppLogLevel_APP_LOG_LEVEL_ERROR,
+	Debug   = sys::AppLogLevel_APP_LOG_LEVEL_DEBUG,
+	Verbose = sys::AppLogLevel_APP_LOG_LEVEL_DEBUG_VERBOSE,
 }
 
 #[doc(hidden)]
@@ -22,12 +22,15 @@ pub const fn __macro_check_log_level(l: LogLevel) -> u8 {
 macro_rules! log {
 	($level:expr, $msg:expr $(,)?) => {{
 		let msg: &str = $msg;
+		let level = $crate::log::__macro_check_log_level($level);
+		// const concat a nul-byte onto the str == valid cstr literal
+		let file: *const u8 = concat!(file!(), "\0").as_ptr();
+		let line = line!() as i32;
 		unsafe {
 			$crate::sys::app_log(
-				$crate::log::__macro_check_log_level($level),
-				// const concat a nul-byte onto the str == valid cstr literal
-				concat!(file!(), "\0").as_ptr(),
-				line!() as i32,
+				level,
+				file,
+				line,
 				// %.*s takes a len and performs a bounded read, no nul-terminal needed
 				c"%.*s".as_ptr(),
 				msg.len() as i32,
@@ -84,7 +87,7 @@ macro_rules! verbose {
 }
 pub use verbose;
 
-/// Call through to the variadic sys::app_log for formatting runtime values.
+/// Call through to the variadic `sys::app_log` for formatting runtime values.
 ///
 /// # Safety
 /// You must ensure that `fmt` is a valid `vsnprintf` fmt string (see upstream Pebble docs), and
@@ -108,7 +111,7 @@ pub use verbose;
 /// }
 /// ```
 ///
-/// If you'd rather not deal with all of this, pass it &CStr - those are NUL terminated and %s reads
+/// If you'd rather not deal with all of this, pass it `&CStr` - those are NUL terminated and %s reads
 /// them no-fuss
 #[macro_export]
 macro_rules! log_sys_fmt {

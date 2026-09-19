@@ -1,9 +1,9 @@
 //! A [`GlobalAlloc`] impl over the Pebble SDK malloc/free/realloc.
 //!
 //! Enables the use of Rust's standard collections:
-//! ```rust
+//! ```ignore
 //! extern crate alloc;
-//! use alloc::{Vec, Box, String};
+//! use alloc::vec::Vec;
 //!use gneiss
 //! #[gneiss::entry]
 //! fn main() {
@@ -12,6 +12,13 @@
 //! }
 //! ```
 //! Costs 5KiB of binary size - fine in most cases, but be aware.
+//!
+//! # On Allocations of Align > 4:
+//! The `task_malloc()` provided by PebbleOS returns pointers with an Alignment of 4, so to allocate
+//! types with a larger Align, we must allocate `size + align` bytes to ensure that we can fit the
+//! type within our allocation correctly aligned. This cost will be amortized over large
+//! collections, but be aware if you're allocating things of Align 8 and up (u64/f64, some Pointer
+//! types), that the allocator will waste an extra `align` bytes in the allocation.
 use core::{
 	alloc::{GlobalAlloc, Layout},
 	ffi::c_void,
