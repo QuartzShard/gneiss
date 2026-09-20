@@ -123,8 +123,12 @@ impl NewProject {
 			build,
 			target,
 			unstable: Unstable {
-				build_std:        vec!["core".to_string(), "alloc".to_string()],
-				json_target_spec: true,
+				build_std:          vec!["core".to_string(), "alloc".to_string()],
+				// core's str/slice comparisons lower to C `memcmp`, which nothing
+				// on the bare-metal link provides unless compiler_builtins is
+				// built with its `mem` feature.
+				build_std_features: vec!["compiler-builtins-mem".to_string()],
+				json_target_spec:   true,
 			},
 		};
 		std::fs::write(path.join(".cargo/config.toml"), &toml::to_string(&conf)?)?;
@@ -307,8 +311,9 @@ pub struct PebbleCargoConfig {
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "kebab-case")]
 pub struct Unstable {
-	build_std:        Vec<String>,
-	json_target_spec: bool,
+	build_std:          Vec<String>,
+	build_std_features: Vec<String>,
+	json_target_spec:   bool,
 }
 
 #[derive(Debug, Clone, Serialize)]

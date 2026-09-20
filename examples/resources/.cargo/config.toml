@@ -6,4 +6,5 @@ rustflags = ["-C", "link-arg=-Tpebble_app.ld", "-C", "link-arg=--gc-sections", "
 
 [unstable]
 build-std = ["core", "alloc"]
+build-std-features = ["compiler-builtins-mem"]
 json-target-spec = true

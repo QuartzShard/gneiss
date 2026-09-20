@@ -13,7 +13,7 @@ pub trait Service: Sealed {
 /// Called every time the time elapses the `TimeUnit` used in the `SubscribeArg`
 /// For instance, a once-per-hour routine:
 /// ```ignore
-/// #[gneiss::service(time::TimeUnits::HOURS)]
+/// #[gneiss::service(TickService, time::TimeUnits::HOURS)]
 /// fn hourly(time::TickTime, time:::TimeUnits) {
 ///     ///...
 /// }
