@@ -1,5 +1,5 @@
 //! ISR-Like services for watchapps to subscribe to with the #[gneiss::service] macro
-use crate::{accel, compass, sys, time};
+use crate::{accel, compass, focus, sys, time};
 
 /// Outlines an ISR-like Service fn registered to be called by the firmware.
 pub trait Service: Sealed {
@@ -34,6 +34,10 @@ impl Service for TickService {
 #[doc(hidden)]
 macro_rules! TickService_raw {
 	(handler: $f: ident, raw_handler: $r: ident) => {
+		const _: () = {
+			#[unsafe(export_name = "__gneiss_slot_TickService")]
+			static GUARD: u8 = 0;
+		};
 		unsafe extern "C" fn $r(tm: *mut sys::tm, unit: sys::TimeUnits) {
 			$f(
 				tm.read_volatile(),
@@ -47,8 +51,8 @@ macro_rules! TickService_raw {
 pub struct BatteryService;
 impl Sealed for BatteryService {}
 impl Service for BatteryService {
-	type Handler = fn(BatteryChargeState);
-	type RawHandler = unsafe extern "C" fn(BatteryChargeState);
+	type Handler = fn(sys::BatteryChargeState);
+	type RawHandler = unsafe extern "C" fn(sys::BatteryChargeState);
 	type SubscribeArg = ();
 
 	fn subscribe(f: Self::RawHandler, _a: Self::SubscribeArg) {
@@ -60,6 +64,10 @@ impl Service for BatteryService {
 #[doc(hidden)]
 macro_rules! BatteryService_raw {
 	(handler: $f: ident, raw_handler: $r: ident) => {
+		const _: () = {
+			#[unsafe(export_name = "__gneiss_slot_BatteryService")]
+			static GUARD: u8 = 0;
+		};
 		unsafe extern "C" fn $r(charge: sys::BatteryChargeState) {
 			$f(charge)
 		}
@@ -67,6 +75,7 @@ macro_rules! BatteryService_raw {
 }
 
 /// Called when backlight enables/disables
+pub struct BacklightService;
 impl Sealed for BacklightService {}
 impl Service for BacklightService {
 	type Handler = fn(bool);
@@ -82,6 +91,10 @@ impl Service for BacklightService {
 #[doc(hidden)]
 macro_rules! BacklightService_raw {
 	(handler: $f: ident, raw_handler: $r: ident) => {
+		const _: () = {
+			#[unsafe(export_name = "__gneiss_slot_BacklightService")]
+			static GUARD: u8 = 0;
+		};
 		unsafe extern "C" fn $r(on: bool) {
 			$f(on)
 		}
@@ -105,6 +118,10 @@ impl Service for AccelTapService {
 #[doc(hidden)]
 macro_rules! AccelTapService_raw {
 	(handler: $f: ident, raw_handler: $r: ident) => {
+		const _: () = {
+			#[unsafe(export_name = "__gneiss_slot_AccelTapService")]
+			static GUARD: u8 = 0;
+		};
 		unsafe extern "C" fn $r(axis: sys::AccelAxisType, direction: i32) {
 			$f(axis.into(), direction.into())
 		}
@@ -131,6 +148,10 @@ impl Service for CompassService {
 #[doc(hidden)]
 macro_rules! CompassService_raw {
 	(handler: $f: ident, raw_handler: $r: ident) => {
+		const _: () = {
+			#[unsafe(export_name = "__gneiss_slot_CompassService")]
+			static GUARD: u8 = 0;
+		};
 		unsafe extern "C" fn $r(headings: sys::CompassHeadingData) {
 			$f(headings.into())
 		}
@@ -141,22 +162,44 @@ macro_rules! CompassService_raw {
 pub struct AppFocusService;
 impl Sealed for AppFocusService {}
 impl Service for AppFocusService {
-	type Handler = fn(bool);
-	type RawHandler = unsafe extern "C" fn(bool);
-	type SubscribeArg = ();
+	type Handler = fn(focus::Event);
+	type RawHandler = fn() -> (unsafe extern "C" fn(bool), unsafe extern "C" fn(bool));
+	type SubscribeArg = focus::SubscribeTo;
 
-	fn subscribe(f: Self::RawHandler, _a: Self::SubscribeArg) {
+	fn subscribe(f: Self::RawHandler, a: Self::SubscribeArg) {
 		crate::log::verbose!("Registering AppFocusService handler;");
-
-		unsafe { sys::app_focus_service_subscribe(Some(f)) }
+		let handlers = f();
+		let handlers = sys::AppFocusHandlers {
+			will_focus: a.contains(focus::SubscribeTo::WILL).then_some(handlers.0),
+			did_focus:  a.contains(focus::SubscribeTo::DID).then_some(handlers.1),
+		};
+		unsafe { sys::app_focus_service_subscribe_handlers(handlers) }
 	}
 }
 #[macro_export]
 #[doc(hidden)]
 macro_rules! AppFocusService_raw {
 	(handler: $f: ident, raw_handler: $r: ident) => {
-		unsafe extern "C" fn $r(gaining: bool) {
-			$f(gaining)
+		const _: () = {
+			#[unsafe(export_name = "__gneiss_slot_AppFocusService")]
+			static GUARD: u8 = 0;
+		};
+		fn $r() -> (unsafe extern "C" fn(bool), unsafe extern "C" fn(bool)) {
+			unsafe extern "C" fn __gneiss_app_focus_will(gaining: bool) {
+				if gaining {
+					$f(::gneiss::focus::Event::Gaining)
+				} else {
+					$f(::gneiss::focus::Event::Losing)
+				}
+			}
+			unsafe extern "C" fn __gneiss_app_focus_did(gained: bool) {
+				if gained {
+					$f(::gneiss::focus::Event::Gained)
+				} else {
+					$f(::gneiss::focus::Event::Lost)
+				}
+			}
+			(__gneiss_app_focus_will, __gneiss_app_focus_did)
 		}
 	};
 }
@@ -177,6 +220,10 @@ impl Service for WakeupService {
 #[doc(hidden)]
 macro_rules! WakeupService_raw {
 	(handler: $f: ident, raw_handler: $r: ident) => {
+		const _: () = {
+			#[unsafe(export_name = "__gneiss_slot_WakeupService")]
+			static GUARD: u8 = 0;
+		};
 		unsafe extern "C" fn $r(id: sys::WakeupId, reason: i32) {
 			$f(id, reason)
 		}
@@ -187,5 +234,4 @@ macro_rules! WakeupService_raw {
 mod seal {
 	pub trait Sealed {}
 }
-use pebble_sys::BatteryChargeState;
 use seal::Sealed;

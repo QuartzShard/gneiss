@@ -19,5 +19,6 @@ pub mod service;
 
 pub mod accel;
 pub mod compass;
+pub mod focus;
 pub mod time;
 pub mod wakeup;
