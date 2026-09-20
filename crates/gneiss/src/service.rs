@@ -1,5 +1,5 @@
 //! ISR-Like services for watchapps to subscribe to with the #[gneiss::service] macro
-use crate::{accel, compass, focus, sys, time};
+use crate::{accel, compass, connection, focus, sys, time};
 
 /// Outlines an ISR-like Service fn registered to be called by the firmware.
 pub trait Service: Sealed {
@@ -128,6 +128,74 @@ macro_rules! AccelTapService_raw {
 	};
 }
 
+/// Called with a batch of processed accelerometer samples, every `SubscribeArg` samples.
+/// Shares the OS subscription slot with [`AccelRawDataService`].
+pub struct AccelDataService;
+impl Sealed for AccelDataService {}
+impl Service for AccelDataService {
+	type Handler = fn(&[accel::AccelData]);
+	type RawHandler = unsafe extern "C" fn(*mut sys::AccelData, u32);
+	type SubscribeArg = u32;
+
+	fn subscribe(f: Self::RawHandler, a: Self::SubscribeArg) {
+		crate::log::verbose!("Registering AccelDataService handler;");
+		unsafe { sys::accel_data_service_subscribe(a, Some(f)) }
+	}
+}
+#[macro_export]
+#[doc(hidden)]
+macro_rules! AccelDataService_raw {
+	(handler: $f: ident, raw_handler: $r: ident) => {
+		const _: () = {
+			#[unsafe(export_name = "__gneiss_slot_AccelData")]
+			static GUARD: u8 = 0;
+		};
+		unsafe extern "C" fn $r(data: *mut sys::AccelData, num_samples: u32) {
+			$f(if data.is_null() {
+				&[]
+			} else {
+				::core::slice::from_raw_parts(data.cast(), num_samples as usize)
+			})
+		}
+	};
+}
+
+/// Called with a batch of raw accelerometer samples and the timestamp (in ms) of the
+/// first sample, every `SubscribeArg` samples.
+/// Shares the OS subscription slot with [`AccelDataService`].
+pub struct AccelRawDataService;
+impl Sealed for AccelRawDataService {}
+impl Service for AccelRawDataService {
+	type Handler = fn(&[accel::Sample], u64);
+	type RawHandler = unsafe extern "C" fn(*mut sys::AccelRawData, u32, u64);
+	type SubscribeArg = u32;
+
+	fn subscribe(f: Self::RawHandler, a: Self::SubscribeArg) {
+		crate::log::verbose!("Registering AccelRawDataService handler;");
+		unsafe { sys::accel_raw_data_service_subscribe(a, Some(f)) }
+	}
+}
+#[macro_export]
+#[doc(hidden)]
+macro_rules! AccelRawDataService_raw {
+	(handler: $f: ident, raw_handler: $r: ident) => {
+		const _: () = {
+			#[unsafe(export_name = "__gneiss_slot_AccelData")]
+			static GUARD: u8 = 0;
+		};
+		unsafe extern "C" fn $r(data: *mut sys::AccelRawData, num_samples: u32, timestamp: u64) {
+			$f(
+				if data.is_null() {
+					&[]
+				} else {
+					::core::slice::from_raw_parts(data.cast(), num_samples as usize)
+				},
+				timestamp,
+			)
+		}
+	};
+}
+
 /// Called when the heading changes by more than the supplied `DeltaAngle`
 pub struct CompassService;
 impl Sealed for CompassService {}
@@ -200,6 +268,56 @@ macro_rules! AppFocusService_raw {
 				}
 			}
 			(__gneiss_app_focus_will, __gneiss_app_focus_did)
+		}
+	};
+}
+
+/// Called on connection state changes for the phone app and/or `PebbleKit` companion
+pub struct ConnectionService;
+impl Sealed for ConnectionService {}
+impl Service for ConnectionService {
+	type Handler = fn(connection::Event);
+	type RawHandler = fn() -> (unsafe extern "C" fn(bool), unsafe extern "C" fn(bool));
+	type SubscribeArg = connection::SubscribeTo;
+
+	fn subscribe(f: Self::RawHandler, a: Self::SubscribeArg) {
+		crate::log::verbose!("Registering ConnectionService handler;");
+		let handlers = f();
+		let handlers = sys::ConnectionHandlers {
+			pebble_app_connection_handler: a
+				.contains(connection::SubscribeTo::APP)
+				.then_some(handlers.0),
+			pebblekit_connection_handler:  a
+				.contains(connection::SubscribeTo::PEBBLEKIT)
+				.then_some(handlers.1),
+		};
+		unsafe { sys::connection_service_subscribe(handlers) }
+	}
+}
+#[macro_export]
+#[doc(hidden)]
+macro_rules! ConnectionService_raw {
+	(handler: $f: ident, raw_handler: $r: ident) => {
+		const _: () = {
+			#[unsafe(export_name = "__gneiss_slot_ConnectionService")]
+			static GUARD: u8 = 0;
+		};
+		fn $r() -> (unsafe extern "C" fn(bool), unsafe extern "C" fn(bool)) {
+			unsafe extern "C" fn __gneiss_connection_app(connected: bool) {
+				if connected {
+					$f(::gneiss::connection::Event::AppConnected)
+				} else {
+					$f(::gneiss::connection::Event::AppDisconnected)
+				}
+			}
+			unsafe extern "C" fn __gneiss_connection_pebblekit(connected: bool) {
+				if connected {
+					$f(::gneiss::connection::Event::PebbleKitConnected)
+				} else {
+					$f(::gneiss::connection::Event::PebbleKitDisconnected)
+				}
+			}
+			(__gneiss_connection_app, __gneiss_connection_pebblekit)
 		}
 	};
 }
