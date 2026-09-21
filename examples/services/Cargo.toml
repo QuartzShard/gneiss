@@ -1,0 +1,35 @@
+[package]
+name = "services"
+# authors[0] used as the watch-menu "company"
+authors = ["quartzshard"]
+version = "0.1.0"
+edition = "2024"
+
+[package.metadata.pebble]
+uuid = "b7e4a1c2-9f3d-4e6a-8b21-5c0d7a4e9f13"
+watchface = false
+# No resources: this demo exercises the service layer, not the resource
+# pipeline (see the `resources` example for that). The table must still be
+# present, just empty.
+resources = {}
+
+[dependencies.gneiss]
+path = "../../crates/gneiss"
+# `alloc` is required: the context-bearing services (Touch/Health) box their
+# context, and gneiss registers the global allocator.
+features = ["alloc"]
+
+[build-dependencies.pebble-build]
+path = "../../crates/pebble-build"
+features = []
+
+[features]
+emery = ["gneiss/emery"]
+
+[profile.release]
+opt-level = "z"
+lto = "fat"
+codegen-units = 1
+panic = "abort"
+strip = "none"
+overflow-checks = false
