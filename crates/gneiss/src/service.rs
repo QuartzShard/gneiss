@@ -1,11 +1,16 @@
 //! ISR-Like services for watchapps to subscribe to with the #[gneiss::service] macro
-use crate::{accel, compass, connection, focus, sys, time};
+use core::marker::PhantomData;
+
+use crate::{accel, compass, connection, focus, health, sys, time, touch, wakeup};
+
+pub struct NoneT;
 
 /// Outlines an ISR-like Service fn registered to be called by the firmware.
 pub trait Service: Sealed {
 	type Handler: Copy;
 	type RawHandler: Copy;
 	type SubscribeArg;
+	type Context;
 
 	fn subscribe(f: Self::RawHandler, a: Self::SubscribeArg);
 }
@@ -21,26 +26,29 @@ pub trait Service: Sealed {
 pub struct TickService;
 impl Sealed for TickService {}
 impl Service for TickService {
+	type Context = NoneT;
 	type Handler = fn(time::TickTime, time::TimeUnits);
 	type RawHandler = unsafe extern "C" fn(*mut sys::tm, sys::TimeUnits);
 	type SubscribeArg = time::TimeUnits;
 
 	fn subscribe(f: Self::RawHandler, a: Self::SubscribeArg) {
-		crate::log::verbose!("Registering TickService handler;");
+		crate::log::debug!("Registering TickService handler;");
 		unsafe { sys::tick_timer_service_subscribe(a.bits(), Some(f)) }
 	}
 }
 #[macro_export]
 #[doc(hidden)]
 macro_rules! TickService_raw {
-	(handler: $f: ident, raw_handler: $r: ident) => {
+	(handler: $f: ident, raw_handler: $r: ident, service: $s: ty) => {
 		const _: () = {
 			#[unsafe(export_name = "__gneiss_slot_TickService")]
 			static GUARD: u8 = 0;
 		};
 		unsafe extern "C" fn $r(tm: *mut sys::tm, unit: sys::TimeUnits) {
+			// SAFETY: *mut tm is valid for the duration of the callback, after which it is
+			// cleaned up - reading now is valid and correct, passing as a ref could escape.
 			$f(
-				tm.read_volatile(),
+				unsafe { tm.read() },
 				::gneiss::time::TimeUnits::from_bits_retain(unit),
 			)
 		}
@@ -51,19 +59,20 @@ macro_rules! TickService_raw {
 pub struct BatteryService;
 impl Sealed for BatteryService {}
 impl Service for BatteryService {
+	type Context = NoneT;
 	type Handler = fn(sys::BatteryChargeState);
 	type RawHandler = unsafe extern "C" fn(sys::BatteryChargeState);
 	type SubscribeArg = ();
 
 	fn subscribe(f: Self::RawHandler, _a: Self::SubscribeArg) {
-		crate::log::verbose!("Registering BatteryService handler;");
+		crate::log::debug!("Registering BatteryService handler;");
 		unsafe { sys::battery_state_service_subscribe(Some(f)) }
 	}
 }
 #[macro_export]
 #[doc(hidden)]
 macro_rules! BatteryService_raw {
-	(handler: $f: ident, raw_handler: $r: ident) => {
+	(handler: $f: ident, raw_handler: $r: ident, service: $s: ty) => {
 		const _: () = {
 			#[unsafe(export_name = "__gneiss_slot_BatteryService")]
 			static GUARD: u8 = 0;
@@ -78,19 +87,20 @@ macro_rules! BatteryService_raw {
 pub struct BacklightService;
 impl Sealed for BacklightService {}
 impl Service for BacklightService {
+	type Context = NoneT;
 	type Handler = fn(bool);
 	type RawHandler = unsafe extern "C" fn(bool);
 	type SubscribeArg = ();
 
 	fn subscribe(f: Self::RawHandler, _a: Self::SubscribeArg) {
-		crate::log::verbose!("Registering BacklightService handler;");
+		crate::log::debug!("Registering BacklightService handler;");
 		unsafe { sys::backlight_service_subscribe(Some(f)) }
 	}
 }
 #[macro_export]
 #[doc(hidden)]
 macro_rules! BacklightService_raw {
-	(handler: $f: ident, raw_handler: $r: ident) => {
+	(handler: $f: ident, raw_handler: $r: ident, service: $s: ty) => {
 		const _: () = {
 			#[unsafe(export_name = "__gneiss_slot_BacklightService")]
 			static GUARD: u8 = 0;
@@ -105,19 +115,20 @@ macro_rules! BacklightService_raw {
 pub struct AccelTapService;
 impl Sealed for AccelTapService {}
 impl Service for AccelTapService {
+	type Context = NoneT;
 	type Handler = fn(accel::Axis, accel::Direction);
 	type RawHandler = unsafe extern "C" fn(sys::AccelAxisType, core::ffi::c_int);
 	type SubscribeArg = ();
 
 	fn subscribe(f: Self::RawHandler, _a: Self::SubscribeArg) {
-		crate::log::verbose!("Registering AccelTapService handler;");
+		crate::log::debug!("Registering AccelTapService handler;");
 		unsafe { sys::accel_tap_service_subscribe(Some(f)) }
 	}
 }
 #[macro_export]
 #[doc(hidden)]
 macro_rules! AccelTapService_raw {
-	(handler: $f: ident, raw_handler: $r: ident) => {
+	(handler: $f: ident, raw_handler: $r: ident, service: $s: ty) => {
 		const _: () = {
 			#[unsafe(export_name = "__gneiss_slot_AccelTapService")]
 			static GUARD: u8 = 0;
@@ -133,19 +144,20 @@ macro_rules! AccelTapService_raw {
 pub struct AccelDataService;
 impl Sealed for AccelDataService {}
 impl Service for AccelDataService {
+	type Context = NoneT;
 	type Handler = fn(&[accel::AccelData]);
 	type RawHandler = unsafe extern "C" fn(*mut sys::AccelData, u32);
-	type SubscribeArg = u32;
+	type SubscribeArg = core::num::NonZeroU32;
 
 	fn subscribe(f: Self::RawHandler, a: Self::SubscribeArg) {
-		crate::log::verbose!("Registering AccelDataService handler;");
-		unsafe { sys::accel_data_service_subscribe(a, Some(f)) }
+		crate::log::debug!("Registering AccelDataService handler;");
+		unsafe { sys::accel_data_service_subscribe(a.get(), Some(f)) }
 	}
 }
 #[macro_export]
 #[doc(hidden)]
 macro_rules! AccelDataService_raw {
-	(handler: $f: ident, raw_handler: $r: ident) => {
+	(handler: $f: ident, raw_handler: $r: ident, service: $s: ty) => {
 		const _: () = {
 			#[unsafe(export_name = "__gneiss_slot_AccelData")]
 			static GUARD: u8 = 0;
@@ -166,19 +178,20 @@ macro_rules! AccelDataService_raw {
 pub struct AccelRawDataService;
 impl Sealed for AccelRawDataService {}
 impl Service for AccelRawDataService {
+	type Context = NoneT;
 	type Handler = fn(&[accel::Sample], u64);
 	type RawHandler = unsafe extern "C" fn(*mut sys::AccelRawData, u32, u64);
-	type SubscribeArg = u32;
+	type SubscribeArg = core::num::NonZeroU32;
 
 	fn subscribe(f: Self::RawHandler, a: Self::SubscribeArg) {
-		crate::log::verbose!("Registering AccelRawDataService handler;");
-		unsafe { sys::accel_raw_data_service_subscribe(a, Some(f)) }
+		crate::log::debug!("Registering AccelRawDataService handler;");
+		unsafe { sys::accel_raw_data_service_subscribe(a.get(), Some(f)) }
 	}
 }
 #[macro_export]
 #[doc(hidden)]
 macro_rules! AccelRawDataService_raw {
-	(handler: $f: ident, raw_handler: $r: ident) => {
+	(handler: $f: ident, raw_handler: $r: ident, service: $s: ty) => {
 		const _: () = {
 			#[unsafe(export_name = "__gneiss_slot_AccelData")]
 			static GUARD: u8 = 0;
@@ -200,12 +213,13 @@ macro_rules! AccelRawDataService_raw {
 pub struct CompassService;
 impl Sealed for CompassService {}
 impl Service for CompassService {
+	type Context = NoneT;
 	type Handler = fn(compass::HeadingData);
 	type RawHandler = unsafe extern "C" fn(sys::CompassHeadingData);
 	type SubscribeArg = compass::DeltaAngle;
 
 	fn subscribe(f: Self::RawHandler, a: Self::SubscribeArg) {
-		crate::log::verbose!("Registering CompassService handler;");
+		crate::log::debug!("Registering CompassService handler;");
 		unsafe {
 			sys::compass_service_set_heading_filter(a.inner().abs());
 			sys::compass_service_subscribe(Some(f));
@@ -215,7 +229,7 @@ impl Service for CompassService {
 #[macro_export]
 #[doc(hidden)]
 macro_rules! CompassService_raw {
-	(handler: $f: ident, raw_handler: $r: ident) => {
+	(handler: $f: ident, raw_handler: $r: ident, service: $s: ty) => {
 		const _: () = {
 			#[unsafe(export_name = "__gneiss_slot_CompassService")]
 			static GUARD: u8 = 0;
@@ -230,12 +244,13 @@ macro_rules! CompassService_raw {
 pub struct AppFocusService;
 impl Sealed for AppFocusService {}
 impl Service for AppFocusService {
+	type Context = NoneT;
 	type Handler = fn(focus::Event);
 	type RawHandler = fn() -> (unsafe extern "C" fn(bool), unsafe extern "C" fn(bool));
 	type SubscribeArg = focus::SubscribeTo;
 
 	fn subscribe(f: Self::RawHandler, a: Self::SubscribeArg) {
-		crate::log::verbose!("Registering AppFocusService handler;");
+		crate::log::debug!("Registering AppFocusService handler;");
 		let handlers = f();
 		let handlers = sys::AppFocusHandlers {
 			will_focus: a.contains(focus::SubscribeTo::WILL).then_some(handlers.0),
@@ -247,7 +262,7 @@ impl Service for AppFocusService {
 #[macro_export]
 #[doc(hidden)]
 macro_rules! AppFocusService_raw {
-	(handler: $f: ident, raw_handler: $r: ident) => {
+	(handler: $f: ident, raw_handler: $r: ident, service: $s: ty) => {
 		const _: () = {
 			#[unsafe(export_name = "__gneiss_slot_AppFocusService")]
 			static GUARD: u8 = 0;
@@ -276,12 +291,13 @@ macro_rules! AppFocusService_raw {
 pub struct ConnectionService;
 impl Sealed for ConnectionService {}
 impl Service for ConnectionService {
+	type Context = NoneT;
 	type Handler = fn(connection::Event);
 	type RawHandler = fn() -> (unsafe extern "C" fn(bool), unsafe extern "C" fn(bool));
 	type SubscribeArg = connection::SubscribeTo;
 
 	fn subscribe(f: Self::RawHandler, a: Self::SubscribeArg) {
-		crate::log::verbose!("Registering ConnectionService handler;");
+		crate::log::debug!("Registering ConnectionService handler;");
 		let handlers = f();
 		let handlers = sys::ConnectionHandlers {
 			pebble_app_connection_handler: a
@@ -297,7 +313,7 @@ impl Service for ConnectionService {
 #[macro_export]
 #[doc(hidden)]
 macro_rules! ConnectionService_raw {
-	(handler: $f: ident, raw_handler: $r: ident) => {
+	(handler: $f: ident, raw_handler: $r: ident, service: $s: ty) => {
 		const _: () = {
 			#[unsafe(export_name = "__gneiss_slot_ConnectionService")]
 			static GUARD: u8 = 0;
@@ -325,25 +341,151 @@ macro_rules! ConnectionService_raw {
 pub struct WakeupService;
 impl Sealed for WakeupService {}
 impl Service for WakeupService {
-	type Handler = fn(sys::WakeupId, i32);
+	type Context = NoneT;
+	type Handler = fn(wakeup::WakeupId, wakeup::Cookie);
 	type RawHandler = unsafe extern "C" fn(sys::WakeupId, i32);
 	type SubscribeArg = ();
 
-	fn subscribe(f: Self::RawHandler, a: Self::SubscribeArg) {
-		crate::log::verbose!("Registering WakeupService handler;");
+	fn subscribe(f: Self::RawHandler, _a: Self::SubscribeArg) {
+		crate::log::debug!("Registering WakeupService handler;");
 		unsafe { sys::wakeup_service_subscribe(Some(f)) }
 	}
 }
 #[macro_export]
 #[doc(hidden)]
 macro_rules! WakeupService_raw {
-	(handler: $f: ident, raw_handler: $r: ident) => {
+	(handler: $f: ident, raw_handler: $r: ident, service: $s: ty) => {
 		const _: () = {
 			#[unsafe(export_name = "__gneiss_slot_WakeupService")]
 			static GUARD: u8 = 0;
 		};
 		unsafe extern "C" fn $r(id: sys::WakeupId, reason: i32) {
-			$f(id, reason)
+			$f(
+				::gneiss::wakeup::WakeupId(id),
+				::gneiss::wakeup::Cookie(reason),
+			)
+		}
+
+		fn __gneiss_wakeup_launch() {
+			unsafe {
+				let (mut id, mut cookie) = (0, 0);
+				// False when not a wakeup, writes (id, cookie) when true.
+				if ::gneiss::sys::wakeup_get_launch_event(&mut id, &mut cookie) {
+					$f(
+						::gneiss::wakeup::WakeupId(id),
+						::gneiss::wakeup::Cookie(cookie),
+					)
+				}
+			}
+		}
+
+		#[::gneiss::linkme::distributed_slice(GNEISS_LAUNCH_HOOKS)]
+		#[linkme(crate = ::gneiss::linkme)]
+		static WAKEUP_LAUNCH_HOOK: fn() = __gneiss_wakeup_launch;
+	};
+}
+
+/// Requires alloc for the context storage. Ommiting or passing None to the SubscribeArg will skip
+/// context alloc
+pub struct TouchService<T = NoneT>(PhantomData<T>);
+impl<T> Sealed for TouchService<T> {}
+#[cfg(feature = "alloc")]
+impl<T> Service for TouchService<T> {
+	type Context = T;
+	type Handler = for<'a> fn(touch::Event, Option<&'a mut T>);
+	type RawHandler = unsafe extern "C" fn(*const sys::TouchEvent, *mut core::ffi::c_void);
+	type SubscribeArg = Option<T>;
+
+	#[cfg(feature = "alloc")]
+	fn subscribe(f: Self::RawHandler, a: Self::SubscribeArg) {
+		extern crate alloc;
+		use alloc::boxed::Box;
+		crate::log::debug!("Registering TouchService handler;");
+		// into_raw leaks, so the returned memory is valid forevermore
+		let ctx: *mut Self::Context = a.map(Box::new).map_or(core::ptr::null_mut(), Box::into_raw);
+		// SAFETY: It's always safe to cast to c_void.
+		unsafe { sys::touch_service_subscribe(Some(f), ctx.cast()) }
+	}
+
+	#[cfg(not(feature = "alloc"))]
+	fn subscribe(f: Self::RawHandler, _a: Self::SubscribeArg) {
+		crate::log::verbose!("Registering TouchService handler;");
+		unsafe {
+			use core::ptr;
+			sys::touch_service_subscribe(Some(f), ptr::null_mut())
+		}
+	}
+}
+#[macro_export]
+#[doc(hidden)]
+macro_rules! TouchService_raw {
+	(handler: $f: ident, raw_handler: $r: ident, service: $s: ty) => {
+		const _: () = {
+			#[unsafe(export_name = "__gneiss_slot_TouchService")]
+			static GUARD: u8 = 0;
+		};
+		unsafe extern "C" fn $r(event: *const sys::TouchEvent, ctx: *mut core::ffi::c_void) {
+			// SAFETY: *const event is valid for the duration of the callback, after which it is
+			// cleaned up - reading now is valid and correct, passing as a ref could escape. We know
+			// ctx is valid because *we* leaked it.
+			$f(
+				::gneiss::touch::Event::from(unsafe { event.read() }),
+				ctx.cast::<<$s as ::gneiss::service::Service>::Context>()
+					.as_mut(),
+			)
+		}
+	};
+}
+
+/// Requires alloc for the context storage. Ommiting or passing None to the SubscribeArg will skip
+/// context alloc
+pub struct HealthService<T>(PhantomData<T>);
+impl<T> Sealed for HealthService<T> {}
+impl<T> Service for HealthService<T> {
+	type Context = T;
+	type Handler = for<'a> fn(health::Event, Option<&'a mut T>);
+	type RawHandler = unsafe extern "C" fn(u8, *mut core::ffi::c_void);
+	type SubscribeArg = Option<T>;
+
+	#[cfg(feature = "alloc")]
+	fn subscribe(f: Self::RawHandler, a: Self::SubscribeArg) {
+		extern crate alloc;
+		use alloc::boxed::Box;
+		crate::log::debug!("Registering HealthService handler;");
+		// into_raw leaks, so the returned memory is valid forevermore
+		let ctx: *mut Self::Context = a.map(Box::new).map_or(core::ptr::null_mut(), Box::into_raw);
+		// SAFETY: It's always safe to cast to c_void.
+		if !unsafe { sys::health_service_events_subscribe(Some(f), ctx.cast()) } {
+			crate::log::error!("Health service subscribe failed, not enough heap.");
+		}
+	}
+
+	#[cfg(not(feature = "alloc"))]
+	fn subscribe(f: Self::RawHandler, a: Self::SubscribeArg) {
+		crate::log::verbose!("Registering HealthService handler;");
+		if !unsafe {
+			use core::ptr;
+			sys::health_service_events_subscribe(Some(f), ptr::null_mut())
+		} {
+			crate::log::error!("Health service subscribe failed, not enough heap.");
+		}
+	}
+}
+#[macro_export]
+#[doc(hidden)]
+macro_rules! HealthService_raw {
+	(handler: $f: ident, raw_handler: $r: ident, service: $s: ty) => {
+		const _: () = {
+			#[unsafe(export_name = "__gneiss_slot_HealthService")]
+			static GUARD: u8 = 0;
+		};
+		unsafe extern "C" fn $r(event: u8, ctx: *mut core::ffi::c_void) {
+			// SAFETY: We leaked ctx, we know it's valid
+			$f(
+				health::Event::from(event),
+				ctx.cast::<<$s as ::gneiss::service::Service>::Context>()
+					.as_mut(),
+			)
 		}
 	};
 }

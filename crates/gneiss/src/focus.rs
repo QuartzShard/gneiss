@@ -1,5 +1,4 @@
 //! Types for describing focus events
-use crate::sys;
 
 pub enum Event {
 	Gaining,

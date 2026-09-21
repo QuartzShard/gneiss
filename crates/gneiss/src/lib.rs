@@ -17,9 +17,12 @@ pub mod alloc;
 pub mod log;
 pub mod service;
 
+// Strong type wrappers for sys types
 pub mod accel;
 pub mod compass;
 pub mod connection;
 pub mod focus;
+pub mod health;
 pub mod time;
+pub mod touch;
 pub mod wakeup;

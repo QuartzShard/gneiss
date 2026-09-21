@@ -45,17 +45,33 @@ pub fn entry(attr: TokenStream, item: TokenStream) -> TokenStream {
 			#[unsafe(export_name = "main")]
 			#[doc = " Exported entry point, calls registration routines for `#[service]`s and other init chores"]
 			pub extern "C" fn __gneiss_entry() {
+                ::gneiss::log::debug!("Constructing UI...");
+
+                ::gneiss::log::verbose!("If handlers fail to register next, check your main() returns.");
+                ::gneiss::log::verbose!("Don't call `app_event_loop()`, that's handled by gneiss");
+                // User code constructs UI and state
+				#fn_name();
+
+                ::gneiss::log::debug!("Registering handlers...");
+                // Handlers may run sync when hardware missing - require UI/State exists.
                 for service_init in GNEISS_SERVICES {
                     service_init()
                 }
-                ::gneiss::log::debug!("gneiss init complete, starting app...");
-				#fn_name();
+                for launch_hook in GNEISS_LAUNCH_HOOKS {
+                    launch_hook()
+                }
+
+                ::gneiss::log::debug!("gneiss init complete, starting event loop...");
 				unsafe { ::gneiss::sys::app_event_loop() };
 			}
 
             #[::gneiss::linkme::distributed_slice]
 			#[linkme(crate = ::gneiss::linkme)]
             pub static GNEISS_SERVICES: [fn()];
+
+            #[::gneiss::linkme::distributed_slice]
+			#[linkme(crate = ::gneiss::linkme)]
+            pub static GNEISS_LAUNCH_HOOKS: [fn()];
 		});
 	}
 
