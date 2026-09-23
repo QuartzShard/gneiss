@@ -12,7 +12,7 @@ use pebble_types::{
 };
 use unix_time::Instant;
 
-use crate::PebbleMetadata;
+use crate::{MessageKey, PebbleMetadata};
 
 fn find_symbol(elf: &object::File<'_>, name: &str) -> Result<u32> {
 	elf.symbols()
@@ -205,10 +205,11 @@ pub fn package_platform(
 /// target platforms.
 pub fn app_info(
 	pkg: &cargo_metadata::Package,
-	pbl_metadata: &PebbleMetadata,
+	pbl_metadata: &mut PebbleMetadata,
 	platforms: &[Platform],
 ) -> Result<String> {
 	let package_semver = pkg.version.to_string();
+	let message_keys = resolve_message_keys(pbl_metadata.message_keys.as_deref_mut());
 	Ok(serde_json::to_string_pretty(&PebbleAppInfo::new(
 		pbl_metadata.uuid,
 		&pkg.name,
@@ -216,8 +217,26 @@ pub fn app_info(
 		&package_semver,
 		platforms,
 		pbl_metadata.watchface,
-		// TODO: appKeys and messageKeys
-		BTreeMap::new(),
-		BTreeMap::new(),
+		message_keys.clone(),
+		message_keys,
 	))?)
+}
+
+/// Resolved message keys as the pretty `name -> u32` JSON the companion reads.
+/// Empty when no keys are declared; callers skip writing in that case.
+pub fn message_keys_json(keys: Option<&mut [MessageKey]>) -> Result<String> {
+	Ok(serde_json::to_string_pretty(&resolve_message_keys(keys))?)
+}
+
+pub fn resolve_message_keys(keys: Option<&mut [MessageKey]>) -> BTreeMap<&str, u32> {
+	let mut map = BTreeMap::new();
+	// Array sorts lower than Single, so this produces Arrays-First, then lex
+	if let Some(keys) = keys {
+		keys.sort();
+		keys.iter().fold(0, |acc, key| {
+			map.insert(key.name(), acc);
+			acc + key.len()
+		});
+	}
+	map
 }
