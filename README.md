@@ -28,7 +28,8 @@ The `gneiss::entry` will register your services with the watch, call your `main(
 
 Resources must be declared in Cargo.toml, an example is provided in the template. These can currently be of type:
 - raw (no processing performed, copied as-is), 
-- bitmap/png (Any `image` supported image -> .pbi bitmap image or indexed PNG), 
+- bitmap (Any `image` supported image -> .pbi bitmap image),
+- png (Any `image` supported image -> indexed .png image),
 - pbi (already existing pebble bitmap, copied raw),
 - font (freetype -> .pbf) / pbf (already existing, copied raw),
 - icon (app menu icon, a special-case bitmap wired into the app header),
