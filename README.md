@@ -4,16 +4,14 @@ Gneiss (pronounced "nice") is a collection of crates that aim to provide a "pure
 
 | crate | provides | state |
 |-------|----------|-------|
-| gneiss | Safe API over the pebble SDK. | Entry/panic/alloc; safe API unstarted |
-| gneiss-macros | Macros for gneiss | `#[entry]`; `#[service]` stubbed |
+| gneiss | Safe API over the pebble SDK. | Entry/panic/alloc, logging, event services, AppMessage; UI/drawing unstarted |
+| gneiss-macros | Macros for gneiss | `#[entry]`, `#[service]` |
 | cargo-pebble | Project templating and Build tool for producing loadable `.pbw`, like `pebble-tool` for rust | MVP |
-| pebble-sys | FFI surface for calling pebbleOS "syscalls" without linking `pebble.a`, generated from the upstream SDK by the `xtask` | MVP |
-| pebble-types | Shared definitions of the pebble platforms, etc. `no-std` for use in pebble-sys | MVP |
+| pebble-sys | FFI surface for calling pebbleOS "syscalls" without linking `pebble.a`, generated from the upstream SDK by the `xtask` | Done |
+| pebble-types | Shared definitions of the pebble platforms, etc. `no-std` for use in pebble-sys | Done |
 | pebble-build | Build-time utilities | MVP |
 
-This project is early stage, but the build tooling and `pebble-sys` FFI path already produce real apps that load and run on real hardware. The roadmap is, broadly:
- - `gneiss` + `gneiss-macros` providing basic provisions for binding event listeners, an entry point, appropriate panic handler, etc. This is where we become "useful" instead of "interesting" (entry point + panic handler landed; event listeners next)
- - `gneiss` providing well-designed, safe abstraction over the `pebble-sys` FFI so you can write compiler-guaranteed safe pebble watch-apps. Release Candidate here
+This project is early stage, but the build tooling and `pebble-sys` FFI path already produce real apps that load and run on real hardware, and the safe API is starting to shape up. UI, typed resource and message handling still in the works.
 
  If this project interests you, do feel free to get in touch with me, quartzshard@quartzshard.com via email or @quartzshard:ethicallysourced.yachts on matrix. I'm unlikely to accept unsolicited PRs for the early stage stuff pre-gneiss while I get an MVP together.
 
