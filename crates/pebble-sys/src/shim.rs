@@ -23,13 +23,13 @@ pub(crate) static mut PBL_TABLE_ADDR: u32 = 0xA8A8_A8A8;
 /// Call a pebble-sys function. Requires the index of the fn ptr to be in r1, which is
 /// handled by the per-fn shim. Don't call directly unless you really know what you're doing
 pub(crate) unsafe extern "C" fn jump_to_pbl_function() {
-    core::arch::naked_asm!(
-        "adr   r3, {table}",        // r3  = &PBL_TABLE_ADDR
-        "ldr   r0, [r3]",           // r0  = base of OS dispatch table
-        "add   r0, r0, r1",         // r0  = base + offset (r1)
-        "ldr   r12, [r0]",          // r12 = fn ptr
-        "pop   {{r0-r3}}",          // restore AAPCS args
-        "bx    r12",                // tail-call into OS, leaves return address at caller, not shim
-        table = sym PBL_TABLE_ADDR,
-    )
+	core::arch::naked_asm!(
+		"adr   r3, {table}",        // r3  = &PBL_TABLE_ADDR
+		"ldr   r0, [r3]",           // r0  = base of OS dispatch table
+		"add   r0, r0, r1",         // r0  = base + offset (r1)
+		"ldr   r12, [r0]",          // r12 = fn ptr
+		"pop   {{r0-r3}}",          // restore AAPCS args
+		"bx    r12",                // tail-call into OS, leaves return address at caller, not shim
+		table = sym PBL_TABLE_ADDR,
+	)
 }

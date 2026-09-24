@@ -1,95 +1,39 @@
 #![no_std]
 #![no_main]
 //! All-services demo: registers every gneiss `Service` and paints a live
-//! one-line-per-service status board onto the watch. Companion to the
-//! `resources` example. Needs gneiss's `alloc` feature.
+//! one-line-per-service status board onto the watch via [`SimpleTextDisplay`].
+//! Companion to the `resources` example. Needs gneiss's `alloc` feature.
 extern crate alloc;
 
 use alloc::format;
 
 use gneiss::{
-	accel, compass, connection, focus, health,
+	accel, compass, connection,
+	display::SimpleTextDisplay,
+	focus, health,
+	link::{self, AppMessageEvent},
 	service::*,
 	sys,
 	time::{TickTime, TimeUnits},
 	touch, wakeup,
 };
 
-/// A single-app-task status board painted into one `TextLayer`. Each service
-/// owns one line; a handler updates its line and the whole board re-renders.
-///
-/// The layer and its backing string must outlive `main` (its frame is gone
-/// before the event loop runs), so they live in a `static`. Sound because the
-/// app is a single cooperative task: handlers run one at a time in the event
-/// loop, never reentrant, so there is never an overlapping `&mut`.
-mod screen {
-	use alloc::{ffi::CString, string::String};
-	use core::{cell::UnsafeCell, ptr};
-
-	use crate::sys;
-
-	#[repr(usize)]
-	#[derive(Clone, Copy)]
-	pub enum Slot {
-		Tick,
-		Battery,
-		Backlight,
-		Tap,
-		Accel,
-		Compass,
-		Focus,
-		Connection,
-		Wakeup,
-		Touch,
-		Health,
-	}
-	const SLOTS: usize = 11;
-
-	struct Inner {
-		layer:   *mut sys::TextLayer,
-		lines:   [Option<String>; SLOTS],
-		// Keeps the currently-displayed C string alive: the text layer stores
-		// the pointer, not a copy, so it must outlive the next render.
-		current: Option<CString>,
-	}
-
-	struct Board(UnsafeCell<Inner>);
-	// SAFETY: only ever touched from the single app task (see module docs).
-	unsafe impl Sync for Board {}
-
-	static BOARD: Board = Board(UnsafeCell::new(Inner {
-		layer:   ptr::null_mut(),
-		lines:   [const { None }; SLOTS],
-		current: None,
-	}));
-
-	pub fn init(layer: *mut sys::TextLayer) {
-		// SAFETY: single-task, non-reentrant; see module docs.
-		unsafe { &mut *BOARD.0.get() }.layer = layer;
-	}
-
-	pub fn set(slot: Slot, line: String) {
-		// SAFETY: single-task, non-reentrant; see module docs.
-		let inner = unsafe { &mut *BOARD.0.get() };
-		if inner.layer.is_null() {
-			return;
-		}
-		inner.lines[slot as usize] = Some(line);
-
-		let mut text = String::new();
-		for line in inner.lines.iter().flatten() {
-			text.push_str(line);
-			text.push('\n');
-		}
-		if let Ok(cs) = CString::new(text) {
-			// Point the layer at the new buffer BEFORE dropping the old one.
-			// SAFETY: valid layer, `cs` outlives this (moved into `current`).
-			unsafe { sys::text_layer_set_text(inner.layer, cs.as_ptr()) };
-			inner.current = Some(cs); // drops the previous CString, now unreferenced
-		}
-	}
+#[repr(usize)]
+enum Slot {
+	Tick,
+	Battery,
+	Backlight,
+	Tap,
+	Accel,
+	Compass,
+	Focus,
+	Connection,
+	Wakeup,
+	Touch,
+	Health,
+	Message,
 }
-use screen::Slot;
+static BOARD: SimpleTextDisplay<12> = SimpleTextDisplay::new();
 
 #[gneiss::entry]
 fn main() {
@@ -101,12 +45,12 @@ fn main() {
 		sys::text_layer_set_text_alignment(text, sys::GTextAlignment_GTextAlignmentCenter);
 		sys::text_layer_set_font(
 			text,
-			sys::fonts_get_system_font(sys::FONT_KEY_GOTHIC_24.as_ptr()),
+			sys::fonts_get_system_font(sys::FONT_KEY_GOTHIC_18.as_ptr()),
 		);
 		sys::text_layer_set_text(text, c"waiting for services...".as_ptr());
 		sys::layer_add_child(root, sys::text_layer_get_layer(text));
 		sys::window_stack_push(window, false);
-		screen::init(text);
+		BOARD.attach(text);
 	}
 }
 
@@ -114,8 +58,8 @@ fn main() {
 
 #[gneiss::service(TickService, TimeUnits::SECONDS)]
 fn on_tick(time: TickTime, _changed: TimeUnits) {
-	screen::set(
-		Slot::Tick,
+	BOARD.set(
+		Slot::Tick as usize,
 		format!(
 			"Tick: {:02}:{:02}:{:02}",
 			time.tm_hour, time.tm_min, time.tm_sec
@@ -126,7 +70,10 @@ fn on_tick(time: TickTime, _changed: TimeUnits) {
 #[gneiss::service(AccelDataService, core::num::NonZeroU32::new(25).unwrap())]
 fn on_accel(batch: &[accel::AccelData]) {
 	if let Some(s) = batch.first() {
-		screen::set(Slot::Accel, format!("Accel: {},{},{}", s.x(), s.y(), s.z()));
+		BOARD.set(
+			Slot::Accel as usize,
+			format!("Accel: {},{},{}", s.x(), s.y(), s.z()),
+		);
 	}
 }
 
@@ -146,7 +93,7 @@ fn on_compass(heading: compass::HeadingData) {
 		}
 		_ => "Compass: unavailable".into(),
 	};
-	screen::set(Slot::Compass, line);
+	BOARD.set(Slot::Compass as usize, line);
 }
 
 // --- handler only ---
@@ -160,16 +107,16 @@ fn on_battery(charge: sys::BatteryChargeState) {
 	} else {
 		""
 	};
-	screen::set(
-		Slot::Battery,
+	BOARD.set(
+		Slot::Battery as usize,
 		format!("Batt: {}%{}", charge.charge_percent, tag),
 	);
 }
 
 #[gneiss::service(BacklightService)]
 fn on_backlight(on: bool) {
-	screen::set(
-		Slot::Backlight,
+	BOARD.set(
+		Slot::Backlight as usize,
 		format!("Light: {}", if on { "on" } else { "off" }),
 	);
 }
@@ -185,7 +132,7 @@ fn on_tap(axis: accel::Axis, dir: accel::Direction) {
 		accel::Direction::Positive => "+",
 		accel::Direction::Negative => "-",
 	};
-	screen::set(Slot::Tap, format!("Tap: {axis}{sign}"));
+	BOARD.set(Slot::Tap as usize, format!("Tap: {axis}{sign}"));
 }
 
 // --- bundles (opt into slots via the SubscribeTo flags) ---
@@ -198,7 +145,7 @@ fn on_focus(event: focus::Event) {
 		focus::Event::Gained => "did-gain",
 		focus::Event::Lost => "did-lose",
 	};
-	screen::set(Slot::Focus, format!("Focus: {s}"));
+	BOARD.set(Slot::Focus as usize, format!("Focus: {s}"));
 }
 
 #[gneiss::service(ConnectionService, connection::SubscribeTo::APP | connection::SubscribeTo::PEBBLEKIT)]
@@ -209,15 +156,15 @@ fn on_connection(event: connection::Event) {
 		connection::Event::PebbleKitConnected => "kit up",
 		connection::Event::PebbleKitDisconnected => "kit down",
 	};
-	screen::set(Slot::Connection, format!("Conn: {s}"));
+	BOARD.set(Slot::Connection as usize, format!("Conn: {s}"));
 }
 
 // --- wakeup ---
 
 #[gneiss::service(WakeupService)]
 fn on_wake(id: wakeup::WakeupId, cookie: wakeup::Cookie) {
-	screen::set(
-		Slot::Wakeup,
+	BOARD.set(
+		Slot::Wakeup as usize,
 		format!("Wake: id={} cookie={}", id.0, cookie.0),
 	);
 }
@@ -234,8 +181,8 @@ fn on_touch(event: touch::Event, ctx: Option<&mut TouchCtx>) {
 		touch::EventType::LiftOff => "up",
 		touch::EventType::PositionUpdate => "move",
 	};
-	screen::set(
-		Slot::Touch,
+	BOARD.set(
+		Slot::Touch as usize,
 		format!("Touch: #{} {kind} ({},{})", ctx.0, event.x, event.y),
 	);
 }
@@ -252,5 +199,15 @@ fn on_health(event: health::Event, ctx: Option<&mut HealthCtx>) {
 		health::Event::HeartRate => "heart-rate",
 		health::Event::HRV => "hrv",
 	};
-	screen::set(Slot::Health, format!("Health: #{} {s}", ctx.0));
+	BOARD.set(Slot::Health as usize, format!("Health: #{} {s}", ctx.0));
+}
+
+#[gneiss::service(AppMessageService<()>, link::SubscribeTo::RECIEVED, link::BufferSizes::default(), None)]
+fn on_message(event: AppMessageEvent<'_>, _ctx: Option<&mut ()>) {
+	if let AppMessageEvent::Recieved { inbox } = event {
+		BOARD.set(
+			Slot::Message as usize,
+			format!("Msg: {} tuples", inbox.iter().count()),
+		);
+	}
 }

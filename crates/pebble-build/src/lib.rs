@@ -26,7 +26,7 @@ mod pbl_image;
 mod pbl_vibe;
 pub use build_pbw::{app_info, message_keys_json, package_platform};
 
-use crate::{build_pbw::resolve_message_keys, pbl_font::FontSettings};
+use crate::pbl_font::FontSettings;
 
 pub const FEATURES: &[(&str, Platform)] = &[
 	("CARGO_FEATURE_APLITE", Platform::Aplite),
@@ -343,11 +343,29 @@ pub fn gen_resource_declarations(
 
 pub fn gen_message_keys(keys: Option<&mut [MessageKey]>) -> Result<()> {
 	let mut keys_rs = String::from("// Generated consts for accessing declared message_keys\n");
-	for (key, index) in resolve_message_keys(keys) {
-		let _ = writeln!(
-			keys_rs,
-			"#[allow(dead_code, non_upper_case_globals)]\n pub const {key}: u32 = {index};"
-		);
+	if let Some(keys) = keys {
+		// Same order + stride as `resolve_message_keys`, so the emitted indices
+		// match the `appKeys`/`messageKeys` the companion reads.
+		keys.sort();
+		let mut index = 0u32;
+		for key in keys.iter() {
+			let name = key.name();
+			let ctor = match key {
+				MessageKey::Single(_) => format!("::gneiss::dict::SingleKey::new({index})"),
+				MessageKey::Array { len, .. } => {
+					format!("::gneiss::dict::ArrayKey::new({index}, {len})")
+				}
+			};
+			let ty = match key {
+				MessageKey::Single(_) => "::gneiss::dict::SingleKey",
+				MessageKey::Array { .. } => "::gneiss::dict::ArrayKey",
+			};
+			let _ = writeln!(
+				keys_rs,
+				"#[allow(dead_code, non_upper_case_globals)]\n pub const {name}: {ty} = {ctor};"
+			);
+			index += key.len();
+		}
 	}
 	let out = PathBuf::from(var("OUT_DIR")?);
 	std::fs::write(out.join("message_keys.rs"), &keys_rs)?;

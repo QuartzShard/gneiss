@@ -1,7 +1,7 @@
 //! ISR-Like services for watchapps to subscribe to with the #[gneiss::service] macro
 use core::marker::PhantomData;
 
-use crate::{accel, compass, connection, focus, health, sys, time, touch, wakeup};
+use crate::{accel, compass, connection, focus, health, link, sys, time, touch, wakeup};
 
 pub struct NoneT;
 
@@ -389,7 +389,6 @@ macro_rules! WakeupService_raw {
 /// context alloc
 pub struct TouchService<T = NoneT>(PhantomData<T>);
 impl<T> Sealed for TouchService<T> {}
-#[cfg(feature = "alloc")]
 impl<T> Service for TouchService<T> {
 	type Context = T;
 	type Handler = for<'a> fn(touch::Event, Option<&'a mut T>);
@@ -400,20 +399,21 @@ impl<T> Service for TouchService<T> {
 	fn subscribe(f: Self::RawHandler, a: Self::SubscribeArg) {
 		extern crate alloc;
 		use alloc::boxed::Box;
-		crate::log::debug!("Registering TouchService handler;");
 		// into_raw leaks, so the returned memory is valid forevermore
 		let ctx: *mut Self::Context = a.map(Box::new).map_or(core::ptr::null_mut(), Box::into_raw);
-		// SAFETY: It's always safe to cast to c_void.
-		unsafe { sys::touch_service_subscribe(Some(f), ctx.cast()) }
+		Self::__subscribe(f, ctx)
 	}
 
 	#[cfg(not(feature = "alloc"))]
 	fn subscribe(f: Self::RawHandler, _a: Self::SubscribeArg) {
-		crate::log::verbose!("Registering TouchService handler;");
-		unsafe {
-			use core::ptr;
-			sys::touch_service_subscribe(Some(f), ptr::null_mut())
-		}
+		Self::__subscribe(f, core::ptr::null_mut())
+	}
+}
+impl<T> TouchService<T> {
+	fn __subscribe(f: <Self as Service>::RawHandler, ctx: *mut T) {
+		crate::log::debug!("Registering TouchService handler;");
+		// SAFETY: It's always safe to cast to c_void.
+		unsafe { sys::touch_service_subscribe(Some(f), ctx.cast()) }
 	}
 }
 #[macro_export]
@@ -451,22 +451,21 @@ impl<T> Service for HealthService<T> {
 	fn subscribe(f: Self::RawHandler, a: Self::SubscribeArg) {
 		extern crate alloc;
 		use alloc::boxed::Box;
-		crate::log::debug!("Registering HealthService handler;");
 		// into_raw leaks, so the returned memory is valid forevermore
 		let ctx: *mut Self::Context = a.map(Box::new).map_or(core::ptr::null_mut(), Box::into_raw);
-		// SAFETY: It's always safe to cast to c_void.
-		if !unsafe { sys::health_service_events_subscribe(Some(f), ctx.cast()) } {
-			crate::log::error!("Health service subscribe failed, not enough heap.");
-		}
+		Self::__subscribe(f, ctx)
 	}
 
 	#[cfg(not(feature = "alloc"))]
-	fn subscribe(f: Self::RawHandler, a: Self::SubscribeArg) {
-		crate::log::verbose!("Registering HealthService handler;");
-		if !unsafe {
-			use core::ptr;
-			sys::health_service_events_subscribe(Some(f), ptr::null_mut())
-		} {
+	fn subscribe(f: Self::RawHandler, _a: Self::SubscribeArg) {
+		Self::__subscribe(f, core::ptr::null_mut())
+	}
+}
+impl<T> HealthService<T> {
+	fn __subscribe(f: <Self as Service>::RawHandler, ctx: *mut T) {
+		crate::log::debug!("Registering HealthService handler;");
+		// SAFETY: It's always safe to cast to c_void.
+		if !unsafe { sys::health_service_events_subscribe(Some(f), ctx.cast()) } {
 			crate::log::error!("Health service subscribe failed, not enough heap.");
 		}
 	}
@@ -490,6 +489,166 @@ macro_rules! HealthService_raw {
 	};
 }
 
+pub struct AppMessageHandlers {
+	pub recieved: sys::AppMessageInboxReceived,
+	pub dropped:  sys::AppMessageInboxDropped,
+	pub sent:     sys::AppMessageOutboxSent,
+	pub failed:   sys::AppMessageOutboxFailed,
+}
+
+/// Requires alloc for the context storage. Ommiting or passing None to the SubscribeArg will skip
+/// context alloc
+pub struct AppMessageService<T>(PhantomData<T>);
+impl<T> Sealed for AppMessageService<T> {}
+impl<T> Service for AppMessageService<T> {
+	type Context = T;
+	type Handler = for<'a> fn(link::AppMessageEvent<'a>, Option<&'a mut T>);
+	type RawHandler = fn() -> AppMessageHandlers;
+	type SubscribeArg = (link::SubscribeTo, link::BufferSizes, Option<T>);
+
+	#[cfg(feature = "alloc")]
+	fn subscribe(f: Self::RawHandler, mut a: Self::SubscribeArg) {
+		extern crate alloc;
+		use alloc::boxed::Box;
+		// into_raw leaks, so the returned memory is valid forevermore
+		let ctx: *mut Self::Context =
+			a.2.take()
+				.map(Box::new)
+				.map_or(core::ptr::null_mut(), Box::into_raw);
+		Self::__subscribe(f, a, ctx)
+	}
+
+	#[cfg(not(feature = "alloc"))]
+	fn subscribe(f: Self::RawHandler, a: Self::SubscribeArg) {
+		Self::__subscribe(f, a, core::ptr::null_mut())
+	}
+}
+impl<T> AppMessageService<T> {
+	fn __subscribe(
+		f: <Self as Service>::RawHandler,
+		a: <Self as Service>::SubscribeArg,
+		ctx: *mut T,
+	) {
+		crate::log::debug!("Registering AppMessageService handler;");
+		let mut handlers = f();
+		// SAFETY: ctx is null or a pointer we leaked; the handlers are valid fn pointers.
+		unsafe {
+			sys::app_message_set_context(ctx.cast());
+			sys::app_message_register_inbox_received(
+				handlers
+					.recieved
+					.take_if(|_| a.0.contains(link::SubscribeTo::RECIEVED)),
+			);
+			sys::app_message_register_inbox_dropped(
+				handlers
+					.dropped
+					.take_if(|_| a.0.contains(link::SubscribeTo::DROPPED)),
+			);
+			sys::app_message_register_outbox_sent(
+				handlers
+					.sent
+					.take_if(|_| a.0.contains(link::SubscribeTo::SENT)),
+			);
+			sys::app_message_register_outbox_failed(
+				handlers
+					.failed
+					.take_if(|_| a.0.contains(link::SubscribeTo::FAILED)),
+			);
+			let buf_sizes = a.1;
+			let in_max = sys::app_message_inbox_size_maximum();
+			let out_max = sys::app_message_outbox_size_maximum();
+
+			let inbox_size = buf_sizes
+				.inbox
+				.unwrap_or(in_max)
+				.max(sys::APP_MESSAGE_INBOX_SIZE_MINIMUM)
+				.min(in_max);
+			let outbox_size = buf_sizes
+				.outbox
+				.unwrap_or(out_max)
+				.max(sys::APP_MESSAGE_OUTBOX_SIZE_MINIMUM)
+				.min(out_max);
+
+			#[allow(
+				unused_unsafe,
+				reason = "log macro emits its own `unsafe`, trips if called in an unsafe block"
+			)]
+			if sys::app_message_open(inbox_size, outbox_size) != sys::AppMessageResult_APP_MSG_OK {
+				crate::log::error!("AppMessage open failed");
+			}
+		}
+	}
+}
+#[macro_export]
+#[doc(hidden)]
+macro_rules! AppMessageService_raw {
+	(handler: $f: ident, raw_handler: $r: ident, service: $s: ty) => {
+		const _: () = {
+			#[unsafe(export_name = "__gneiss_slot_AppMessageService")]
+			static GUARD: u8 = 0;
+		};
+		fn $r() -> AppMessageHandlers {
+			// SAFETY: *DictionaryIterator is INVALID past the end of this callback, pass a short
+			// borrow to the gneiss handler, not the raw ptr
+			unsafe extern "C" fn __gneiss_appmessage_recieve(
+				dict: *mut sys::DictionaryIterator,
+				ctx: *mut core::ffi::c_void,
+			) {
+				$f(
+					::gneiss::link::AppMessageEvent::Recieved {
+						inbox: unsafe { ::gneiss::dict::DictHandle::from_raw(dict) },
+					},
+					ctx.cast::<<$s as ::gneiss::service::Service>::Context>()
+						.as_mut(),
+				)
+			}
+			unsafe extern "C" fn __gneiss_appmessage_dropped(
+				reason: sys::AppMessageResult,
+				ctx: *mut core::ffi::c_void,
+			) {
+				$f(
+					::gneiss::link::AppMessageEvent::Dropped {
+						reason: reason.into(),
+					},
+					ctx.cast::<<$s as ::gneiss::service::Service>::Context>()
+						.as_mut(),
+				)
+			}
+			unsafe extern "C" fn __gneiss_appmessage_sent(
+				dict: *mut sys::DictionaryIterator,
+				ctx: *mut core::ffi::c_void,
+			) {
+				$f(
+					::gneiss::link::AppMessageEvent::Sent {
+						outbox: unsafe { ::gneiss::dict::DictHandle::from_raw(dict) },
+					},
+					ctx.cast::<<$s as ::gneiss::service::Service>::Context>()
+						.as_mut(),
+				)
+			}
+			unsafe extern "C" fn __gneiss_appmessage_failed(
+				dict: *mut sys::DictionaryIterator,
+				reason: sys::AppMessageResult,
+				ctx: *mut core::ffi::c_void,
+			) {
+				$f(
+					::gneiss::link::AppMessageEvent::Failed {
+						outbox: unsafe { ::gneiss::dict::DictHandle::from_raw(dict) },
+						reason: reason.into(),
+					},
+					ctx.cast::<<$s as ::gneiss::service::Service>::Context>()
+						.as_mut(),
+				)
+			}
+			AppMessageHandlers {
+				recieved: Some(__gneiss_appmessage_recieve),
+				dropped:  Some(__gneiss_appmessage_dropped),
+				sent:     Some(__gneiss_appmessage_sent),
+				failed:   Some(__gneiss_appmessage_failed),
+			}
+		}
+	};
+}
 /// Private trait bound means external modules cannot implement Service, but can still see it.
 mod seal {
 	pub trait Sealed {}

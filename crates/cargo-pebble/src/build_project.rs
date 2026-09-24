@@ -6,7 +6,7 @@ use std::{
 
 use cargo_metadata::{Message, PackageId, camino::Utf8PathBuf};
 use color_eyre::eyre::{OptionExt, Result};
-use pebble_build::{app_info, package_platform, read_pbl_metadata};
+use pebble_build::{app_info, message_keys_json, package_platform, read_pbl_metadata};
 use pebble_types::{Platform, pbpack::PbPack};
 use unix_time::Instant;
 use zip::write::FileOptions;
@@ -18,6 +18,9 @@ fn build_elf(
 	let mut build = Command::new("cargo")
 		.arg("build")
 		.arg("--release")
+		// Requested platform only; ignore a default-platform feature (which exists
+		// so a bare `cargo check`/rust-analyzer can build).
+		.arg("--no-default-features")
 		.arg(format!("--features={platform}"))
 		.arg("--message-format=json-render-diagnostics")
 		.stdout(Stdio::piped())
@@ -68,12 +71,21 @@ impl BuildProject {
 		log::info!("Starting build...");
 		let timestamp = Instant::now();
 
-		let (cargo_meta, pkg, pbl_metadata) = read_pbl_metadata()?;
+		let (cargo_meta, pkg, mut pbl_metadata) = read_pbl_metadata()?;
 		let triple = self.platforms[0].app_target_triple();
 		let build_path = cargo_meta.target_directory.join(triple).join("release");
 		create_dir_all(&build_path)?;
 
-		let appinfo_json = app_info(&pkg, &pbl_metadata, &self.platforms)?;
+		let appinfo_json = app_info(&pkg, &mut pbl_metadata, &self.platforms)?;
+
+		if pbl_metadata
+			.message_keys
+			.as_deref()
+			.is_some_and(|k| !k.is_empty())
+		{
+			let json = message_keys_json(pbl_metadata.message_keys.as_deref_mut())?;
+			std::fs::write(build_path.join("message_keys.json"), json)?;
+		}
 
 		let bundle_path = build_path.join(format!("{}.pbw", pkg.name));
 		let mut out_file = std::io::BufWriter::new(

@@ -11,7 +11,7 @@ Gneiss (pronounced "nice") is a collection of crates that aim to provide a "pure
 | pebble-types | Shared definitions of the pebble platforms, etc. `no-std` for use in pebble-sys | Done |
 | pebble-build | Build-time utilities | MVP |
 
-This project is early stage, but the build tooling and `pebble-sys` FFI path already produce real apps that load and run on real hardware, and the safe API is starting to shape up. UI, typed resource and message handling still in the works.
+This project is early stage, but the build tooling and `pebble-sys` FFI path already produce real apps that load and run on real hardware, and the safe API is starting to shape up. UI, typed resource handling still in the works.
 
  If this project interests you, do feel free to get in touch with me, quartzshard@quartzshard.com via email or @quartzshard:ethicallysourced.yachts on matrix. I'm unlikely to accept unsolicited PRs for the early stage stuff pre-gneiss while I get an MVP together.
 
@@ -26,6 +26,8 @@ Clone the repo and build `cargo-pebble`, then stick it somewhere on your path (o
 
 The `gneiss::entry` will register your services with the watch, call your `main()` and then hand over to the event loop.
 
+You can annotate free-standing functions with `gneiss::service(SomeService)` to have the OS call your handler on that event. Some will take arguments to control what kinds of event cause a callback, and some take Optional context pointers. See the `service` module for details.
+
 Resources must be declared in Cargo.toml, an example is provided in the template. These can currently be of type:
 - raw (no processing performed, copied as-is), 
 - bitmap (Any `image` supported image -> .pbi bitmap image),
@@ -37,7 +39,6 @@ Resources must be declared in Cargo.toml, an example is provided in the template
 Coming soon™:
 - pdc -> Pebble Draw Command (vector format)
 - mo -> i18n
-
 
 Happy programming!
 

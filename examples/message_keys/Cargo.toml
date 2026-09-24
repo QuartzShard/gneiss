@@ -1,0 +1,37 @@
+[package]
+name = "message_keys"
+# authors[0] used as the watch-menu "company"
+authors = ["quartzshard"]
+version = "0.1.0"
+edition = "2024"
+
+[package.metadata.pebble]
+uuid = "c3d9e2f1-4a6b-4c8d-9e01-2f3a4b5c6d7e"
+watchface = false
+# This demo exercises message keys, not resources; the table must still be
+# present, just empty.
+resources = {}
+# Each entry is the upstream name DSL. A bare name is one key; `name[N]`
+# reserves N consecutive keys. Every declared name becomes a
+# `message_keys::<name>: u32` const in the app (arrays get the base const).
+message_keys = ["Command", "Status", "Uptime", "Samples[8]"]
+
+[dependencies.gneiss]
+path = "../../crates/gneiss"
+features = ["alloc"]
+
+[build-dependencies.pebble-build]
+path = "../../crates/pebble-build"
+features = []
+
+[features]
+default = ["emery"]
+emery = ["gneiss/emery"]
+
+[profile.release]
+opt-level = "z"
+lto = "fat"
+codegen-units = 1
+panic = "abort"
+strip = "none"
+overflow-checks = false

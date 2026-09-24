@@ -24,7 +24,10 @@ path = "../../crates/pebble-build"
 features = []
 
 [features]
+# Default platform, so a bare `cargo check` (rust-analyzer) builds + runs codegen.
+default = ["emery"]
 emery = ["gneiss/emery"]
+basalt = ["gneiss/basalt"]
 
 [profile.release]
 opt-level = "z"

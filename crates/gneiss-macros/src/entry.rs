@@ -28,13 +28,18 @@ pub fn entry(attr: TokenStream, item: TokenStream) -> TokenStream {
 	});
 
 	out.extend(quote! {
-		#[doc = " Holds generated constants naming each resource index"]
-		mod resources {
-			include!(concat!(env!("OUT_DIR"), "/resources.rs"));
-		}
 		#[panic_handler]
 		fn __gneiss_panic_handler(info: &::core::panic::PanicInfo) -> ! { #handler(info) }
 
+		#[doc = " Generated consts naming each bundled resource by index"]
+		mod resources {
+			include!(concat!(env!("OUT_DIR"), "/resources.rs"));
+		}
+
+		#[doc = " Generated consts naming each declared message key"]
+		mod message_keys {
+			include!(concat!(env!("OUT_DIR"), "/message_keys.rs"));
+		}
 	});
 
 	if let Some(input) = input {

@@ -8,7 +8,7 @@ use color_eyre::{
 	Result,
 	eyre::{Context, OptionExt},
 };
-use pebble_build::{PebbleMetadata, Resource, ResourceType};
+use pebble_build::{MessageKey, PebbleMetadata, Resource, ResourceType};
 use pebble_types::Platform;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -141,11 +141,19 @@ impl NewProject {
 			target_platforms: self.platform.clone(),
 			res:              ResourceType::Icon,
 		})]);
+		let message_keys = Some(vec![
+			MessageKey::Single("example_key".to_string()),
+			MessageKey::Array {
+				name: "example_buf".to_string(),
+				len:  16,
+			},
+		]);
 		let metadata = Metadata {
 			pebble: PebbleMetadata {
 				uuid: Uuid::new_v4(),
 				watchface: matches!(self.app_type, AppType::Watchface),
 				resources,
+				message_keys,
 			},
 		};
 		let package = Package {
@@ -220,6 +228,9 @@ impl NewProject {
 				mod resources {
 					include!(concat!(env!("OUT_DIR"), "/resources.rs"));
 				}
+				mod message_keys {
+					include!(concat!(env!("OUT_DIR"), "/message_keys.rs"));
+				}
 
 				#[unsafe(no_mangle)]
 				pub extern "C" fn main() {
@@ -282,10 +293,9 @@ impl NewProject {
 
 	fn build_rs(path: &Path) -> Result<()> {
 		let build: syn::File = syn::parse_quote! {
-			use pebble_build;
 
 			fn main() -> pebble_build::color_eyre::eyre::Result<()> {
-				pebble_build::gen_resource_declarations()
+				pebble_build::gen_includes()
 			}
 		};
 		std::fs::write(path.join("build.rs"), prettyplease::unparse(&build))

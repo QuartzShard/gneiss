@@ -1,6 +1,6 @@
 //! Declares every currently-supported resource kind (see Cargo.toml) and shows
-//! how each is loaded at runtime. The `#[entry]` macro generates the `resources`
-//! module, giving one `u32` const per declared resource.
+//! how each is loaded at runtime. The generated `resources` module gives one
+//! `u32` const per declared resource.
 #![no_std]
 #![no_main]
 extern crate alloc;

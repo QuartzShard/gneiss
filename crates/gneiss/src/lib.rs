@@ -14,8 +14,14 @@ pub use pebble_sys as sys;
 #[cfg(feature = "alloc")]
 pub mod alloc;
 
+#[cfg(feature = "alloc")]
+pub mod display;
+
 pub mod log;
 pub mod service;
+
+pub mod dict;
+pub mod link;
 
 // Strong type wrappers for sys types
 pub mod accel;
