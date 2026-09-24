@@ -15,10 +15,14 @@ use gneiss::{
 	service::*,
 	sys,
 	time::{TickTime, TimeUnits},
-	touch, wakeup,
+	wakeup,
 };
+#[cfg(pbl_touch)]
+use gneiss::touch;
 
 #[repr(usize)]
+// Fixed rows; a watch without the matching service leaves its slot empty
+#[allow(dead_code)]
 enum Slot {
 	Tick,
 	Battery,
@@ -113,6 +117,8 @@ fn on_battery(charge: sys::BatteryChargeState) {
 	);
 }
 
+// The frozen-SDK watches stub the backlight syscall out
+#[cfg(not(pbl_sdk_frozen))]
 #[gneiss::service(BacklightService)]
 fn on_backlight(on: bool) {
 	BOARD.set(
@@ -171,7 +177,9 @@ fn on_wake(id: wakeup::WakeupId, cookie: wakeup::Cookie) {
 
 // --- context-bearing (pass Some(ctx); handler gets Option<&mut ctx>) ---
 
+#[cfg(pbl_touch)]
 struct TouchCtx(u32);
+#[cfg(pbl_touch)]
 #[gneiss::service(TouchService<TouchCtx>, Some(TouchCtx(0)))]
 fn on_touch(event: touch::Event, ctx: Option<&mut TouchCtx>) {
 	let Some(ctx) = ctx else { return };

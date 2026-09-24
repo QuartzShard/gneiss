@@ -16,6 +16,9 @@ gneiss-macros = { workspace = true }
 linkme        = { workspace = true }
 bitflags = "2.13.2"
 
+[build-dependencies]
+pebble-build = { workspace = true }
+
 [features]
 default = ["alloc"]
 alloc   = []

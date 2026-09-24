@@ -109,6 +109,7 @@ fn build_pbl_header(
 		bail!("Header sentinel malformed")
 	}
 	log::debug!("Found header, populating...");
+	pbl_header.sdk_version = platform.config().sdk_version;
 	pbl_header.process_version = Version {
 		major: pkg.version.major as u8,
 		minor: pkg.version.minor as u8,

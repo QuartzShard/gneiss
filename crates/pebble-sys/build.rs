@@ -1,6 +1,6 @@
 use std::{env::var, path::PathBuf};
 
-use pebble_build::{FEATURES, select_platform};
+use pebble_build::{emit_platform_cfgs, platform_features, select_platform};
 
 fn main() {
 	let in_dir = PathBuf::from(var("CARGO_MANIFEST_DIR").expect("No in dir"));
@@ -25,9 +25,10 @@ fn main() {
 	std::fs::write(out_dir.join("pebble_app.ld"), resolved)
 		.expect("Failed to write resolved linker script");
 
-	for (env, _) in FEATURES {
+	for (env, _) in platform_features() {
 		println!("cargo:rerun-if-env-changed={env}");
 	}
+	emit_platform_cfgs(platform);
 	println!("cargo:rerun-if-env-changed=PBL_PLATFORM");
 	println!("cargo:rerun-if-changed=pebble_app_rs.ld.template");
 	println!("cargo:rustc-link-search={}", out_dir.display());

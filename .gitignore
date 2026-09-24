@@ -1,3 +1,6 @@
 target
 .rust-analyzer.json
 bacon.toml
+# Don't commit AI crap
+AGENTS.md
+CLAUDE.md

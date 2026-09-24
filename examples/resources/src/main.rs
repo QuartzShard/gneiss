@@ -28,10 +28,13 @@ fn main() {
 		let font = sys::fonts_load_custom_font(sys::resource_get_handle(resources::FONT_ROBOTO_18));
 		let _font_from_pbf =
 			sys::fonts_load_custom_font(sys::resource_get_handle(resources::FONT_PBF));
+		// A round screen clips its corners; `pbl_round` is one of the cfg flags
+		// the build script sets from the platform's tags
+		let inset = if cfg!(pbl_round) { 24 } else { 0 };
 		let text = sys::text_layer_create(sys::GRect {
-			origin: sys::GPoint { x: 0, y: 0 },
+			origin: sys::GPoint { x: inset, y: 0 },
 			size:   sys::GSize {
-				w: bounds.size.w,
+				w: bounds.size.w - 2 * inset,
 				h: 40,
 			},
 		});

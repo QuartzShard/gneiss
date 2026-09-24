@@ -9,10 +9,11 @@ use pebble_types::Platform;
 use strum::IntoEnumIterator;
 use tempfile::TempDir;
 
-use crate::map_shim::map_bindgen_to_shimmed;
+use crate::{map_shim::map_bindgen_to_shimmed, platform_table::PlatformTable};
 
 mod exported_symbols;
 mod map_shim;
+mod platform_table;
 
 #[derive(clap::Parser)]
 enum TaskArgs {
@@ -56,7 +57,7 @@ fn ci() -> Result<()> {
 		"-p",
 		"gneiss",
 		"--features",
-		"pebble-sys/emery",
+		"gneiss/emery",
 		"--target",
 		"crates/cargo-pebble/thumbv7m-pebble.json",
 		"-Zbuild-std=core,alloc",
@@ -124,6 +125,7 @@ fn regen_sys() -> Result<()> {
 	if !std::fs::exists(vendor.join("UPSTREAM"))? {
 		bail!("No vendor snapshot, run `cargo xtask snapshot-vendor` to generate one")
 	}
+	let platforms = PlatformTable::load(&vendor)?;
 
 	let resource_inc = clang_resource_dir()?.join("include").display().to_string();
 	let clang_args: Vec<String> = [
@@ -158,7 +160,7 @@ fn regen_sys() -> Result<()> {
 		let plat_vendor_arg = plat_vendor.display().to_string();
 		let mut clang_args: Vec<String> = clang_args.clone();
 		clang_args.extend_from_slice(&["-I", &plat_vendor_arg].map(String::from));
-		clang_args.extend(clang_args_for(platform));
+		clang_args.extend(platforms.clang_args(platform)?);
 
 		let bindings = bindgen::builder()
 			.header(plat_vendor.join("pebble.h").display().to_string())
@@ -179,6 +181,7 @@ fn regen_sys() -> Result<()> {
 		// own checked-in file so multiple platforms can coexist in the tree.
 		let out = workspace_root().join(format!("crates/pebble-sys/src/platform/{platform}.rs"));
 		std::fs::write(&out, prettyplease::unparse(&mapped))?;
+		rustfmt(&out)?;
 	}
 
 	// pebble_process_info
@@ -203,10 +206,31 @@ fn regen_sys() -> Result<()> {
 		"#[derive(Debug, Copy, Clone)]",
 		"#[derive(Debug, Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]\n#[cfg_attr(feature = \"serde\", derive(serde::Serialize, serde::Deserialize))]",
 	);
-	std::fs::write(
-		workspace_root().join("crates/pebble-types/src/pebble_process_info.rs"),
-		&bindings,
-	)?;
+	let process_info = workspace_root().join("crates/pebble-types/src/pebble_process_info.rs");
+	std::fs::write(&process_info, &bindings)?;
+	rustfmt(&process_info)?;
+
+	let bits = platform_table::process_info_bits(&bindings)?;
+	let sdk = platform_table::sdk_versions(&vendor)?;
+	let config = workspace_root().join("crates/pebble-types/src/config.rs");
+	std::fs::write(&config, platform_table::render(&platforms, &bits, &sdk)?)?;
+	rustfmt(&config)?;
+	Ok(())
+}
+
+/// Format a generated file with the workspace's rustfmt config.
+fn rustfmt(path: &Path) -> Result<()> {
+	let status = Command::new("rustfmt")
+		// `.rustfmt.toml` sets nightly-only options; run from the workspace so
+		// rustup picks the pinned toolchain
+		.current_dir(workspace_root())
+		.arg("--edition")
+		.arg("2024")
+		.arg(path)
+		.status()?;
+	if !status.success() {
+		bail!("rustfmt failed on {}", path.display());
+	}
 	Ok(())
 }
 
@@ -256,6 +280,25 @@ fn snapshot_vendor(repo: &Path) -> Result<()> {
 
 	std::fs::copy(config, vendor.join("exported_symbols.json"))?;
 
+	// `tools/pebble_sdk_platform.py` imports nothing, so python can dump it as
+	// JSON; `regen-sys` reads that into `pebble-types`'s config table
+	log::info!("Dumping upstream's platform table...");
+	let dump = Command::new("uv")
+		.current_dir(repo)
+		.args(["run", "python", "-c"])
+		.arg(
+			"import json, sys; sys.path.insert(0, 'tools'); import pebble_sdk_platform as p; \
+			 json.dump(p.pebble_platforms, sys.stdout, indent=2, sort_keys=True)",
+		)
+		.output()?;
+	if !dump.status.success() {
+		bail!(
+			"Dumping pebble_sdk_platform.py failed: {}",
+			String::from_utf8_lossy(&dump.stderr)
+		)
+	}
+	std::fs::write(vendor.join("platforms.json"), &dump.stdout)?;
+
 	// Get a commit hash from the repo...
 	let hash = Command::new("git")
 		.current_dir(repo)
@@ -287,6 +330,7 @@ fn check_pebbleos_present(repo: &Path) -> Result<()> {
 	let required = [
 		"tools/generate_native_sdk/generate_pebble_native_sdk_files.py",
 		"tools/generate_native_sdk/exported_symbols.json",
+		"tools/pebble_sdk_platform.py",
 		"src",
 	];
 	let submodule = [
@@ -323,20 +367,6 @@ fn workspace_root() -> &'static Path {
 	Path::new(env!("CARGO_MANIFEST_DIR"))
 		.parent()
 		.expect("xtask crate is <workspace>/xtask")
-}
-
-/// `clang` flags that mirror what `pebble build` passes per platform.
-/// Reads the per-platform `defines` slice from `pebble-types`'s config table
-/// and prepends `-D`. The platform-name, color/shape, capability, display
-/// dimension, and `PBL_SDK_FROZEN` flags are all sourced from there.
-/// Universal flags (`PBL_SDK_3`, the ARM ABI flags) are added at the call site.
-fn clang_args_for(platform: Platform) -> Vec<String> {
-	platform
-		.config()
-		.defines
-		.iter()
-		.map(|d| format!("-D{d}"))
-		.collect()
 }
 
 fn clang_resource_dir() -> Result<PathBuf> {

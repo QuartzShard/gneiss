@@ -1,7 +1,9 @@
 //! ISR-Like services for watchapps to subscribe to with the #[gneiss::service] macro
 use core::marker::PhantomData;
 
-use crate::{accel, compass, connection, focus, health, link, sys, time, touch, wakeup};
+#[cfg(pbl_touch)]
+use crate::touch;
+use crate::{accel, compass, connection, focus, health, link, sys, time, wakeup};
 
 pub struct NoneT;
 
@@ -83,9 +85,17 @@ macro_rules! BatteryService_raw {
 	};
 }
 
-/// Called when backlight enables/disables
+/// Called when backlight enables/disables.
+///
+/// Absent on the frozen-SDK watches: their `pebble.h` stubs
+/// `backlight_service_subscribe` out to a no-op macro. Upstream's only
+/// backlight define, `PBL_RGB_BACKLIGHT`, marks a colour-capable backlight
+/// (emery) rather than the presence of this service.
+#[cfg(not(pbl_sdk_frozen))]
 pub struct BacklightService;
+#[cfg(not(pbl_sdk_frozen))]
 impl Sealed for BacklightService {}
+#[cfg(not(pbl_sdk_frozen))]
 impl Service for BacklightService {
 	type Context = NoneT;
 	type Handler = fn(bool);
@@ -97,6 +107,7 @@ impl Service for BacklightService {
 		unsafe { sys::backlight_service_subscribe(Some(f)) }
 	}
 }
+#[cfg(not(pbl_sdk_frozen))]
 #[macro_export]
 #[doc(hidden)]
 macro_rules! BacklightService_raw {
@@ -387,8 +398,13 @@ macro_rules! WakeupService_raw {
 
 /// Requires alloc for the context storage. Ommiting or passing None to the SubscribeArg will skip
 /// context alloc
+///
+/// Only on watches with a touch panel (`PBL_TOUCH`).
+#[cfg(pbl_touch)]
 pub struct TouchService<T = NoneT>(PhantomData<T>);
+#[cfg(pbl_touch)]
 impl<T> Sealed for TouchService<T> {}
+#[cfg(pbl_touch)]
 impl<T> Service for TouchService<T> {
 	type Context = T;
 	type Handler = for<'a> fn(touch::Event, Option<&'a mut T>);
@@ -409,6 +425,7 @@ impl<T> Service for TouchService<T> {
 		Self::__subscribe(f, core::ptr::null_mut())
 	}
 }
+#[cfg(pbl_touch)]
 impl<T> TouchService<T> {
 	fn __subscribe(f: <Self as Service>::RawHandler, ctx: *mut T) {
 		crate::log::debug!("Registering TouchService handler;");
@@ -416,6 +433,7 @@ impl<T> TouchService<T> {
 		unsafe { sys::touch_service_subscribe(Some(f), ctx.cast()) }
 	}
 }
+#[cfg(pbl_touch)]
 #[macro_export]
 #[doc(hidden)]
 macro_rules! TouchService_raw {

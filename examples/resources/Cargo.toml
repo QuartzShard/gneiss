@@ -12,25 +12,27 @@ watchface = false
 # Every resource entry needs `file`, `target_platforms`, and `type`. The name of
 # the table (e.g. APP_ICON) becomes a `resources::APP_ICON: u32` const in the app.
 #
-# A build looks for `<stem>~<platform>.<ext>` next to `file` first and only falls
-# back to `file` itself, so one declaration can ship a different asset per watch
-# without every watch needing its own. This example builds for emery (200x228,
-# colour) and flint (144x168, black and white).
+# Siblings of `file` named `<stem>~<tag>.<ext>` override it on the platforms
+# carrying those tags (the platform name, `color`/`bw`, `rect`/`round`, `200w`,
+# `touch`, ...); a name match wins, then the most tags, then `file` itself.
+# Built for emery, flint, chalk, basalt and aplite, which between them cover
+# colour and black and white, round and rect, and both SDK vintages.
 
 # The menu icon: a special-case bitmap, at most one per app, wired into the app
 # header automatically. You do not normally load it from code.
 [package.metadata.pebble.resources.APP_ICON]
 type = "icon"
 file = "icon.png"
-target_platforms = ["emery", "flint"]
+target_platforms = ["emery", "flint", "chalk", "basalt", "aplite"]
 
 # Arbitrary bytes, copied verbatim. Read back at runtime with resource_load.
-# Only flint has a variant (data~flint.bin), so emery falls back to data.bin:
-# the app draws whichever one it was given as its title.
+# flint matches both data~flint.bin and data~bw.bin and takes the name; aplite
+# takes data~bw.bin; the colour watches fall back to data.bin. The app draws
+# whichever one it was given as its title.
 [package.metadata.pebble.resources.DATA_RAW]
 type = "raw"
 file = "data.bin"
-target_platforms = ["emery", "flint"]
+target_platforms = ["emery", "flint", "chalk", "basalt", "aplite"]
 
 # Any `image`-supported file -> an indexed PNG the firmware decodes on load.
 # Both built platforms have a variant (image~emery.png / image~flint.png), each
@@ -39,31 +41,32 @@ target_platforms = ["emery", "flint"]
 [package.metadata.pebble.resources.IMAGE_PNG]
 type = "png"
 file = "image.png"
-target_platforms = ["emery", "flint"]
+target_platforms = ["emery", "flint", "chalk", "basalt", "aplite"]
 
 # Any `image`-supported file -> a .pbi (raw pebble bitmap, no runtime decode).
-# Points at logo.png, which has no variants, so every platform compiles that one
-# file for itself.
+# Points at logo.png, which has no siblings, so every platform compiles that
+# one file for itself.
 [package.metadata.pebble.resources.IMAGE_BITMAP]
 type = "bitmap"
 file = "logo.png"
-target_platforms = ["emery", "flint"]
+target_platforms = ["emery", "flint", "chalk", "basalt", "aplite"]
 
 # An already-baked .pbi, copied verbatim (only validated). Loads like a bitmap.
-# A .pbi is quantised for one platform's palette, so there is no sensible shared
-# image.pbi to fall back to: logo~emery.pbi is 2-bit palettised, logo~flint.pbi
-# is 1-bit, and a platform with neither fails the build.
+# A .pbi is quantised for a colour depth rather than for a watch, so the
+# siblings are tagged `color` and `bw` rather than per platform: logo~color.pbi
+# is 2-bit palettised, logo~bw.pbi is 1-bit. There is no shared logo.pbi, so a
+# platform matching neither would fail the build.
 [package.metadata.pebble.resources.IMAGE_PBI]
 type = "pbi"
 file = "logo.pbi"
-target_platforms = ["emery", "flint"]
+target_platforms = ["emery", "flint", "chalk", "basalt", "aplite"]
 
 # A freetype-rasterised font -> .pbf. FontSettings (camelCase) tune it:
 #   pixelHeight, characterRegex / characterList, compress, extended, trackingAdjust
 [package.metadata.pebble.resources.FONT_ROBOTO_18]
 type = "font"
 file = "font.ttf"
-target_platforms = ["emery", "flint"]
+target_platforms = ["emery", "flint", "chalk", "basalt", "aplite"]
 pixelHeight = 18
 characterRegex = "[ -~]"
 compress = true
@@ -72,13 +75,13 @@ compress = true
 [package.metadata.pebble.resources.FONT_PBF]
 type = "pbf"
 file = "font.pbf"
-target_platforms = ["emery", "flint"]
+target_platforms = ["emery", "flint", "chalk", "basalt", "aplite"]
 
 # A vibration score compiled from a JSON pattern (see buzz.json).
 [package.metadata.pebble.resources.BUZZ]
 type = "vibe"
 file = "buzz.json"
-target_platforms = ["emery", "flint"]
+target_platforms = ["emery", "flint", "chalk", "basalt", "aplite"]
 
 [dependencies.gneiss]
 path = "../../crates/gneiss"
@@ -93,6 +96,9 @@ features = []
 default = ["emery"]
 emery = ["gneiss/emery"]
 flint = ["gneiss/flint"]
+chalk = ["gneiss/chalk"]
+basalt = ["gneiss/basalt"]
+aplite = ["gneiss/aplite"]
 
 [profile.release]
 opt-level = "z"

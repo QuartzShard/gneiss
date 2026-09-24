@@ -602,6 +602,7 @@ dependencies = [
  "bitflags",
  "gneiss-macros",
  "linkme",
+ "pebble-build",
  "pebble-sys",
 ]
 

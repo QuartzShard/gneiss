@@ -3,584 +3,587 @@
 #[repr(C)]
 #[derive(Copy, Clone, Debug, Default, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct __BindgenBitfieldUnit<Storage> {
-    storage: Storage,
+	storage: Storage,
 }
 impl<Storage> __BindgenBitfieldUnit<Storage> {
-    #[inline]
-    pub const fn new(storage: Storage) -> Self {
-        Self { storage }
-    }
+	#[inline]
+	pub const fn new(storage: Storage) -> Self {
+		Self { storage }
+	}
 }
 impl<Storage> __BindgenBitfieldUnit<Storage>
 where
-    Storage: AsRef<[u8]> + AsMut<[u8]>,
+	Storage: AsRef<[u8]> + AsMut<[u8]>,
 {
-    #[inline]
-    fn extract_bit(byte: u8, index: usize) -> bool {
-        let bit_index = if cfg!(target_endian = "big") {
-            7 - (index % 8)
-        } else {
-            index % 8
-        };
-        let mask = 1 << bit_index;
-        byte & mask == mask
-    }
-    #[inline]
-    pub fn get_bit(&self, index: usize) -> bool {
-        debug_assert!(index / 8 < self.storage.as_ref().len());
-        let byte_index = index / 8;
-        let byte = self.storage.as_ref()[byte_index];
-        Self::extract_bit(byte, index)
-    }
-    #[inline]
-    pub unsafe fn raw_get_bit(this: *const Self, index: usize) -> bool {
-        debug_assert!(index / 8 < core::mem::size_of::<Storage>());
-        let byte_index = index / 8;
-        let byte = unsafe {
-            *(core::ptr::addr_of!((*this).storage) as *const u8)
-                .offset(byte_index as isize)
-        };
-        Self::extract_bit(byte, index)
-    }
-    #[inline]
-    fn change_bit(byte: u8, index: usize, val: bool) -> u8 {
-        let bit_index = if cfg!(target_endian = "big") {
-            7 - (index % 8)
-        } else {
-            index % 8
-        };
-        let mask = 1 << bit_index;
-        if val { byte | mask } else { byte & !mask }
-    }
-    #[inline]
-    pub fn set_bit(&mut self, index: usize, val: bool) {
-        debug_assert!(index / 8 < self.storage.as_ref().len());
-        let byte_index = index / 8;
-        let byte = &mut self.storage.as_mut()[byte_index];
-        *byte = Self::change_bit(*byte, index, val);
-    }
-    #[inline]
-    pub unsafe fn raw_set_bit(this: *mut Self, index: usize, val: bool) {
-        debug_assert!(index / 8 < core::mem::size_of::<Storage>());
-        let byte_index = index / 8;
-        let byte = unsafe {
-            (core::ptr::addr_of_mut!((*this).storage) as *mut u8)
-                .offset(byte_index as isize)
-        };
-        unsafe { *byte = Self::change_bit(*byte, index, val) };
-    }
-    #[inline]
-    pub fn get(&self, bit_offset: usize, bit_width: u8) -> u64 {
-        debug_assert!(bit_width <= 64);
-        debug_assert!(bit_offset / 8 < self.storage.as_ref().len());
-        debug_assert!(
-            (bit_offset + (bit_width as usize) + 7) / 8 <= self.storage.as_ref().len(),
-        );
-        if bit_width == 0 {
-            return 0;
-        }
-        let mut val = 0u64;
-        let storage = self.storage.as_ref();
-        let start_byte = bit_offset / 8;
-        let bit_shift = bit_offset % 8;
-        let bytes_needed = (bit_width as usize + bit_shift + 7) / 8;
-        if cfg!(target_endian = "big") {
-            for i in 0..bytes_needed {
-                val |= (storage[start_byte + i].reverse_bits() as u64) << (i * 8);
-            }
-        } else {
-            for i in 0..bytes_needed {
-                val |= (storage[start_byte + i] as u64) << (i * 8);
-            }
-        }
-        val >>= bit_shift;
-        if bit_width < 64 {
-            val &= (1u64 << bit_width) - 1;
-        }
-        if cfg!(target_endian = "big") {
-            val = val.reverse_bits() >> (64 - bit_width as usize);
-        }
-        val
-    }
-    #[inline]
-    pub unsafe fn raw_get(this: *const Self, bit_offset: usize, bit_width: u8) -> u64 {
-        debug_assert!(bit_width <= 64);
-        debug_assert!(bit_offset / 8 < core::mem::size_of::<Storage>());
-        debug_assert!(
-            (bit_offset + (bit_width as usize) + 7) / 8
-                <= core::mem::size_of::<Storage>(),
-        );
-        if bit_width == 0 {
-            return 0;
-        }
-        let mut val = 0u64;
-        let start_byte = bit_offset / 8;
-        let bit_shift = bit_offset % 8;
-        let bytes_needed = (bit_width as usize + bit_shift + 7) / 8;
-        let storage_ptr = unsafe { core::ptr::addr_of!((*this).storage) as *const u8 };
-        if cfg!(target_endian = "big") {
-            for i in 0..bytes_needed {
-                let byte = unsafe { *storage_ptr.add(start_byte + i) };
-                val |= (byte.reverse_bits() as u64) << (i * 8);
-            }
-        } else {
-            for i in 0..bytes_needed {
-                let byte = unsafe { *storage_ptr.add(start_byte + i) };
-                val |= (byte as u64) << (i * 8);
-            }
-        }
-        val >>= bit_shift;
-        if bit_width < 64 {
-            val &= (1u64 << bit_width) - 1;
-        }
-        if cfg!(target_endian = "big") {
-            val = val.reverse_bits() >> (64 - bit_width as usize);
-        }
-        val
-    }
-    #[inline]
-    pub fn set(&mut self, bit_offset: usize, bit_width: u8, val: u64) {
-        debug_assert!(bit_width <= 64);
-        debug_assert!(bit_offset / 8 < self.storage.as_ref().len());
-        debug_assert!(
-            (bit_offset + (bit_width as usize) + 7) / 8 <= self.storage.as_ref().len(),
-        );
-        if bit_width == 0 {
-            return;
-        }
-        let mut val = val;
-        if bit_width < 64 {
-            val &= (1u64 << bit_width) - 1;
-        }
-        if cfg!(target_endian = "big") {
-            val = val.reverse_bits() >> (64 - bit_width as usize);
-        }
-        let storage = self.storage.as_mut();
-        let start_byte = bit_offset / 8;
-        let bit_shift = bit_offset % 8;
-        let bytes_needed = (bit_width as usize + bit_shift + 7) / 8;
-        val <<= bit_shift;
-        let field_mask = if bit_width as usize + bit_shift >= 64 {
-            !0u64 << bit_shift
-        } else {
-            ((1u64 << bit_width) - 1) << bit_shift
-        };
-        for i in 0..bytes_needed {
-            let byte_val = (val >> (i * 8)) as u8;
-            let byte_mask = (field_mask >> (i * 8)) as u8;
-            if cfg!(target_endian = "big") {
-                let byte = storage[start_byte + i].reverse_bits();
-                let new_byte = (byte & !byte_mask) | (byte_val & byte_mask);
-                storage[start_byte + i] = new_byte.reverse_bits();
-            } else {
-                storage[start_byte + i] = (storage[start_byte + i] & !byte_mask)
-                    | (byte_val & byte_mask);
-            }
-        }
-    }
-    #[inline]
-    pub unsafe fn raw_set(this: *mut Self, bit_offset: usize, bit_width: u8, val: u64) {
-        debug_assert!(bit_width <= 64);
-        debug_assert!(bit_offset / 8 < core::mem::size_of::<Storage>());
-        debug_assert!(
-            (bit_offset + (bit_width as usize) + 7) / 8
-                <= core::mem::size_of::<Storage>(),
-        );
-        if bit_width == 0 {
-            return;
-        }
-        let mut val = val;
-        if bit_width < 64 {
-            val &= (1u64 << bit_width) - 1;
-        }
-        if cfg!(target_endian = "big") {
-            val = val.reverse_bits() >> (64 - bit_width as usize);
-        }
-        let start_byte = bit_offset / 8;
-        let bit_shift = bit_offset % 8;
-        let bytes_needed = (bit_width as usize + bit_shift + 7) / 8;
-        val <<= bit_shift;
-        let field_mask = if bit_width as usize + bit_shift >= 64 {
-            !0u64 << bit_shift
-        } else {
-            ((1u64 << bit_width) - 1) << bit_shift
-        };
-        let storage_ptr = unsafe { core::ptr::addr_of_mut!((*this).storage) as *mut u8 };
-        for i in 0..bytes_needed {
-            let byte_val = (val >> (i * 8)) as u8;
-            let byte_mask = (field_mask >> (i * 8)) as u8;
-            let byte_ptr = unsafe { storage_ptr.add(start_byte + i) };
-            if cfg!(target_endian = "big") {
-                let byte = unsafe { (*byte_ptr).reverse_bits() };
-                let new_byte = (byte & !byte_mask) | (byte_val & byte_mask);
-                unsafe { *byte_ptr = new_byte.reverse_bits() };
-            } else {
-                unsafe { *byte_ptr = (*byte_ptr & !byte_mask) | (byte_val & byte_mask) };
-            }
-        }
-    }
+	#[inline]
+	fn extract_bit(byte: u8, index: usize) -> bool {
+		let bit_index = if cfg!(target_endian = "big") {
+			7 - (index % 8)
+		} else {
+			index % 8
+		};
+		let mask = 1 << bit_index;
+		byte & mask == mask
+	}
+
+	#[inline]
+	pub fn get_bit(&self, index: usize) -> bool {
+		debug_assert!(index / 8 < self.storage.as_ref().len());
+		let byte_index = index / 8;
+		let byte = self.storage.as_ref()[byte_index];
+		Self::extract_bit(byte, index)
+	}
+
+	#[inline]
+	pub unsafe fn raw_get_bit(this: *const Self, index: usize) -> bool {
+		debug_assert!(index / 8 < core::mem::size_of::<Storage>());
+		let byte_index = index / 8;
+		let byte = unsafe {
+			*(core::ptr::addr_of!((*this).storage) as *const u8).offset(byte_index as isize)
+		};
+		Self::extract_bit(byte, index)
+	}
+
+	#[inline]
+	fn change_bit(byte: u8, index: usize, val: bool) -> u8 {
+		let bit_index = if cfg!(target_endian = "big") {
+			7 - (index % 8)
+		} else {
+			index % 8
+		};
+		let mask = 1 << bit_index;
+		if val { byte | mask } else { byte & !mask }
+	}
+
+	#[inline]
+	pub fn set_bit(&mut self, index: usize, val: bool) {
+		debug_assert!(index / 8 < self.storage.as_ref().len());
+		let byte_index = index / 8;
+		let byte = &mut self.storage.as_mut()[byte_index];
+		*byte = Self::change_bit(*byte, index, val);
+	}
+
+	#[inline]
+	pub unsafe fn raw_set_bit(this: *mut Self, index: usize, val: bool) {
+		debug_assert!(index / 8 < core::mem::size_of::<Storage>());
+		let byte_index = index / 8;
+		let byte = unsafe {
+			(core::ptr::addr_of_mut!((*this).storage) as *mut u8).offset(byte_index as isize)
+		};
+		unsafe { *byte = Self::change_bit(*byte, index, val) };
+	}
+
+	#[inline]
+	pub fn get(&self, bit_offset: usize, bit_width: u8) -> u64 {
+		debug_assert!(bit_width <= 64);
+		debug_assert!(bit_offset / 8 < self.storage.as_ref().len());
+		debug_assert!((bit_offset + (bit_width as usize) + 7) / 8 <= self.storage.as_ref().len(),);
+		if bit_width == 0 {
+			return 0;
+		}
+		let mut val = 0u64;
+		let storage = self.storage.as_ref();
+		let start_byte = bit_offset / 8;
+		let bit_shift = bit_offset % 8;
+		let bytes_needed = (bit_width as usize + bit_shift + 7) / 8;
+		if cfg!(target_endian = "big") {
+			for i in 0..bytes_needed {
+				val |= (storage[start_byte + i].reverse_bits() as u64) << (i * 8);
+			}
+		} else {
+			for i in 0..bytes_needed {
+				val |= (storage[start_byte + i] as u64) << (i * 8);
+			}
+		}
+		val >>= bit_shift;
+		if bit_width < 64 {
+			val &= (1u64 << bit_width) - 1;
+		}
+		if cfg!(target_endian = "big") {
+			val = val.reverse_bits() >> (64 - bit_width as usize);
+		}
+		val
+	}
+
+	#[inline]
+	pub unsafe fn raw_get(this: *const Self, bit_offset: usize, bit_width: u8) -> u64 {
+		debug_assert!(bit_width <= 64);
+		debug_assert!(bit_offset / 8 < core::mem::size_of::<Storage>());
+		debug_assert!(
+			(bit_offset + (bit_width as usize) + 7) / 8 <= core::mem::size_of::<Storage>(),
+		);
+		if bit_width == 0 {
+			return 0;
+		}
+		let mut val = 0u64;
+		let start_byte = bit_offset / 8;
+		let bit_shift = bit_offset % 8;
+		let bytes_needed = (bit_width as usize + bit_shift + 7) / 8;
+		let storage_ptr = unsafe { core::ptr::addr_of!((*this).storage) as *const u8 };
+		if cfg!(target_endian = "big") {
+			for i in 0..bytes_needed {
+				let byte = unsafe { *storage_ptr.add(start_byte + i) };
+				val |= (byte.reverse_bits() as u64) << (i * 8);
+			}
+		} else {
+			for i in 0..bytes_needed {
+				let byte = unsafe { *storage_ptr.add(start_byte + i) };
+				val |= (byte as u64) << (i * 8);
+			}
+		}
+		val >>= bit_shift;
+		if bit_width < 64 {
+			val &= (1u64 << bit_width) - 1;
+		}
+		if cfg!(target_endian = "big") {
+			val = val.reverse_bits() >> (64 - bit_width as usize);
+		}
+		val
+	}
+
+	#[inline]
+	pub fn set(&mut self, bit_offset: usize, bit_width: u8, val: u64) {
+		debug_assert!(bit_width <= 64);
+		debug_assert!(bit_offset / 8 < self.storage.as_ref().len());
+		debug_assert!((bit_offset + (bit_width as usize) + 7) / 8 <= self.storage.as_ref().len(),);
+		if bit_width == 0 {
+			return;
+		}
+		let mut val = val;
+		if bit_width < 64 {
+			val &= (1u64 << bit_width) - 1;
+		}
+		if cfg!(target_endian = "big") {
+			val = val.reverse_bits() >> (64 - bit_width as usize);
+		}
+		let storage = self.storage.as_mut();
+		let start_byte = bit_offset / 8;
+		let bit_shift = bit_offset % 8;
+		let bytes_needed = (bit_width as usize + bit_shift + 7) / 8;
+		val <<= bit_shift;
+		let field_mask = if bit_width as usize + bit_shift >= 64 {
+			!0u64 << bit_shift
+		} else {
+			((1u64 << bit_width) - 1) << bit_shift
+		};
+		for i in 0..bytes_needed {
+			let byte_val = (val >> (i * 8)) as u8;
+			let byte_mask = (field_mask >> (i * 8)) as u8;
+			if cfg!(target_endian = "big") {
+				let byte = storage[start_byte + i].reverse_bits();
+				let new_byte = (byte & !byte_mask) | (byte_val & byte_mask);
+				storage[start_byte + i] = new_byte.reverse_bits();
+			} else {
+				storage[start_byte + i] =
+					(storage[start_byte + i] & !byte_mask) | (byte_val & byte_mask);
+			}
+		}
+	}
+
+	#[inline]
+	pub unsafe fn raw_set(this: *mut Self, bit_offset: usize, bit_width: u8, val: u64) {
+		debug_assert!(bit_width <= 64);
+		debug_assert!(bit_offset / 8 < core::mem::size_of::<Storage>());
+		debug_assert!(
+			(bit_offset + (bit_width as usize) + 7) / 8 <= core::mem::size_of::<Storage>(),
+		);
+		if bit_width == 0 {
+			return;
+		}
+		let mut val = val;
+		if bit_width < 64 {
+			val &= (1u64 << bit_width) - 1;
+		}
+		if cfg!(target_endian = "big") {
+			val = val.reverse_bits() >> (64 - bit_width as usize);
+		}
+		let start_byte = bit_offset / 8;
+		let bit_shift = bit_offset % 8;
+		let bytes_needed = (bit_width as usize + bit_shift + 7) / 8;
+		val <<= bit_shift;
+		let field_mask = if bit_width as usize + bit_shift >= 64 {
+			!0u64 << bit_shift
+		} else {
+			((1u64 << bit_width) - 1) << bit_shift
+		};
+		let storage_ptr = unsafe { core::ptr::addr_of_mut!((*this).storage) as *mut u8 };
+		for i in 0..bytes_needed {
+			let byte_val = (val >> (i * 8)) as u8;
+			let byte_mask = (field_mask >> (i * 8)) as u8;
+			let byte_ptr = unsafe { storage_ptr.add(start_byte + i) };
+			if cfg!(target_endian = "big") {
+				let byte = unsafe { (*byte_ptr).reverse_bits() };
+				let new_byte = (byte & !byte_mask) | (byte_val & byte_mask);
+				unsafe { *byte_ptr = new_byte.reverse_bits() };
+			} else {
+				unsafe { *byte_ptr = (*byte_ptr & !byte_mask) | (byte_val & byte_mask) };
+			}
+		}
+	}
 }
 /// Const-generic methods for efficient bitfield access when offset and width
 /// are known at compile time.
 impl<const N: usize> __BindgenBitfieldUnit<[u8; N]> {
-    /// Get a field using const generics for compile-time optimization.
-    /// Uses native word size operations when the field fits in usize.
-    #[inline]
-    pub const fn get_const<const BIT_OFFSET: usize, const BIT_WIDTH: u8>(&self) -> u64 {
-        debug_assert!(BIT_WIDTH <= 64);
-        debug_assert!(BIT_OFFSET / 8 < N);
-        debug_assert!((BIT_OFFSET + (BIT_WIDTH as usize) + 7) / 8 <= N);
-        if BIT_WIDTH == 0 {
-            return 0;
-        }
-        let start_byte = BIT_OFFSET / 8;
-        let bit_shift = BIT_OFFSET % 8;
-        let bytes_needed = (BIT_WIDTH as usize + bit_shift + 7) / 8;
-        if BIT_WIDTH as usize + bit_shift <= usize::BITS as usize {
-            let mut val = 0usize;
-            if cfg!(target_endian = "big") {
-                let mut i = 0;
-                while i < bytes_needed {
-                    val
-                        |= (self.storage[start_byte + i].reverse_bits() as usize)
-                            << (i * 8);
-                    i += 1;
-                }
-            } else {
-                let mut i = 0;
-                while i < bytes_needed {
-                    val |= (self.storage[start_byte + i] as usize) << (i * 8);
-                    i += 1;
-                }
-            }
-            val >>= bit_shift;
-            if (BIT_WIDTH as u32) < usize::BITS {
-                val &= (1usize << BIT_WIDTH) - 1;
-            }
-            if cfg!(target_endian = "big") {
-                val = val.reverse_bits() >> (usize::BITS as usize - BIT_WIDTH as usize);
-            }
-            val as u64
-        } else {
-            let mut val = 0u64;
-            if cfg!(target_endian = "big") {
-                let mut i = 0;
-                while i < bytes_needed {
-                    val
-                        |= (self.storage[start_byte + i].reverse_bits() as u64)
-                            << (i * 8);
-                    i += 1;
-                }
-            } else {
-                let mut i = 0;
-                while i < bytes_needed {
-                    val |= (self.storage[start_byte + i] as u64) << (i * 8);
-                    i += 1;
-                }
-            }
-            val >>= bit_shift;
-            if BIT_WIDTH < 64 {
-                val &= (1u64 << BIT_WIDTH) - 1;
-            }
-            if cfg!(target_endian = "big") {
-                val = val.reverse_bits() >> (64 - BIT_WIDTH as usize);
-            }
-            val
-        }
-    }
-    /// Set a field using const generics for compile-time optimization.
-    /// Uses native word size operations when the field fits in usize.
-    #[inline]
-    pub fn set_const<const BIT_OFFSET: usize, const BIT_WIDTH: u8>(&mut self, val: u64) {
-        debug_assert!(BIT_WIDTH <= 64);
-        debug_assert!(BIT_OFFSET / 8 < N);
-        debug_assert!((BIT_OFFSET + (BIT_WIDTH as usize) + 7) / 8 <= N);
-        if BIT_WIDTH == 0 {
-            return;
-        }
-        let start_byte = BIT_OFFSET / 8;
-        let bit_shift = BIT_OFFSET % 8;
-        let bytes_needed = (BIT_WIDTH as usize + bit_shift + 7) / 8;
-        if BIT_WIDTH as usize + bit_shift <= usize::BITS as usize {
-            let mut val = val as usize;
-            if (BIT_WIDTH as u32) < usize::BITS {
-                val &= (1usize << BIT_WIDTH) - 1;
-            }
-            if cfg!(target_endian = "big") {
-                val = val.reverse_bits() >> (usize::BITS as usize - BIT_WIDTH as usize);
-            }
-            val <<= bit_shift;
-            let field_mask = if BIT_WIDTH as usize + bit_shift >= usize::BITS as usize {
-                !0usize << bit_shift
-            } else {
-                ((1usize << BIT_WIDTH) - 1) << bit_shift
-            };
-            let mut i = 0;
-            while i < bytes_needed {
-                let byte_val = (val >> (i * 8)) as u8;
-                let byte_mask = (field_mask >> (i * 8)) as u8;
-                if cfg!(target_endian = "big") {
-                    let byte = self.storage[start_byte + i].reverse_bits();
-                    let new_byte = (byte & !byte_mask) | (byte_val & byte_mask);
-                    self.storage[start_byte + i] = new_byte.reverse_bits();
-                } else {
-                    self.storage[start_byte + i] = (self.storage[start_byte + i]
-                        & !byte_mask) | (byte_val & byte_mask);
-                }
-                i += 1;
-            }
-        } else {
-            let mut val = val;
-            if BIT_WIDTH < 64 {
-                val &= (1u64 << BIT_WIDTH) - 1;
-            }
-            if cfg!(target_endian = "big") {
-                val = val.reverse_bits() >> (64 - BIT_WIDTH as usize);
-            }
-            val <<= bit_shift;
-            let field_mask = if BIT_WIDTH as usize + bit_shift >= 64 {
-                !0u64 << bit_shift
-            } else {
-                ((1u64 << BIT_WIDTH) - 1) << bit_shift
-            };
-            let mut i = 0;
-            while i < bytes_needed {
-                let byte_val = (val >> (i * 8)) as u8;
-                let byte_mask = (field_mask >> (i * 8)) as u8;
-                if cfg!(target_endian = "big") {
-                    let byte = self.storage[start_byte + i].reverse_bits();
-                    let new_byte = (byte & !byte_mask) | (byte_val & byte_mask);
-                    self.storage[start_byte + i] = new_byte.reverse_bits();
-                } else {
-                    self.storage[start_byte + i] = (self.storage[start_byte + i]
-                        & !byte_mask) | (byte_val & byte_mask);
-                }
-                i += 1;
-            }
-        }
-    }
-    /// Raw pointer get using const generics for compile-time optimization.
-    /// Uses native word size operations when the field fits in usize.
-    #[inline]
-    pub const unsafe fn raw_get_const<const BIT_OFFSET: usize, const BIT_WIDTH: u8>(
-        this: *const Self,
-    ) -> u64 {
-        debug_assert!(BIT_WIDTH <= 64);
-        debug_assert!(BIT_OFFSET / 8 < N);
-        debug_assert!((BIT_OFFSET + (BIT_WIDTH as usize) + 7) / 8 <= N);
-        if BIT_WIDTH == 0 {
-            return 0;
-        }
-        let start_byte = BIT_OFFSET / 8;
-        let bit_shift = BIT_OFFSET % 8;
-        let bytes_needed = (BIT_WIDTH as usize + bit_shift + 7) / 8;
-        let storage_ptr = unsafe { core::ptr::addr_of!((*this).storage) as *const u8 };
-        if BIT_WIDTH as usize + bit_shift <= usize::BITS as usize {
-            let mut val = 0usize;
-            if cfg!(target_endian = "big") {
-                let mut i = 0;
-                while i < bytes_needed {
-                    let byte = unsafe { *storage_ptr.add(start_byte + i) };
-                    val |= (byte.reverse_bits() as usize) << (i * 8);
-                    i += 1;
-                }
-            } else {
-                let mut i = 0;
-                while i < bytes_needed {
-                    let byte = unsafe { *storage_ptr.add(start_byte + i) };
-                    val |= (byte as usize) << (i * 8);
-                    i += 1;
-                }
-            }
-            val >>= bit_shift;
-            if (BIT_WIDTH as u32) < usize::BITS {
-                val &= (1usize << BIT_WIDTH) - 1;
-            }
-            if cfg!(target_endian = "big") {
-                val = val.reverse_bits() >> (usize::BITS as usize - BIT_WIDTH as usize);
-            }
-            val as u64
-        } else {
-            let mut val = 0u64;
-            if cfg!(target_endian = "big") {
-                let mut i = 0;
-                while i < bytes_needed {
-                    let byte = unsafe { *storage_ptr.add(start_byte + i) };
-                    val |= (byte.reverse_bits() as u64) << (i * 8);
-                    i += 1;
-                }
-            } else {
-                let mut i = 0;
-                while i < bytes_needed {
-                    let byte = unsafe { *storage_ptr.add(start_byte + i) };
-                    val |= (byte as u64) << (i * 8);
-                    i += 1;
-                }
-            }
-            val >>= bit_shift;
-            if BIT_WIDTH < 64 {
-                val &= (1u64 << BIT_WIDTH) - 1;
-            }
-            if cfg!(target_endian = "big") {
-                val = val.reverse_bits() >> (64 - BIT_WIDTH as usize);
-            }
-            val
-        }
-    }
-    /// Raw pointer set using const generics for compile-time optimization.
-    /// Uses native word size operations when the field fits in usize.
-    #[inline]
-    pub unsafe fn raw_set_const<const BIT_OFFSET: usize, const BIT_WIDTH: u8>(
-        this: *mut Self,
-        val: u64,
-    ) {
-        debug_assert!(BIT_WIDTH <= 64);
-        debug_assert!(BIT_OFFSET / 8 < N);
-        debug_assert!((BIT_OFFSET + (BIT_WIDTH as usize) + 7) / 8 <= N);
-        if BIT_WIDTH == 0 {
-            return;
-        }
-        let start_byte = BIT_OFFSET / 8;
-        let bit_shift = BIT_OFFSET % 8;
-        let bytes_needed = (BIT_WIDTH as usize + bit_shift + 7) / 8;
-        let storage_ptr = this.cast::<[u8; N]>().cast::<u8>();
-        if BIT_WIDTH as usize + bit_shift <= usize::BITS as usize {
-            let mut val = val as usize;
-            if (BIT_WIDTH as u32) < usize::BITS {
-                val &= (1usize << BIT_WIDTH) - 1;
-            }
-            if cfg!(target_endian = "big") {
-                val = val.reverse_bits() >> (usize::BITS as usize - BIT_WIDTH as usize);
-            }
-            val <<= bit_shift;
-            let field_mask = if BIT_WIDTH as usize + bit_shift >= usize::BITS as usize {
-                !0usize << bit_shift
-            } else {
-                ((1usize << BIT_WIDTH) - 1) << bit_shift
-            };
-            let mut i = 0;
-            while i < bytes_needed {
-                let byte_val = (val >> (i * 8)) as u8;
-                let byte_mask = (field_mask >> (i * 8)) as u8;
-                let byte_ptr = unsafe { storage_ptr.add(start_byte + i) };
-                if cfg!(target_endian = "big") {
-                    let byte = unsafe { (*byte_ptr).reverse_bits() };
-                    let new_byte = (byte & !byte_mask) | (byte_val & byte_mask);
-                    unsafe { *byte_ptr = new_byte.reverse_bits() };
-                } else {
-                    unsafe {
-                        *byte_ptr = (*byte_ptr & !byte_mask) | (byte_val & byte_mask)
-                    };
-                }
-                i += 1;
-            }
-        } else {
-            let mut val = val;
-            if BIT_WIDTH < 64 {
-                val &= (1u64 << BIT_WIDTH) - 1;
-            }
-            if cfg!(target_endian = "big") {
-                val = val.reverse_bits() >> (64 - BIT_WIDTH as usize);
-            }
-            val <<= bit_shift;
-            let field_mask = if BIT_WIDTH as usize + bit_shift >= 64 {
-                !0u64 << bit_shift
-            } else {
-                ((1u64 << BIT_WIDTH) - 1) << bit_shift
-            };
-            let mut i = 0;
-            while i < bytes_needed {
-                let byte_val = (val >> (i * 8)) as u8;
-                let byte_mask = (field_mask >> (i * 8)) as u8;
-                let byte_ptr = unsafe { storage_ptr.add(start_byte + i) };
-                if cfg!(target_endian = "big") {
-                    let byte = unsafe { (*byte_ptr).reverse_bits() };
-                    let new_byte = (byte & !byte_mask) | (byte_val & byte_mask);
-                    unsafe { *byte_ptr = new_byte.reverse_bits() };
-                } else {
-                    unsafe {
-                        *byte_ptr = (*byte_ptr & !byte_mask) | (byte_val & byte_mask)
-                    };
-                }
-                i += 1;
-            }
-        }
-    }
+	/// Get a field using const generics for compile-time optimization.
+	/// Uses native word size operations when the field fits in usize.
+	#[inline]
+	pub const fn get_const<const BIT_OFFSET: usize, const BIT_WIDTH: u8>(&self) -> u64 {
+		debug_assert!(BIT_WIDTH <= 64);
+		debug_assert!(BIT_OFFSET / 8 < N);
+		debug_assert!((BIT_OFFSET + (BIT_WIDTH as usize) + 7) / 8 <= N);
+		if BIT_WIDTH == 0 {
+			return 0;
+		}
+		let start_byte = BIT_OFFSET / 8;
+		let bit_shift = BIT_OFFSET % 8;
+		let bytes_needed = (BIT_WIDTH as usize + bit_shift + 7) / 8;
+		if BIT_WIDTH as usize + bit_shift <= usize::BITS as usize {
+			let mut val = 0usize;
+			if cfg!(target_endian = "big") {
+				let mut i = 0;
+				while i < bytes_needed {
+					val |= (self.storage[start_byte + i].reverse_bits() as usize) << (i * 8);
+					i += 1;
+				}
+			} else {
+				let mut i = 0;
+				while i < bytes_needed {
+					val |= (self.storage[start_byte + i] as usize) << (i * 8);
+					i += 1;
+				}
+			}
+			val >>= bit_shift;
+			if (BIT_WIDTH as u32) < usize::BITS {
+				val &= (1usize << BIT_WIDTH) - 1;
+			}
+			if cfg!(target_endian = "big") {
+				val = val.reverse_bits() >> (usize::BITS as usize - BIT_WIDTH as usize);
+			}
+			val as u64
+		} else {
+			let mut val = 0u64;
+			if cfg!(target_endian = "big") {
+				let mut i = 0;
+				while i < bytes_needed {
+					val |= (self.storage[start_byte + i].reverse_bits() as u64) << (i * 8);
+					i += 1;
+				}
+			} else {
+				let mut i = 0;
+				while i < bytes_needed {
+					val |= (self.storage[start_byte + i] as u64) << (i * 8);
+					i += 1;
+				}
+			}
+			val >>= bit_shift;
+			if BIT_WIDTH < 64 {
+				val &= (1u64 << BIT_WIDTH) - 1;
+			}
+			if cfg!(target_endian = "big") {
+				val = val.reverse_bits() >> (64 - BIT_WIDTH as usize);
+			}
+			val
+		}
+	}
+
+	/// Set a field using const generics for compile-time optimization.
+	/// Uses native word size operations when the field fits in usize.
+	#[inline]
+	pub fn set_const<const BIT_OFFSET: usize, const BIT_WIDTH: u8>(&mut self, val: u64) {
+		debug_assert!(BIT_WIDTH <= 64);
+		debug_assert!(BIT_OFFSET / 8 < N);
+		debug_assert!((BIT_OFFSET + (BIT_WIDTH as usize) + 7) / 8 <= N);
+		if BIT_WIDTH == 0 {
+			return;
+		}
+		let start_byte = BIT_OFFSET / 8;
+		let bit_shift = BIT_OFFSET % 8;
+		let bytes_needed = (BIT_WIDTH as usize + bit_shift + 7) / 8;
+		if BIT_WIDTH as usize + bit_shift <= usize::BITS as usize {
+			let mut val = val as usize;
+			if (BIT_WIDTH as u32) < usize::BITS {
+				val &= (1usize << BIT_WIDTH) - 1;
+			}
+			if cfg!(target_endian = "big") {
+				val = val.reverse_bits() >> (usize::BITS as usize - BIT_WIDTH as usize);
+			}
+			val <<= bit_shift;
+			let field_mask = if BIT_WIDTH as usize + bit_shift >= usize::BITS as usize {
+				!0usize << bit_shift
+			} else {
+				((1usize << BIT_WIDTH) - 1) << bit_shift
+			};
+			let mut i = 0;
+			while i < bytes_needed {
+				let byte_val = (val >> (i * 8)) as u8;
+				let byte_mask = (field_mask >> (i * 8)) as u8;
+				if cfg!(target_endian = "big") {
+					let byte = self.storage[start_byte + i].reverse_bits();
+					let new_byte = (byte & !byte_mask) | (byte_val & byte_mask);
+					self.storage[start_byte + i] = new_byte.reverse_bits();
+				} else {
+					self.storage[start_byte + i] =
+						(self.storage[start_byte + i] & !byte_mask) | (byte_val & byte_mask);
+				}
+				i += 1;
+			}
+		} else {
+			let mut val = val;
+			if BIT_WIDTH < 64 {
+				val &= (1u64 << BIT_WIDTH) - 1;
+			}
+			if cfg!(target_endian = "big") {
+				val = val.reverse_bits() >> (64 - BIT_WIDTH as usize);
+			}
+			val <<= bit_shift;
+			let field_mask = if BIT_WIDTH as usize + bit_shift >= 64 {
+				!0u64 << bit_shift
+			} else {
+				((1u64 << BIT_WIDTH) - 1) << bit_shift
+			};
+			let mut i = 0;
+			while i < bytes_needed {
+				let byte_val = (val >> (i * 8)) as u8;
+				let byte_mask = (field_mask >> (i * 8)) as u8;
+				if cfg!(target_endian = "big") {
+					let byte = self.storage[start_byte + i].reverse_bits();
+					let new_byte = (byte & !byte_mask) | (byte_val & byte_mask);
+					self.storage[start_byte + i] = new_byte.reverse_bits();
+				} else {
+					self.storage[start_byte + i] =
+						(self.storage[start_byte + i] & !byte_mask) | (byte_val & byte_mask);
+				}
+				i += 1;
+			}
+		}
+	}
+
+	/// Raw pointer get using const generics for compile-time optimization.
+	/// Uses native word size operations when the field fits in usize.
+	#[inline]
+	pub const unsafe fn raw_get_const<const BIT_OFFSET: usize, const BIT_WIDTH: u8>(
+		this: *const Self,
+	) -> u64 {
+		debug_assert!(BIT_WIDTH <= 64);
+		debug_assert!(BIT_OFFSET / 8 < N);
+		debug_assert!((BIT_OFFSET + (BIT_WIDTH as usize) + 7) / 8 <= N);
+		if BIT_WIDTH == 0 {
+			return 0;
+		}
+		let start_byte = BIT_OFFSET / 8;
+		let bit_shift = BIT_OFFSET % 8;
+		let bytes_needed = (BIT_WIDTH as usize + bit_shift + 7) / 8;
+		let storage_ptr = unsafe { core::ptr::addr_of!((*this).storage) as *const u8 };
+		if BIT_WIDTH as usize + bit_shift <= usize::BITS as usize {
+			let mut val = 0usize;
+			if cfg!(target_endian = "big") {
+				let mut i = 0;
+				while i < bytes_needed {
+					let byte = unsafe { *storage_ptr.add(start_byte + i) };
+					val |= (byte.reverse_bits() as usize) << (i * 8);
+					i += 1;
+				}
+			} else {
+				let mut i = 0;
+				while i < bytes_needed {
+					let byte = unsafe { *storage_ptr.add(start_byte + i) };
+					val |= (byte as usize) << (i * 8);
+					i += 1;
+				}
+			}
+			val >>= bit_shift;
+			if (BIT_WIDTH as u32) < usize::BITS {
+				val &= (1usize << BIT_WIDTH) - 1;
+			}
+			if cfg!(target_endian = "big") {
+				val = val.reverse_bits() >> (usize::BITS as usize - BIT_WIDTH as usize);
+			}
+			val as u64
+		} else {
+			let mut val = 0u64;
+			if cfg!(target_endian = "big") {
+				let mut i = 0;
+				while i < bytes_needed {
+					let byte = unsafe { *storage_ptr.add(start_byte + i) };
+					val |= (byte.reverse_bits() as u64) << (i * 8);
+					i += 1;
+				}
+			} else {
+				let mut i = 0;
+				while i < bytes_needed {
+					let byte = unsafe { *storage_ptr.add(start_byte + i) };
+					val |= (byte as u64) << (i * 8);
+					i += 1;
+				}
+			}
+			val >>= bit_shift;
+			if BIT_WIDTH < 64 {
+				val &= (1u64 << BIT_WIDTH) - 1;
+			}
+			if cfg!(target_endian = "big") {
+				val = val.reverse_bits() >> (64 - BIT_WIDTH as usize);
+			}
+			val
+		}
+	}
+
+	/// Raw pointer set using const generics for compile-time optimization.
+	/// Uses native word size operations when the field fits in usize.
+	#[inline]
+	pub unsafe fn raw_set_const<const BIT_OFFSET: usize, const BIT_WIDTH: u8>(
+		this: *mut Self,
+		val: u64,
+	) {
+		debug_assert!(BIT_WIDTH <= 64);
+		debug_assert!(BIT_OFFSET / 8 < N);
+		debug_assert!((BIT_OFFSET + (BIT_WIDTH as usize) + 7) / 8 <= N);
+		if BIT_WIDTH == 0 {
+			return;
+		}
+		let start_byte = BIT_OFFSET / 8;
+		let bit_shift = BIT_OFFSET % 8;
+		let bytes_needed = (BIT_WIDTH as usize + bit_shift + 7) / 8;
+		let storage_ptr = this.cast::<[u8; N]>().cast::<u8>();
+		if BIT_WIDTH as usize + bit_shift <= usize::BITS as usize {
+			let mut val = val as usize;
+			if (BIT_WIDTH as u32) < usize::BITS {
+				val &= (1usize << BIT_WIDTH) - 1;
+			}
+			if cfg!(target_endian = "big") {
+				val = val.reverse_bits() >> (usize::BITS as usize - BIT_WIDTH as usize);
+			}
+			val <<= bit_shift;
+			let field_mask = if BIT_WIDTH as usize + bit_shift >= usize::BITS as usize {
+				!0usize << bit_shift
+			} else {
+				((1usize << BIT_WIDTH) - 1) << bit_shift
+			};
+			let mut i = 0;
+			while i < bytes_needed {
+				let byte_val = (val >> (i * 8)) as u8;
+				let byte_mask = (field_mask >> (i * 8)) as u8;
+				let byte_ptr = unsafe { storage_ptr.add(start_byte + i) };
+				if cfg!(target_endian = "big") {
+					let byte = unsafe { (*byte_ptr).reverse_bits() };
+					let new_byte = (byte & !byte_mask) | (byte_val & byte_mask);
+					unsafe { *byte_ptr = new_byte.reverse_bits() };
+				} else {
+					unsafe { *byte_ptr = (*byte_ptr & !byte_mask) | (byte_val & byte_mask) };
+				}
+				i += 1;
+			}
+		} else {
+			let mut val = val;
+			if BIT_WIDTH < 64 {
+				val &= (1u64 << BIT_WIDTH) - 1;
+			}
+			if cfg!(target_endian = "big") {
+				val = val.reverse_bits() >> (64 - BIT_WIDTH as usize);
+			}
+			val <<= bit_shift;
+			let field_mask = if BIT_WIDTH as usize + bit_shift >= 64 {
+				!0u64 << bit_shift
+			} else {
+				((1u64 << BIT_WIDTH) - 1) << bit_shift
+			};
+			let mut i = 0;
+			while i < bytes_needed {
+				let byte_val = (val >> (i * 8)) as u8;
+				let byte_mask = (field_mask >> (i * 8)) as u8;
+				let byte_ptr = unsafe { storage_ptr.add(start_byte + i) };
+				if cfg!(target_endian = "big") {
+					let byte = unsafe { (*byte_ptr).reverse_bits() };
+					let new_byte = (byte & !byte_mask) | (byte_val & byte_mask);
+					unsafe { *byte_ptr = new_byte.reverse_bits() };
+				} else {
+					unsafe { *byte_ptr = (*byte_ptr & !byte_mask) | (byte_val & byte_mask) };
+				}
+				i += 1;
+			}
+		}
+	}
 }
 #[repr(C)]
 #[derive(Default)]
 pub struct __IncompleteArrayField<T>(::core::marker::PhantomData<T>, [T; 0]);
 impl<T> __IncompleteArrayField<T> {
-    #[inline]
-    pub const fn new() -> Self {
-        __IncompleteArrayField(::core::marker::PhantomData, [])
-    }
-    #[inline]
-    pub fn as_ptr(&self) -> *const T {
-        self as *const _ as *const T
-    }
-    #[inline]
-    pub fn as_mut_ptr(&mut self) -> *mut T {
-        self as *mut _ as *mut T
-    }
-    #[inline]
-    pub unsafe fn as_slice(&self, len: usize) -> &[T] {
-        ::core::slice::from_raw_parts(self.as_ptr(), len)
-    }
-    #[inline]
-    pub unsafe fn as_mut_slice(&mut self, len: usize) -> &mut [T] {
-        ::core::slice::from_raw_parts_mut(self.as_mut_ptr(), len)
-    }
+	#[inline]
+	pub const fn new() -> Self {
+		__IncompleteArrayField(::core::marker::PhantomData, [])
+	}
+
+	#[inline]
+	pub fn as_ptr(&self) -> *const T {
+		self as *const _ as *const T
+	}
+
+	#[inline]
+	pub fn as_mut_ptr(&mut self) -> *mut T {
+		self as *mut _ as *mut T
+	}
+
+	#[inline]
+	pub unsafe fn as_slice(&self, len: usize) -> &[T] {
+		::core::slice::from_raw_parts(self.as_ptr(), len)
+	}
+
+	#[inline]
+	pub unsafe fn as_mut_slice(&mut self, len: usize) -> &mut [T] {
+		::core::slice::from_raw_parts_mut(self.as_mut_ptr(), len)
+	}
 }
 impl<T> ::core::fmt::Debug for __IncompleteArrayField<T> {
-    fn fmt(&self, fmt: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
-        fmt.write_str("__IncompleteArrayField")
-    }
+	fn fmt(&self, fmt: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+		fmt.write_str("__IncompleteArrayField")
+	}
 }
 #[repr(C)]
 pub struct __BindgenUnionField<T>(::core::marker::PhantomData<T>);
 impl<T> __BindgenUnionField<T> {
-    #[inline]
-    pub const fn new() -> Self {
-        __BindgenUnionField(::core::marker::PhantomData)
-    }
-    #[inline]
-    pub const unsafe fn as_ref(&self) -> &T {
-        unsafe { ::core::mem::transmute(self) }
-    }
-    #[inline]
-    pub const unsafe fn as_mut(&mut self) -> &mut T {
-        unsafe { ::core::mem::transmute(self) }
-    }
+	#[inline]
+	pub const fn new() -> Self {
+		__BindgenUnionField(::core::marker::PhantomData)
+	}
+
+	#[inline]
+	pub const unsafe fn as_ref(&self) -> &T {
+		unsafe { ::core::mem::transmute(self) }
+	}
+
+	#[inline]
+	pub const unsafe fn as_mut(&mut self) -> &mut T {
+		unsafe { ::core::mem::transmute(self) }
+	}
 }
 impl<T> ::core::default::Default for __BindgenUnionField<T> {
-    #[inline]
-    fn default() -> Self {
-        Self::new()
-    }
+	#[inline]
+	fn default() -> Self {
+		Self::new()
+	}
 }
 impl<T> ::core::clone::Clone for __BindgenUnionField<T> {
-    #[inline]
-    fn clone(&self) -> Self {
-        *self
-    }
+	#[inline]
+	fn clone(&self) -> Self {
+		*self
+	}
 }
 impl<T> ::core::marker::Copy for __BindgenUnionField<T> {}
 impl<T> ::core::fmt::Debug for __BindgenUnionField<T> {
-    fn fmt(&self, fmt: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
-        fmt.write_str("__BindgenUnionField")
-    }
+	fn fmt(&self, fmt: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+		fmt.write_str("__BindgenUnionField")
+	}
 }
 impl<T> ::core::hash::Hash for __BindgenUnionField<T> {
-    fn hash<H: ::core::hash::Hasher>(&self, _state: &mut H) {}
+	fn hash<H: ::core::hash::Hasher>(&self, _state: &mut H) {}
 }
 impl<T> ::core::cmp::PartialEq for __BindgenUnionField<T> {
-    fn eq(&self, _other: &__BindgenUnionField<T>) -> bool {
-        true
-    }
+	fn eq(&self, _other: &__BindgenUnionField<T>) -> bool {
+		true
+	}
 }
 impl<T> ::core::cmp::Eq for __BindgenUnionField<T> {}
-pub const FONT_KEY_FONT_FALLBACK_INTERNAL: &::core::ffi::CStr = c"RESOURCE_ID_FONT_FALLBACK_INTERNAL";
+pub const FONT_KEY_FONT_FALLBACK_INTERNAL: &::core::ffi::CStr =
+	c"RESOURCE_ID_FONT_FALLBACK_INTERNAL";
 pub const FONT_KEY_GOTHIC_18_BOLD: &::core::ffi::CStr = c"RESOURCE_ID_GOTHIC_18_BOLD";
 pub const FONT_KEY_GOTHIC_24: &::core::ffi::CStr = c"RESOURCE_ID_GOTHIC_24";
 pub const FONT_KEY_GOTHIC_09: &::core::ffi::CStr = c"RESOURCE_ID_GOTHIC_09";
@@ -593,22 +596,28 @@ pub const FONT_KEY_GOTHIC_28_BOLD: &::core::ffi::CStr = c"RESOURCE_ID_GOTHIC_28_
 pub const FONT_KEY_BITHAM_30_BLACK: &::core::ffi::CStr = c"RESOURCE_ID_BITHAM_30_BLACK";
 pub const FONT_KEY_BITHAM_42_BOLD: &::core::ffi::CStr = c"RESOURCE_ID_BITHAM_42_BOLD";
 pub const FONT_KEY_BITHAM_42_LIGHT: &::core::ffi::CStr = c"RESOURCE_ID_BITHAM_42_LIGHT";
-pub const FONT_KEY_BITHAM_42_MEDIUM_NUMBERS: &::core::ffi::CStr = c"RESOURCE_ID_BITHAM_42_MEDIUM_NUMBERS";
-pub const FONT_KEY_BITHAM_34_MEDIUM_NUMBERS: &::core::ffi::CStr = c"RESOURCE_ID_BITHAM_34_MEDIUM_NUMBERS";
-pub const FONT_KEY_BITHAM_34_LIGHT_SUBSET: &::core::ffi::CStr = c"RESOURCE_ID_BITHAM_34_LIGHT_SUBSET";
-pub const FONT_KEY_BITHAM_18_LIGHT_SUBSET: &::core::ffi::CStr = c"RESOURCE_ID_BITHAM_18_LIGHT_SUBSET";
+pub const FONT_KEY_BITHAM_42_MEDIUM_NUMBERS: &::core::ffi::CStr =
+	c"RESOURCE_ID_BITHAM_42_MEDIUM_NUMBERS";
+pub const FONT_KEY_BITHAM_34_MEDIUM_NUMBERS: &::core::ffi::CStr =
+	c"RESOURCE_ID_BITHAM_34_MEDIUM_NUMBERS";
+pub const FONT_KEY_BITHAM_34_LIGHT_SUBSET: &::core::ffi::CStr =
+	c"RESOURCE_ID_BITHAM_34_LIGHT_SUBSET";
+pub const FONT_KEY_BITHAM_18_LIGHT_SUBSET: &::core::ffi::CStr =
+	c"RESOURCE_ID_BITHAM_18_LIGHT_SUBSET";
 pub const FONT_KEY_ROBOTO_CONDENSED_21: &::core::ffi::CStr = c"RESOURCE_ID_ROBOTO_CONDENSED_21";
 pub const FONT_KEY_ROBOTO_BOLD_SUBSET_49: &::core::ffi::CStr = c"RESOURCE_ID_ROBOTO_BOLD_SUBSET_49";
 pub const FONT_KEY_DROID_SERIF_28_BOLD: &::core::ffi::CStr = c"RESOURCE_ID_DROID_SERIF_28_BOLD";
 pub const FONT_KEY_LECO_20_BOLD_NUMBERS: &::core::ffi::CStr = c"RESOURCE_ID_LECO_20_BOLD_NUMBERS";
-pub const FONT_KEY_LECO_26_BOLD_NUMBERS_AM_PM: &::core::ffi::CStr = c"RESOURCE_ID_LECO_26_BOLD_NUMBERS_AM_PM";
+pub const FONT_KEY_LECO_26_BOLD_NUMBERS_AM_PM: &::core::ffi::CStr =
+	c"RESOURCE_ID_LECO_26_BOLD_NUMBERS_AM_PM";
 pub const FONT_KEY_LECO_32_BOLD_NUMBERS: &::core::ffi::CStr = c"RESOURCE_ID_LECO_32_BOLD_NUMBERS";
 pub const FONT_KEY_LECO_36_BOLD_NUMBERS: &::core::ffi::CStr = c"RESOURCE_ID_LECO_36_BOLD_NUMBERS";
 pub const FONT_KEY_LECO_38_BOLD_NUMBERS: &::core::ffi::CStr = c"RESOURCE_ID_LECO_38_BOLD_NUMBERS";
 pub const FONT_KEY_LECO_42_NUMBERS: &::core::ffi::CStr = c"RESOURCE_ID_LECO_42_NUMBERS";
 pub const FONT_KEY_LECO_28_LIGHT_NUMBERS: &::core::ffi::CStr = c"RESOURCE_ID_LECO_28_LIGHT_NUMBERS";
 pub const FONT_KEY_LECO_60_NUMBERS_AM_PM: &::core::ffi::CStr = c"RESOURCE_ID_LECO_60_NUMBERS_AM_PM";
-pub const FONT_KEY_LECO_60_BOLD_NUMBERS_AM_PM: &::core::ffi::CStr = c"RESOURCE_ID_LECO_60_BOLD_NUMBERS_AM_PM";
+pub const FONT_KEY_LECO_60_BOLD_NUMBERS_AM_PM: &::core::ffi::CStr =
+	c"RESOURCE_ID_LECO_60_BOLD_NUMBERS_AM_PM";
 pub const FONT_KEY_FONT_FALLBACK: &::core::ffi::CStr = c"RESOURCE_ID_FONT_FALLBACK";
 pub const __bool_true_false_are_defined: u32 = 1;
 pub const true_: u32 = 1;
@@ -665,10 +674,10 @@ gneiss: Vtable Slot 161, Offset 644*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.malloc")]
 pub unsafe extern "C" fn malloc(arg1: ::core::ffi::c_uint) -> *mut ::core::ffi::c_void {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =644", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =644", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /** free
   -> Added in 0
@@ -676,10 +685,10 @@ gneiss: Vtable Slot 99, Offset 396*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.free")]
 pub unsafe extern "C" fn free(arg1: *mut ::core::ffi::c_void) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =396", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =396", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /** realloc
   -> Added in 12
@@ -687,13 +696,13 @@ gneiss: Vtable Slot 323, Offset 1292*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.realloc")]
 pub unsafe extern "C" fn realloc(
-    arg1: *mut ::core::ffi::c_void,
-    arg2: ::core::ffi::c_uint,
+	arg1: *mut ::core::ffi::c_void,
+	arg2: ::core::ffi::c_uint,
 ) -> *mut ::core::ffi::c_void {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1292", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1292", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 pub type time_t = ::core::ffi::c_long;
 ///! Back button
@@ -719,10 +728,10 @@ gneiss: Vtable Slot 360, Offset 1440*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.i18n_get_system_locale")]
 pub unsafe extern "C" fn i18n_get_system_locale() -> *const ::core::ffi::c_char {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1440", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1440", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 ///!< Unknown model
 pub const WatchInfoModel_WATCH_INFO_MODEL_UNKNOWN: WatchInfoModel = 0;
@@ -846,28 +855,23 @@ pub type WatchInfoColor = ::core::ffi::c_uchar;
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct WatchInfoVersion {
-    ///!< Major version number
-    pub major: u8,
-    ///!< Minor version number
-    pub minor: u8,
-    ///!< Patch version number
-    pub patch: u8,
+	///!< Major version number
+	pub major: u8,
+	///!< Minor version number
+	pub minor: u8,
+	///!< Patch version number
+	pub patch: u8,
 }
 #[allow(clippy::unnecessary_operation, clippy::identity_op)]
 const _: () = {
-    ["Size of WatchInfoVersion"][::core::mem::size_of::<WatchInfoVersion>() - 3usize];
-    [
-        "Alignment of WatchInfoVersion",
-    ][::core::mem::align_of::<WatchInfoVersion>() - 1usize];
-    [
-        "Offset of field: WatchInfoVersion::major",
-    ][::core::mem::offset_of!(WatchInfoVersion, major) - 0usize];
-    [
-        "Offset of field: WatchInfoVersion::minor",
-    ][::core::mem::offset_of!(WatchInfoVersion, minor) - 1usize];
-    [
-        "Offset of field: WatchInfoVersion::patch",
-    ][::core::mem::offset_of!(WatchInfoVersion, patch) - 2usize];
+	["Size of WatchInfoVersion"][::core::mem::size_of::<WatchInfoVersion>() - 3usize];
+	["Alignment of WatchInfoVersion"][::core::mem::align_of::<WatchInfoVersion>() - 1usize];
+	["Offset of field: WatchInfoVersion::major"]
+		[::core::mem::offset_of!(WatchInfoVersion, major) - 0usize];
+	["Offset of field: WatchInfoVersion::minor"]
+		[::core::mem::offset_of!(WatchInfoVersion, minor) - 1usize];
+	["Offset of field: WatchInfoVersion::patch"]
+		[::core::mem::offset_of!(WatchInfoVersion, patch) - 2usize];
 };
 /**! Provides the model of the watch.
 ! @return {@link WatchInfoModel} representing the model of the watch.*/
@@ -877,10 +881,10 @@ gneiss: Vtable Slot 347, Offset 1388*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.watch_info_get_model")]
 pub unsafe extern "C" fn watch_info_get_model() -> WatchInfoModel {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1388", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1388", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Provides the version of the firmware running on the watch.
 ! @return {@link WatchInfoVersion} representing the version of the firmware running on the watch.*/
@@ -890,10 +894,10 @@ gneiss: Vtable Slot 346, Offset 1384*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.watch_info_get_firmware_version")]
 pub unsafe extern "C" fn watch_info_get_firmware_version() -> WatchInfoVersion {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1384", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1384", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /** watch_info_get_color
   -> Added in 22
@@ -901,10 +905,10 @@ gneiss: Vtable Slot 345, Offset 1380*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.watch_info_get_color")]
 pub unsafe extern "C" fn watch_info_get_color() -> WatchInfoColor {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1380", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1380", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Look-up the sine of the given angle from a pre-computed table.
 ! @param angle The angle for which to compute the cosine.
@@ -915,10 +919,10 @@ gneiss: Vtable Slot 238, Offset 952*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.sin_lookup")]
 pub unsafe extern "C" fn sin_lookup(angle: i32) -> i32 {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =952", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =952", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Look-up the cosine of the given angle from a pre-computed table.
 ! This is equivalent to calling `sin_lookup(angle + TRIG_MAX_ANGLE / 4)`.
@@ -930,10 +934,10 @@ gneiss: Vtable Slot 70, Offset 280*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.cos_lookup")]
 pub unsafe extern "C" fn cos_lookup(angle: i32) -> i32 {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =280", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =280", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Look-up the arctangent of a given x, y pair
 ! The angle value is scaled linearly, such that a value of 0x10000 corresponds to 360 degrees or 2 PI radians.*/
@@ -943,10 +947,10 @@ gneiss: Vtable Slot 50, Offset 200*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.atan2_lookup")]
 pub unsafe extern "C" fn atan2_lookup(y: i16, x: i16) -> i32 {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =200", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =200", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 ///!< Today
 pub const WeekDay_TODAY: WeekDay = 0;
@@ -977,14 +981,11 @@ pub type WeekDay = ::core::ffi::c_uchar;
 gneiss: Vtable Slot 68, Offset 272*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.clock_copy_time_string")]
-pub unsafe extern "C" fn clock_copy_time_string(
-    buffer: *mut ::core::ffi::c_char,
-    size: u8,
-) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =272", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+pub unsafe extern "C" fn clock_copy_time_string(buffer: *mut ::core::ffi::c_char, size: u8) {
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =272", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Gets the user's 12/24h clock style preference.
 ! @return `true` if the user prefers 24h-style time display or `false` if the
@@ -995,10 +996,10 @@ gneiss: Vtable Slot 69, Offset 276*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.clock_is_24h_style")]
 pub unsafe extern "C" fn clock_is_24h_style() -> bool {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =276", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =276", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Converts a (day, hour, minute) specification to a UTC timestamp occurring in the future
 ! Always returns a timestamp for the next occurring instance,
@@ -1013,14 +1014,14 @@ gneiss: Vtable Slot 351, Offset 1404*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.clock_to_timestamp")]
 pub unsafe extern "C" fn clock_to_timestamp(
-    day: WeekDay,
-    hour: ::core::ffi::c_int,
-    minute: ::core::ffi::c_int,
+	day: WeekDay,
+	hour: ::core::ffi::c_int,
+	minute: ::core::ffi::c_int,
 ) -> time_t {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1404", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1404", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Checks if timezone is currently set, otherwise gmtime == localtime.
 ! @return `true` if timezone has been set, false otherwise*/
@@ -1030,10 +1031,10 @@ gneiss: Vtable Slot 359, Offset 1436*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.clock_is_timezone_set")]
 pub unsafe extern "C" fn clock_is_timezone_set() -> bool {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1436", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1436", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! If timezone is set, copies the current timezone long name (e.g. America/Chicago)
 ! to user-provided buffer.
@@ -1046,13 +1047,13 @@ gneiss: Vtable Slot 378, Offset 1512*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.clock_get_timezone")]
 pub unsafe extern "C" fn clock_get_timezone(
-    timezone: *mut ::core::ffi::c_char,
-    buffer_size: usize,
+	timezone: *mut ::core::ffi::c_char,
+	buffer_size: usize,
 ) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1512", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1512", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 pub const PlatformType_PlatformTypeAplite: PlatformType = 0;
 pub const PlatformType_PlatformTypeBasalt: PlatformType = 1;
@@ -1074,10 +1075,10 @@ gneiss: Vtable Slot 657, Offset 2628*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.alarm_service_peek_next")]
 pub unsafe extern "C" fn alarm_service_peek_next(timestamp_out: *mut time_t) -> bool {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =2628", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =2628", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! @addtogroup ConnectionService
 ! \brief Determine what the Pebble watch is connected to
@@ -1105,35 +1106,25 @@ pub unsafe extern "C" fn alarm_service_peek_next(timestamp_out: *mut time_t) -> 
 ! directly to the watch)
 !
 ! @{*/
-pub type ConnectionHandler = ::core::option::Option<
-    unsafe extern "C" fn(connected: bool),
->;
+pub type ConnectionHandler = ::core::option::Option<unsafe extern "C" fn(connected: bool)>;
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct ConnectionHandlers {
-    /**! callback to be executed when the connection state between the watch and
-! the phone app has changed. Note, if the phone App is connected, PebbleKit JS apps
-! will also be working correctly*/
-    pub pebble_app_connection_handler: ConnectionHandler,
-    ///! ID for callback to be executed on PebbleKit connection event
-    pub pebblekit_connection_handler: ConnectionHandler,
+	/**! callback to be executed when the connection state between the watch and
+	! the phone app has changed. Note, if the phone App is connected, PebbleKit JS apps
+	! will also be working correctly*/
+	pub pebble_app_connection_handler: ConnectionHandler,
+	///! ID for callback to be executed on PebbleKit connection event
+	pub pebblekit_connection_handler:  ConnectionHandler,
 }
 #[allow(clippy::unnecessary_operation, clippy::identity_op)]
 const _: () = {
-    [
-        "Size of ConnectionHandlers",
-    ][::core::mem::size_of::<ConnectionHandlers>() - 8usize];
-    [
-        "Alignment of ConnectionHandlers",
-    ][::core::mem::align_of::<ConnectionHandlers>() - 4usize];
-    [
-        "Offset of field: ConnectionHandlers::pebble_app_connection_handler",
-    ][::core::mem::offset_of!(ConnectionHandlers, pebble_app_connection_handler)
-        - 0usize];
-    [
-        "Offset of field: ConnectionHandlers::pebblekit_connection_handler",
-    ][::core::mem::offset_of!(ConnectionHandlers, pebblekit_connection_handler)
-        - 4usize];
+	["Size of ConnectionHandlers"][::core::mem::size_of::<ConnectionHandlers>() - 8usize];
+	["Alignment of ConnectionHandlers"][::core::mem::align_of::<ConnectionHandlers>() - 4usize];
+	["Offset of field: ConnectionHandlers::pebble_app_connection_handler"]
+		[::core::mem::offset_of!(ConnectionHandlers, pebble_app_connection_handler) - 0usize];
+	["Offset of field: ConnectionHandlers::pebblekit_connection_handler"]
+		[::core::mem::offset_of!(ConnectionHandlers, pebblekit_connection_handler) - 4usize];
 };
 /**! Query the bluetooth connection service for the current Pebble app connection status
 ! @return true if the Pebble app is connected, false otherwise*/
@@ -1143,10 +1134,10 @@ gneiss: Vtable Slot 566, Offset 2264*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.connection_service_peek_pebble_app_connection")]
 pub unsafe extern "C" fn connection_service_peek_pebble_app_connection() -> bool {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =2264", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =2264", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Query the bluetooth connection service for the current PebbleKit connection status
 ! @return true if a PebbleKit companion app is connected, false otherwise*/
@@ -1156,10 +1147,10 @@ gneiss: Vtable Slot 567, Offset 2268*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.connection_service_peek_pebblekit_connection")]
 pub unsafe extern "C" fn connection_service_peek_pebblekit_connection() -> bool {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =2268", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =2268", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Subscribe to the connection event service. Once subscribed, the appropriate
 ! handler gets called based on the type of connection event and user provided
@@ -1172,13 +1163,11 @@ pub unsafe extern "C" fn connection_service_peek_pebblekit_connection() -> bool 
 gneiss: Vtable Slot 568, Offset 2272*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.connection_service_subscribe")]
-pub unsafe extern "C" fn connection_service_subscribe(
-    conn_handlers: ConnectionHandlers,
-) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =2272", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+pub unsafe extern "C" fn connection_service_subscribe(conn_handlers: ConnectionHandlers) {
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =2272", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Unsubscribe from the bluetooth event service. Once unsubscribed, the previously registered
 ! handler will no longer be called.*/
@@ -1188,10 +1177,10 @@ gneiss: Vtable Slot 569, Offset 2276*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.connection_service_unsubscribe")]
 pub unsafe extern "C" fn connection_service_unsubscribe() {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =2276", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =2276", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! @deprecated Backwards compatibility typedef for ConnectionHandler. New code
 ! should use ConnectionHandler directly.  This will be removed in a future
@@ -1207,10 +1196,10 @@ gneiss: Vtable Slot 63, Offset 252*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.bluetooth_connection_service_peek")]
 pub unsafe extern "C" fn bluetooth_connection_service_peek() -> bool {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =252", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =252", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! @deprecated Backward compatibility function for
 ! connection_service_subscribe.  New code should use
@@ -1221,13 +1210,11 @@ pub unsafe extern "C" fn bluetooth_connection_service_peek() -> bool {
 gneiss: Vtable Slot 64, Offset 256*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.bluetooth_connection_service_subscribe")]
-pub unsafe extern "C" fn bluetooth_connection_service_subscribe(
-    handler: ConnectionHandler,
-) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =256", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+pub unsafe extern "C" fn bluetooth_connection_service_subscribe(handler: ConnectionHandler) {
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =256", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! @deprecated Backward compatibility function for
 ! connection_service_unsubscribe.  New code should use
@@ -1239,10 +1226,10 @@ gneiss: Vtable Slot 65, Offset 260*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.bluetooth_connection_service_unsubscribe")]
 pub unsafe extern "C" fn bluetooth_connection_service_unsubscribe() {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =260", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =260", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Callback type for focus events
 ! @param in_focus True if the app is gaining focus, false otherwise.*/
@@ -1262,32 +1249,28 @@ pub type AppFocusHandler = ::core::option::Option<unsafe extern "C" fn(in_focus:
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct AppFocusHandlers {
-    /**! Handler which will be called right before an app will lose or gain focus.
-! @note This will be called with in_focus set to true when a window which is covering the app is
-! about to close and return focus to the app.
-! @note This will be called with in_focus set to false when a window which will cover the app is
-! about to open, causing the app to lose focus.*/
-    pub will_focus: AppFocusHandler,
-    /**! Handler which will be called when an animation finished which has put the app into focus or
-! taken the app out of focus.
-! @note This will be called with in_focus set to true when a window which was covering the app
-! has closed and the app has gained focus.
-! @note This will be called with in_focus set to false when a window has opened which is now
-! covering the app, causing the app to lose focus.*/
-    pub did_focus: AppFocusHandler,
+	/**! Handler which will be called right before an app will lose or gain focus.
+	! @note This will be called with in_focus set to true when a window which is covering the app is
+	! about to close and return focus to the app.
+	! @note This will be called with in_focus set to false when a window which will cover the app is
+	! about to open, causing the app to lose focus.*/
+	pub will_focus: AppFocusHandler,
+	/**! Handler which will be called when an animation finished which has put the app into focus or
+	! taken the app out of focus.
+	! @note This will be called with in_focus set to true when a window which was covering the app
+	! has closed and the app has gained focus.
+	! @note This will be called with in_focus set to false when a window has opened which is now
+	! covering the app, causing the app to lose focus.*/
+	pub did_focus:  AppFocusHandler,
 }
 #[allow(clippy::unnecessary_operation, clippy::identity_op)]
 const _: () = {
-    ["Size of AppFocusHandlers"][::core::mem::size_of::<AppFocusHandlers>() - 8usize];
-    [
-        "Alignment of AppFocusHandlers",
-    ][::core::mem::align_of::<AppFocusHandlers>() - 4usize];
-    [
-        "Offset of field: AppFocusHandlers::will_focus",
-    ][::core::mem::offset_of!(AppFocusHandlers, will_focus) - 0usize];
-    [
-        "Offset of field: AppFocusHandlers::did_focus",
-    ][::core::mem::offset_of!(AppFocusHandlers, did_focus) - 4usize];
+	["Size of AppFocusHandlers"][::core::mem::size_of::<AppFocusHandlers>() - 8usize];
+	["Alignment of AppFocusHandlers"][::core::mem::align_of::<AppFocusHandlers>() - 4usize];
+	["Offset of field: AppFocusHandlers::will_focus"]
+		[::core::mem::offset_of!(AppFocusHandlers, will_focus) - 0usize];
+	["Offset of field: AppFocusHandlers::did_focus"]
+		[::core::mem::offset_of!(AppFocusHandlers, did_focus) - 4usize];
 };
 /**! Subscribe to the focus event service. Once subscribed, the handlers get called every time the
 ! app gains or loses focus.
@@ -1298,13 +1281,11 @@ const _: () = {
 gneiss: Vtable Slot 535, Offset 2140*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.app_focus_service_subscribe_handlers")]
-pub unsafe extern "C" fn app_focus_service_subscribe_handlers(
-    handlers: AppFocusHandlers,
-) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =2140", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+pub unsafe extern "C" fn app_focus_service_subscribe_handlers(handlers: AppFocusHandlers) {
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =2140", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Subscribe to the focus event service. Once subscribed, the handler
 ! gets called every time the app focus changes.
@@ -1324,10 +1305,10 @@ gneiss: Vtable Slot 289, Offset 1156*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.app_focus_service_subscribe")]
 pub unsafe extern "C" fn app_focus_service_subscribe(handler: AppFocusHandler) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1156", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1156", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Unsubscribe from the focus event service. Once unsubscribed, the previously
 ! registered handlers will no longer be called.*/
@@ -1337,45 +1318,37 @@ gneiss: Vtable Slot 290, Offset 1160*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.app_focus_service_unsubscribe")]
 pub unsafe extern "C" fn app_focus_service_unsubscribe() {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1160", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1160", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 ///! Structure for retrieval of the battery charge state
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct BatteryChargeState {
-    ///! A percentage (0-100) of how full the battery is
-    pub charge_percent: u8,
-    ///! True if the battery is currently being charged. False if not.
-    pub is_charging: bool,
-    ///! True if the charger cable is connected. False if not.
-    pub is_plugged: bool,
+	///! A percentage (0-100) of how full the battery is
+	pub charge_percent: u8,
+	///! True if the battery is currently being charged. False if not.
+	pub is_charging:    bool,
+	///! True if the charger cable is connected. False if not.
+	pub is_plugged:     bool,
 }
 #[allow(clippy::unnecessary_operation, clippy::identity_op)]
 const _: () = {
-    [
-        "Size of BatteryChargeState",
-    ][::core::mem::size_of::<BatteryChargeState>() - 3usize];
-    [
-        "Alignment of BatteryChargeState",
-    ][::core::mem::align_of::<BatteryChargeState>() - 1usize];
-    [
-        "Offset of field: BatteryChargeState::charge_percent",
-    ][::core::mem::offset_of!(BatteryChargeState, charge_percent) - 0usize];
-    [
-        "Offset of field: BatteryChargeState::is_charging",
-    ][::core::mem::offset_of!(BatteryChargeState, is_charging) - 1usize];
-    [
-        "Offset of field: BatteryChargeState::is_plugged",
-    ][::core::mem::offset_of!(BatteryChargeState, is_plugged) - 2usize];
+	["Size of BatteryChargeState"][::core::mem::size_of::<BatteryChargeState>() - 3usize];
+	["Alignment of BatteryChargeState"][::core::mem::align_of::<BatteryChargeState>() - 1usize];
+	["Offset of field: BatteryChargeState::charge_percent"]
+		[::core::mem::offset_of!(BatteryChargeState, charge_percent) - 0usize];
+	["Offset of field: BatteryChargeState::is_charging"]
+		[::core::mem::offset_of!(BatteryChargeState, is_charging) - 1usize];
+	["Offset of field: BatteryChargeState::is_plugged"]
+		[::core::mem::offset_of!(BatteryChargeState, is_plugged) - 2usize];
 };
 /**! Callback type for battery state change events
 ! @param charge the state of the battery \ref BatteryChargeState*/
-pub type BatteryStateHandler = ::core::option::Option<
-    unsafe extern "C" fn(charge: BatteryChargeState),
->;
+pub type BatteryStateHandler =
+	::core::option::Option<unsafe extern "C" fn(charge: BatteryChargeState)>;
 /**! Subscribe to the battery state event service. Once subscribed, the handler gets called
 ! on every battery state change
 ! @param handler A callback to be executed on battery state change event*/
@@ -1385,10 +1358,10 @@ gneiss: Vtable Slot 54, Offset 216*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.battery_state_service_subscribe")]
 pub unsafe extern "C" fn battery_state_service_subscribe(handler: BatteryStateHandler) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =216", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =216", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Unsubscribe from the battery state event service. Once unsubscribed, the previously registered
 ! handler will no longer be called.*/
@@ -1398,10 +1371,10 @@ gneiss: Vtable Slot 55, Offset 220*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.battery_state_service_unsubscribe")]
 pub unsafe extern "C" fn battery_state_service_unsubscribe() {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =220", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =220", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Peek at the last known battery state.
 ! @return a \ref BatteryChargeState containing the last known data*/
@@ -1411,10 +1384,10 @@ gneiss: Vtable Slot 53, Offset 212*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.battery_state_service_peek")]
 pub unsafe extern "C" fn battery_state_service_peek() -> BatteryChargeState {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =212", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =212", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Callback type for backlight on/off events.
 ! @param on true when the backlight has just turned on, false when it has
@@ -1429,10 +1402,10 @@ gneiss: Vtable Slot 653, Offset 2612*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.backlight_service_subscribe")]
 pub unsafe extern "C" fn backlight_service_subscribe(handler: BacklightHandler) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =2612", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =2612", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Unsubscribe from the backlight event service. Once unsubscribed, the
 ! previously registered handler will no longer be called.
@@ -1444,65 +1417,57 @@ gneiss: Vtable Slot 654, Offset 2616*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.backlight_service_unsubscribe")]
 pub unsafe extern "C" fn backlight_service_unsubscribe() {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =2616", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =2616", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! A single accelerometer sample for all three axes including timestamp and
 ! vibration rumble status.*/
 #[repr(C, packed)]
 #[derive(Debug, Copy, Clone)]
 pub struct AccelData {
-    ///! acceleration along the x axis
-    pub x: i16,
-    ///! acceleration along the y axis
-    pub y: i16,
-    ///! acceleration along the z axis
-    pub z: i16,
-    ///! true if the watch vibrated when this sample was collected
-    pub did_vibrate: bool,
-    ///! timestamp, in milliseconds
-    pub timestamp: u64,
+	///! acceleration along the x axis
+	pub x:           i16,
+	///! acceleration along the y axis
+	pub y:           i16,
+	///! acceleration along the z axis
+	pub z:           i16,
+	///! true if the watch vibrated when this sample was collected
+	pub did_vibrate: bool,
+	///! timestamp, in milliseconds
+	pub timestamp:   u64,
 }
 #[allow(clippy::unnecessary_operation, clippy::identity_op)]
 const _: () = {
-    ["Size of AccelData"][::core::mem::size_of::<AccelData>() - 15usize];
-    ["Alignment of AccelData"][::core::mem::align_of::<AccelData>() - 1usize];
-    ["Offset of field: AccelData::x"][::core::mem::offset_of!(AccelData, x) - 0usize];
-    ["Offset of field: AccelData::y"][::core::mem::offset_of!(AccelData, y) - 2usize];
-    ["Offset of field: AccelData::z"][::core::mem::offset_of!(AccelData, z) - 4usize];
-    [
-        "Offset of field: AccelData::did_vibrate",
-    ][::core::mem::offset_of!(AccelData, did_vibrate) - 6usize];
-    [
-        "Offset of field: AccelData::timestamp",
-    ][::core::mem::offset_of!(AccelData, timestamp) - 7usize];
+	["Size of AccelData"][::core::mem::size_of::<AccelData>() - 15usize];
+	["Alignment of AccelData"][::core::mem::align_of::<AccelData>() - 1usize];
+	["Offset of field: AccelData::x"][::core::mem::offset_of!(AccelData, x) - 0usize];
+	["Offset of field: AccelData::y"][::core::mem::offset_of!(AccelData, y) - 2usize];
+	["Offset of field: AccelData::z"][::core::mem::offset_of!(AccelData, z) - 4usize];
+	["Offset of field: AccelData::did_vibrate"]
+		[::core::mem::offset_of!(AccelData, did_vibrate) - 6usize];
+	["Offset of field: AccelData::timestamp"]
+		[::core::mem::offset_of!(AccelData, timestamp) - 7usize];
 };
 ///! A single accelerometer sample for all three axes
 #[repr(C, packed)]
 #[derive(Debug, Copy, Clone)]
 pub struct AccelRawData {
-    ///! acceleration along the x axis
-    pub x: i16,
-    ///! acceleration along the y axis
-    pub y: i16,
-    ///! acceleration along the z axis
-    pub z: i16,
+	///! acceleration along the x axis
+	pub x: i16,
+	///! acceleration along the y axis
+	pub y: i16,
+	///! acceleration along the z axis
+	pub z: i16,
 }
 #[allow(clippy::unnecessary_operation, clippy::identity_op)]
 const _: () = {
-    ["Size of AccelRawData"][::core::mem::size_of::<AccelRawData>() - 6usize];
-    ["Alignment of AccelRawData"][::core::mem::align_of::<AccelRawData>() - 1usize];
-    [
-        "Offset of field: AccelRawData::x",
-    ][::core::mem::offset_of!(AccelRawData, x) - 0usize];
-    [
-        "Offset of field: AccelRawData::y",
-    ][::core::mem::offset_of!(AccelRawData, y) - 2usize];
-    [
-        "Offset of field: AccelRawData::z",
-    ][::core::mem::offset_of!(AccelRawData, z) - 4usize];
+	["Size of AccelRawData"][::core::mem::size_of::<AccelRawData>() - 6usize];
+	["Alignment of AccelRawData"][::core::mem::align_of::<AccelRawData>() - 1usize];
+	["Offset of field: AccelRawData::x"][::core::mem::offset_of!(AccelRawData, x) - 0usize];
+	["Offset of field: AccelRawData::y"][::core::mem::offset_of!(AccelRawData, y) - 2usize];
+	["Offset of field: AccelRawData::z"][::core::mem::offset_of!(AccelRawData, z) - 4usize];
 };
 /**! Accelerometer's X axis. The positive direction along the X axis goes
 ! toward the right of the watch.*/
@@ -1518,22 +1483,20 @@ pub type AccelAxisType = ::core::ffi::c_uchar;
 /**! Callback type for accelerometer data events
 ! @param data Pointer to the collected accelerometer samples.
 ! @param num_samples the number of samples stored in data.*/
-pub type AccelDataHandler = ::core::option::Option<
-    unsafe extern "C" fn(data: *mut AccelData, num_samples: u32),
->;
+pub type AccelDataHandler =
+	::core::option::Option<unsafe extern "C" fn(data: *mut AccelData, num_samples: u32)>;
 /**! Callback type for accelerometer raw data events
 ! @param data Pointer to the collected accelerometer samples.
 ! @param num_samples the number of samples stored in data.
 ! @param timestamp the timestamp, in ms, of the first sample.*/
 pub type AccelRawDataHandler = ::core::option::Option<
-    unsafe extern "C" fn(data: *mut AccelRawData, num_samples: u32, timestamp: u64),
+	unsafe extern "C" fn(data: *mut AccelRawData, num_samples: u32, timestamp: u64),
 >;
 /**! Callback type for accelerometer tap events
 ! @param axis the axis on which a tap was registered (x, y, or z)
 ! @param direction the direction (-1 or +1) of the tap*/
-pub type AccelTapHandler = ::core::option::Option<
-    unsafe extern "C" fn(axis: AccelAxisType, direction: i32),
->;
+pub type AccelTapHandler =
+	::core::option::Option<unsafe extern "C" fn(axis: AccelAxisType, direction: i32)>;
 ///! 10 HZ sampling rate
 pub const AccelSamplingRate_ACCEL_SAMPLING_10HZ: AccelSamplingRate = 10;
 ///! 25 HZ sampling rate [Default]
@@ -1555,10 +1518,10 @@ gneiss: Vtable Slot 2, Offset 8*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.accel_service_peek")]
 pub unsafe extern "C" fn accel_service_peek(data: *mut AccelData) -> ::core::ffi::c_int {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =8", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =8", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Change the accelerometer sampling rate.
 ! @param rate The sampling rate in Hz (10Hz, 25Hz, 50Hz, and 100Hz possible)*/
@@ -1568,12 +1531,12 @@ gneiss: Vtable Slot 4, Offset 16*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.accel_service_set_sampling_rate")]
 pub unsafe extern "C" fn accel_service_set_sampling_rate(
-    rate: AccelSamplingRate,
+	rate: AccelSamplingRate,
 ) -> ::core::ffi::c_int {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =16", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =16", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Change the number of samples buffered between each accelerometer data event
 ! @param num_samples the number of samples to buffer, between 0 and 25.*/
@@ -1583,12 +1546,12 @@ gneiss: Vtable Slot 3, Offset 12*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.accel_service_set_samples_per_update")]
 pub unsafe extern "C" fn accel_service_set_samples_per_update(
-    num_samples: u32,
+	num_samples: u32,
 ) -> ::core::ffi::c_int {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =12", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =12", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Subscribe to the accelerometer data event service. Once subscribed, the handler
 ! gets called every time there are new accelerometer samples available.
@@ -1601,13 +1564,13 @@ gneiss: Vtable Slot 317, Offset 1268*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.accel_data_service_subscribe")]
 pub unsafe extern "C" fn accel_data_service_subscribe(
-    samples_per_update: u32,
-    handler: AccelDataHandler,
+	samples_per_update: u32,
+	handler: AccelDataHandler,
 ) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1268", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1268", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Unsubscribe from the accelerometer data event service. Once unsubscribed,
 ! the previously registered handler will no longer be called.*/
@@ -1617,10 +1580,10 @@ gneiss: Vtable Slot 1, Offset 4*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.accel_data_service_unsubscribe")]
 pub unsafe extern "C" fn accel_data_service_unsubscribe() {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =4", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =4", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Subscribe to the accelerometer tap event service. Once subscribed, the handler
 ! gets called on every tap event emitted by the accelerometer.
@@ -1631,10 +1594,10 @@ gneiss: Vtable Slot 5, Offset 20*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.accel_tap_service_subscribe")]
 pub unsafe extern "C" fn accel_tap_service_subscribe(handler: AccelTapHandler) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =20", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =20", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Unsubscribe from the accelerometer tap event service. Once unsubscribed,
 ! the previously registered handler will no longer be called.*/
@@ -1644,10 +1607,10 @@ gneiss: Vtable Slot 6, Offset 24*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.accel_tap_service_unsubscribe")]
 pub unsafe extern "C" fn accel_tap_service_unsubscribe() {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =24", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =24", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Subscribe to the accelerometer raw data event service. Once subscribed, the handler
 ! gets called every time there are new accelerometer samples available.
@@ -1660,13 +1623,13 @@ gneiss: Vtable Slot 326, Offset 1304*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.accel_raw_data_service_subscribe")]
 pub unsafe extern "C" fn accel_raw_data_service_subscribe(
-    samples_per_update: u32,
-    handler: AccelRawDataHandler,
+	samples_per_update: u32,
+	handler: AccelRawDataHandler,
 ) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1304", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1304", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 ///! The Compass Service is unavailable.
 pub const CompassStatus_CompassStatusUnavailable: CompassStatus = -1;
@@ -1689,43 +1652,34 @@ pub type CompassHeading = i32;
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct CompassHeadingData {
-    /**! Measured angle that increases counter-clockwise from magnetic north
-! (use `int clockwise_heading = TRIG_MAX_ANGLE - heading_data.magnetic_heading;`
-! for example to find your heading clockwise from magnetic north).*/
-    pub magnetic_heading: CompassHeading,
-    ///! Currently same value as magnetic_heading (reserved for future implementation).
-    pub true_heading: CompassHeading,
-    ///! Indicates the current state of the Compass Service calibration.
-    pub compass_status: CompassStatus,
-    ///! Currently always false (reserved for future implementation).
-    pub is_declination_valid: bool,
+	/**! Measured angle that increases counter-clockwise from magnetic north
+	! (use `int clockwise_heading = TRIG_MAX_ANGLE - heading_data.magnetic_heading;`
+	! for example to find your heading clockwise from magnetic north).*/
+	pub magnetic_heading:     CompassHeading,
+	///! Currently same value as magnetic_heading (reserved for future implementation).
+	pub true_heading:         CompassHeading,
+	///! Indicates the current state of the Compass Service calibration.
+	pub compass_status:       CompassStatus,
+	///! Currently always false (reserved for future implementation).
+	pub is_declination_valid: bool,
 }
 #[allow(clippy::unnecessary_operation, clippy::identity_op)]
 const _: () = {
-    [
-        "Size of CompassHeadingData",
-    ][::core::mem::size_of::<CompassHeadingData>() - 12usize];
-    [
-        "Alignment of CompassHeadingData",
-    ][::core::mem::align_of::<CompassHeadingData>() - 4usize];
-    [
-        "Offset of field: CompassHeadingData::magnetic_heading",
-    ][::core::mem::offset_of!(CompassHeadingData, magnetic_heading) - 0usize];
-    [
-        "Offset of field: CompassHeadingData::true_heading",
-    ][::core::mem::offset_of!(CompassHeadingData, true_heading) - 4usize];
-    [
-        "Offset of field: CompassHeadingData::compass_status",
-    ][::core::mem::offset_of!(CompassHeadingData, compass_status) - 8usize];
-    [
-        "Offset of field: CompassHeadingData::is_declination_valid",
-    ][::core::mem::offset_of!(CompassHeadingData, is_declination_valid) - 9usize];
+	["Size of CompassHeadingData"][::core::mem::size_of::<CompassHeadingData>() - 12usize];
+	["Alignment of CompassHeadingData"][::core::mem::align_of::<CompassHeadingData>() - 4usize];
+	["Offset of field: CompassHeadingData::magnetic_heading"]
+		[::core::mem::offset_of!(CompassHeadingData, magnetic_heading) - 0usize];
+	["Offset of field: CompassHeadingData::true_heading"]
+		[::core::mem::offset_of!(CompassHeadingData, true_heading) - 4usize];
+	["Offset of field: CompassHeadingData::compass_status"]
+		[::core::mem::offset_of!(CompassHeadingData, compass_status) - 8usize];
+	["Offset of field: CompassHeadingData::is_declination_valid"]
+		[::core::mem::offset_of!(CompassHeadingData, is_declination_valid) - 9usize];
 };
 /**! Callback type for compass heading events
 ! @param heading copy of last recorded heading*/
-pub type CompassHeadingHandler = ::core::option::Option<
-    unsafe extern "C" fn(heading: CompassHeadingData),
->;
+pub type CompassHeadingHandler =
+	::core::option::Option<unsafe extern "C" fn(heading: CompassHeadingData)>;
 /**! Set the minimum angular change required to generate new compass heading events.
 ! The angular distance is measured relative to the last delivered heading event.
 ! Use 0 to be notified of all movements.
@@ -1740,12 +1694,12 @@ gneiss: Vtable Slot 338, Offset 1352*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.compass_service_set_heading_filter")]
 pub unsafe extern "C" fn compass_service_set_heading_filter(
-    filter: CompassHeading,
+	filter: CompassHeading,
 ) -> ::core::ffi::c_int {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1352", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1352", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Subscribe to the compass heading event service. Once subscribed, the handler
 ! gets called every time the angular distance relative to the previous value
@@ -1759,10 +1713,10 @@ gneiss: Vtable Slot 339, Offset 1356*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.compass_service_subscribe")]
 pub unsafe extern "C" fn compass_service_subscribe(handler: CompassHeadingHandler) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1356", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1356", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Unsubscribe from the compass heading event service. Once unsubscribed,
 ! the previously registered handler will no longer be called.
@@ -1773,10 +1727,10 @@ gneiss: Vtable Slot 340, Offset 1360*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.compass_service_unsubscribe")]
 pub unsafe extern "C" fn compass_service_unsubscribe() {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1360", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1360", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Peek at the last recorded reading.
 ! @param[out] data a pointer to a pre-allocated CompassHeadingData
@@ -1786,13 +1740,11 @@ pub unsafe extern "C" fn compass_service_unsubscribe() {
 gneiss: Vtable Slot 337, Offset 1348*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.compass_service_peek")]
-pub unsafe extern "C" fn compass_service_peek(
-    data: *mut CompassHeadingData,
-) -> ::core::ffi::c_int {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1348", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+pub unsafe extern "C" fn compass_service_peek(data: *mut CompassHeadingData) -> ::core::ffi::c_int {
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1348", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 ///! Flag to represent the "seconds" time unit
 pub const TimeUnits_SECOND_UNIT: TimeUnits = 1;
@@ -1812,9 +1764,8 @@ pub type TimeUnits = ::core::ffi::c_uchar;
 /**! Callback type for tick timer events
 ! @param tick_time the time at which the tick event was triggered
 ! @param units_changed which unit change triggered this tick event*/
-pub type TickHandler = ::core::option::Option<
-    unsafe extern "C" fn(tick_time: *mut tm, units_changed: TimeUnits),
->;
+pub type TickHandler =
+	::core::option::Option<unsafe extern "C" fn(tick_time: *mut tm, units_changed: TimeUnits)>;
 /**! Subscribe to the tick timer event service. Once subscribed, the handler gets called
 ! on every requested unit change.
 ! Calling this function multiple times will override the units and handler (i.e., only
@@ -1826,14 +1777,11 @@ pub type TickHandler = ::core::option::Option<
 gneiss: Vtable Slot 262, Offset 1048*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.tick_timer_service_subscribe")]
-pub unsafe extern "C" fn tick_timer_service_subscribe(
-    tick_units: TimeUnits,
-    handler: TickHandler,
-) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1048", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+pub unsafe extern "C" fn tick_timer_service_subscribe(tick_units: TimeUnits, handler: TickHandler) {
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1048", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Unsubscribe from the tick timer event service. Once unsubscribed, the previously registered
 ! handler will no longer be called.*/
@@ -1843,10 +1791,10 @@ gneiss: Vtable Slot 263, Offset 1052*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.tick_timer_service_unsubscribe")]
 pub unsafe extern "C" fn tick_timer_service_unsubscribe() {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1052", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1052", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 pub const TouchEventType_TouchEvent_Touchdown: TouchEventType = 0;
 pub const TouchEventType_TouchEvent_Liftoff: TouchEventType = 1;
@@ -1857,87 +1805,79 @@ pub type TouchEventType = ::core::ffi::c_uchar;
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct TouchEvent {
-    pub _bitfield_1: __BindgenBitfieldUnit<[u8; 1usize]>,
-    /**! true when the touch must not drive navigation: the interaction session
-! was inactive at Touchdown (unarmed contact on the idle watchface).
-! Latched on Touchdown and carried across the whole gesture.*/
-    pub non_navigational: bool,
-    pub x: i16,
-    pub y: i16,
+	pub _bitfield_1:      __BindgenBitfieldUnit<[u8; 1usize]>,
+	/**! true when the touch must not drive navigation: the interaction session
+	! was inactive at Touchdown (unarmed contact on the idle watchface).
+	! Latched on Touchdown and carried across the whole gesture.*/
+	pub non_navigational: bool,
+	pub x:                i16,
+	pub y:                i16,
 }
 #[allow(clippy::unnecessary_operation, clippy::identity_op)]
 const _: () = {
-    ["Size of TouchEvent"][::core::mem::size_of::<TouchEvent>() - 6usize];
-    ["Alignment of TouchEvent"][::core::mem::align_of::<TouchEvent>() - 2usize];
-    [
-        "Offset of field: TouchEvent::non_navigational",
-    ][::core::mem::offset_of!(TouchEvent, non_navigational) - 1usize];
-    ["Offset of field: TouchEvent::x"][::core::mem::offset_of!(TouchEvent, x) - 2usize];
-    ["Offset of field: TouchEvent::y"][::core::mem::offset_of!(TouchEvent, y) - 4usize];
+	["Size of TouchEvent"][::core::mem::size_of::<TouchEvent>() - 6usize];
+	["Alignment of TouchEvent"][::core::mem::align_of::<TouchEvent>() - 2usize];
+	["Offset of field: TouchEvent::non_navigational"]
+		[::core::mem::offset_of!(TouchEvent, non_navigational) - 1usize];
+	["Offset of field: TouchEvent::x"][::core::mem::offset_of!(TouchEvent, x) - 2usize];
+	["Offset of field: TouchEvent::y"][::core::mem::offset_of!(TouchEvent, y) - 4usize];
 };
 impl TouchEvent {
-    #[inline]
-    #[allow(unnecessary_transmutes)]
-    pub fn type_(&self) -> TouchEventType {
-        unsafe {
-            ::core::mem::transmute(self._bitfield_1.get_const::<0usize, 8u8>() as u8)
-        }
-    }
-    #[inline]
-    #[allow(unnecessary_transmutes)]
-    pub fn set_type(&mut self, val: TouchEventType) {
-        unsafe {
-            let val: u8 = ::core::mem::transmute(val);
-            self._bitfield_1.set_const::<0usize, 8u8>(val as u64)
-        }
-    }
-    #[inline]
-    #[allow(unnecessary_transmutes)]
-    pub unsafe fn type__raw(this: *const Self) -> TouchEventType {
-        unsafe {
-            ::core::mem::transmute(
-                <__BindgenBitfieldUnit<
-                    [u8; 1usize],
-                >>::raw_get_const::<
-                    0usize,
-                    8u8,
-                >(::core::ptr::addr_of!((*this)._bitfield_1)) as u8,
-            )
-        }
-    }
-    #[inline]
-    #[allow(unnecessary_transmutes)]
-    pub unsafe fn set_type_raw(this: *mut Self, val: TouchEventType) {
-        unsafe {
-            let val: u8 = ::core::mem::transmute(val);
-            <__BindgenBitfieldUnit<
-                [u8; 1usize],
-            >>::raw_set_const::<
-                0usize,
-                8u8,
-            >(::core::ptr::addr_of_mut!((*this)._bitfield_1), val as u64)
-        }
-    }
-    #[inline]
-    #[allow(unnecessary_transmutes)]
-    pub fn new_bitfield_1(type_: TouchEventType) -> __BindgenBitfieldUnit<[u8; 1usize]> {
-        let mut __bindgen_bitfield_unit: __BindgenBitfieldUnit<[u8; 1usize]> = Default::default();
-        __bindgen_bitfield_unit
-            .set_const::<
-                0usize,
-                8u8,
-            >({
-                let type_: u8 = unsafe { ::core::mem::transmute(type_) };
-                type_ as u64
-            });
-        __bindgen_bitfield_unit
-    }
+	#[inline]
+	#[allow(unnecessary_transmutes)]
+	pub fn type_(&self) -> TouchEventType {
+		unsafe { ::core::mem::transmute(self._bitfield_1.get_const::<0usize, 8u8>() as u8) }
+	}
+
+	#[inline]
+	#[allow(unnecessary_transmutes)]
+	pub fn set_type(&mut self, val: TouchEventType) {
+		unsafe {
+			let val: u8 = ::core::mem::transmute(val);
+			self._bitfield_1.set_const::<0usize, 8u8>(val as u64)
+		}
+	}
+
+	#[inline]
+	#[allow(unnecessary_transmutes)]
+	pub unsafe fn type__raw(this: *const Self) -> TouchEventType {
+		unsafe {
+			::core::mem::transmute(
+				<__BindgenBitfieldUnit<[u8; 1usize]>>::raw_get_const::<0usize, 8u8>(
+					::core::ptr::addr_of!((*this)._bitfield_1),
+				) as u8,
+			)
+		}
+	}
+
+	#[inline]
+	#[allow(unnecessary_transmutes)]
+	pub unsafe fn set_type_raw(this: *mut Self, val: TouchEventType) {
+		unsafe {
+			let val: u8 = ::core::mem::transmute(val);
+			<__BindgenBitfieldUnit<[u8; 1usize]>>::raw_set_const::<0usize, 8u8>(
+				::core::ptr::addr_of_mut!((*this)._bitfield_1),
+				val as u64,
+			)
+		}
+	}
+
+	#[inline]
+	#[allow(unnecessary_transmutes)]
+	pub fn new_bitfield_1(type_: TouchEventType) -> __BindgenBitfieldUnit<[u8; 1usize]> {
+		let mut __bindgen_bitfield_unit: __BindgenBitfieldUnit<[u8; 1usize]> = Default::default();
+		__bindgen_bitfield_unit.set_const::<0usize, 8u8>({
+			let type_: u8 = unsafe { ::core::mem::transmute(type_) };
+			type_ as u64
+		});
+		__bindgen_bitfield_unit
+	}
 }
 /**! Callback for touch events.
 ! @param event The touch event data
 ! @param context User-provided context*/
 pub type TouchServiceHandler = ::core::option::Option<
-    unsafe extern "C" fn(event: *const TouchEvent, context: *mut ::core::ffi::c_void),
+	unsafe extern "C" fn(event: *const TouchEvent, context: *mut ::core::ffi::c_void),
 >;
 /**! Subscribe to touch events. The touch sensor is enabled while subscribed.
 ! @param handler Callback invoked for each touch event
@@ -1948,13 +1888,13 @@ gneiss: Vtable Slot 638, Offset 2552*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.touch_service_subscribe")]
 pub unsafe extern "C" fn touch_service_subscribe(
-    handler: TouchServiceHandler,
-    context: *mut ::core::ffi::c_void,
+	handler: TouchServiceHandler,
+	context: *mut ::core::ffi::c_void,
 ) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =2552", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =2552", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 ///! Unsubscribe from touch events. The touch sensor is disabled if no other subscribers remain.
 /** touch_service_unsubscribe
@@ -1963,10 +1903,10 @@ gneiss: Vtable Slot 639, Offset 2556*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.touch_service_unsubscribe")]
 pub unsafe extern "C" fn touch_service_unsubscribe() {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =2556", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =2556", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! @return true if touch input is currently being delivered to apps.
 ! Returns false on platforms without a touchscreen, or when touch has been
@@ -1978,10 +1918,10 @@ gneiss: Vtable Slot 637, Offset 2548*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.touch_service_is_enabled")]
 pub unsafe extern "C" fn touch_service_is_enabled() -> bool {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =2548", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =2548", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Opt this app into (or out of) touch navigation: the system gesture bridge that maps
 ! swipes/taps on a MenuLayer/ScrollLayer to button presses. Third-party apps are opt-out by
@@ -1995,10 +1935,10 @@ gneiss: Vtable Slot 674, Offset 2696*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.app_touch_navigation_enable")]
 pub unsafe extern "C" fn app_touch_navigation_enable(enable: bool) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =2696", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =2696", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 ///! The number of steps counted.
 pub const HealthMetric_HealthMetricStepCount: HealthMetric = 0;
@@ -2028,7 +1968,7 @@ pub type HealthValue = i32;
 #[repr(C)]
 #[derive(Debug)]
 pub struct HealthMetricAlert {
-    _unused: [u8; 0],
+	_unused: [u8; 0],
 }
 /**! Return the sum of a \ref HealthMetric's values over a time range.
 ! The `time_start` and `time_end` parameters define the range of time you want the sum for.
@@ -2044,14 +1984,14 @@ gneiss: Vtable Slot 606, Offset 2424*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.health_service_sum")]
 pub unsafe extern "C" fn health_service_sum(
-    metric: HealthMetric,
-    time_start: time_t,
-    time_end: time_t,
+	metric: HealthMetric,
+	time_start: time_t,
+	time_end: time_t,
 ) -> HealthValue {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =2424", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =2424", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Convenience wrapper for \ref health_service_sum() that returns the sum for today.
 ! @param metric The metric to query.
@@ -2062,10 +2002,10 @@ gneiss: Vtable Slot 607, Offset 2428*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.health_service_sum_today")]
 pub unsafe extern "C" fn health_service_sum_today(metric: HealthMetric) -> HealthValue {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =2428", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =2428", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Convenience function for peeking at the current value of a metric. This is useful for metrics
 ! like \ref HealthMetricHeartRateBPM that represent instantaneous values. It is NOT applicable for
@@ -2080,13 +2020,11 @@ pub unsafe extern "C" fn health_service_sum_today(metric: HealthMetric) -> Healt
 gneiss: Vtable Slot 620, Offset 2480*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.health_service_peek_current_value")]
-pub unsafe extern "C" fn health_service_peek_current_value(
-    metric: HealthMetric,
-) -> HealthValue {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =2480", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+pub unsafe extern "C" fn health_service_peek_current_value(metric: HealthMetric) -> HealthValue {
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =2480", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 ///! No average computed. The result is the same as calling \ref health_service_sum().
 pub const HealthServiceTimeScope_HealthServiceTimeScopeOnce: HealthServiceTimeScope = 0;
@@ -2095,7 +2033,8 @@ pub const HealthServiceTimeScope_HealthServiceTimeScopeOnce: HealthServiceTimeSc
 pub const HealthServiceTimeScope_HealthServiceTimeScopeWeekly: HealthServiceTimeScope = 1;
 /**! Compute average using either weekdays (Monday to Friday) or weekends (Saturday and Sunday),
 ! depending on which day the passed in time range falls.*/
-pub const HealthServiceTimeScope_HealthServiceTimeScopeDailyWeekdayOrWeekend: HealthServiceTimeScope = 2;
+pub const HealthServiceTimeScope_HealthServiceTimeScopeDailyWeekdayOrWeekend:
+	HealthServiceTimeScope = 2;
 ///! Compute average across all days of the week.
 pub const HealthServiceTimeScope_HealthServiceTimeScopeDaily: HealthServiceTimeScope = 3;
 ///! Used by \ref health_service_sum_averaged() to specify how the average is computed.
@@ -2134,15 +2073,15 @@ gneiss: Vtable Slot 610, Offset 2440*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.health_service_sum_averaged")]
 pub unsafe extern "C" fn health_service_sum_averaged(
-    metric: HealthMetric,
-    time_start: time_t,
-    time_end: time_t,
-    scope: HealthServiceTimeScope,
+	metric: HealthMetric,
+	time_start: time_t,
+	time_end: time_t,
+	scope: HealthServiceTimeScope,
 ) -> HealthValue {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =2440", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =2440", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Sum the metric. The result is the same as calling \ref health_service_sum_averaged(). This
 ! operation is only applicable for metrics that accumulate, like HealthMetricStepCount,
@@ -2209,16 +2148,16 @@ gneiss: Vtable Slot 617, Offset 2468*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.health_service_aggregate_averaged")]
 pub unsafe extern "C" fn health_service_aggregate_averaged(
-    metric: HealthMetric,
-    time_start: time_t,
-    time_end: time_t,
-    aggregation: HealthAggregation,
-    scope: HealthServiceTimeScope,
+	metric: HealthMetric,
+	time_start: time_t,
+	time_end: time_t,
+	aggregation: HealthAggregation,
+	scope: HealthServiceTimeScope,
 ) -> HealthValue {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =2468", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =2468", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 ///! Expresses a set of \ref HealthActivity values as a bitmask.
 pub type HealthActivityMask = u32;
@@ -2245,10 +2184,10 @@ gneiss: Vtable Slot 605, Offset 2420*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.health_service_peek_current_activities")]
 pub unsafe extern "C" fn health_service_peek_current_activities() -> HealthActivityMask {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =2420", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =2420", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Callback used by \ref health_service_activities_iterate().
 ! @param activity Which activity the caller is being informed about.
@@ -2258,12 +2197,12 @@ pub unsafe extern "C" fn health_service_peek_current_activities() -> HealthActiv
 !     to \ref health_service_activities_iterate().
 ! @return `true` if you are interested in more activities, or `false` to stop iterating.*/
 pub type HealthActivityIteratorCB = ::core::option::Option<
-    unsafe extern "C" fn(
-        activity: HealthActivity,
-        time_start: time_t,
-        time_end: time_t,
-        context: *mut ::core::ffi::c_void,
-    ) -> bool,
+	unsafe extern "C" fn(
+		activity: HealthActivity,
+		time_start: time_t,
+		time_end: time_t,
+		context: *mut ::core::ffi::c_void,
+	) -> bool,
 >;
 ///! Iterate into the past.
 pub const HealthIterationDirection_HealthIterationDirectionPast: HealthIterationDirection = 0;
@@ -2291,27 +2230,31 @@ gneiss: Vtable Slot 599, Offset 2396*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.health_service_activities_iterate")]
 pub unsafe extern "C" fn health_service_activities_iterate(
-    activity_mask: HealthActivityMask,
-    time_start: time_t,
-    time_end: time_t,
-    direction: HealthIterationDirection,
-    callback: HealthActivityIteratorCB,
-    context: *mut ::core::ffi::c_void,
+	activity_mask: HealthActivityMask,
+	time_start: time_t,
+	time_end: time_t,
+	direction: HealthIterationDirection,
+	callback: HealthActivityIteratorCB,
+	context: *mut ::core::ffi::c_void,
 ) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =2396", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =2396", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 ///! Return values are available and represent the collected health information.
-pub const HealthServiceAccessibilityMask_HealthServiceAccessibilityMaskAvailable: HealthServiceAccessibilityMask = 1;
+pub const HealthServiceAccessibilityMask_HealthServiceAccessibilityMaskAvailable:
+	HealthServiceAccessibilityMask = 1;
 ///! The user hasn't granted permission.
-pub const HealthServiceAccessibilityMask_HealthServiceAccessibilityMaskNoPermission: HealthServiceAccessibilityMask = 2;
+pub const HealthServiceAccessibilityMask_HealthServiceAccessibilityMaskNoPermission:
+	HealthServiceAccessibilityMask = 2;
 /**! The queried combination of time span and \ref HealthMetric or \ref HealthActivityMask
 ! is currently unsupported.*/
-pub const HealthServiceAccessibilityMask_HealthServiceAccessibilityMaskNotSupported: HealthServiceAccessibilityMask = 4;
+pub const HealthServiceAccessibilityMask_HealthServiceAccessibilityMaskNotSupported:
+	HealthServiceAccessibilityMask = 4;
 ///! No samples were recorded for the given time span.
-pub const HealthServiceAccessibilityMask_HealthServiceAccessibilityMaskNotAvailable: HealthServiceAccessibilityMask = 8;
+pub const HealthServiceAccessibilityMask_HealthServiceAccessibilityMaskNotAvailable:
+	HealthServiceAccessibilityMask = 8;
 /**! Possible values returned by \ref health_service_metric_accessible().
 ! The values are used in combination as a bitmask.
 ! For example, to check if any data is available for a given request use:
@@ -2336,14 +2279,14 @@ gneiss: Vtable Slot 604, Offset 2416*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.health_service_metric_accessible")]
 pub unsafe extern "C" fn health_service_metric_accessible(
-    metric: HealthMetric,
-    time_start: time_t,
-    time_end: time_t,
+	metric: HealthMetric,
+	time_start: time_t,
+	time_end: time_t,
 ) -> HealthServiceAccessibilityMask {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =2416", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =2416", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Check if a certain combination of metric, time span, and scope is accessible for calculating
 ! summed, averaged data by returning a value of \ref HealthServiceAccessibilityMask. Developers
@@ -2365,15 +2308,15 @@ gneiss: Vtable Slot 609, Offset 2436*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.health_service_metric_averaged_accessible")]
 pub unsafe extern "C" fn health_service_metric_averaged_accessible(
-    metric: HealthMetric,
-    time_start: time_t,
-    time_end: time_t,
-    scope: HealthServiceTimeScope,
+	metric: HealthMetric,
+	time_start: time_t,
+	time_end: time_t,
+	scope: HealthServiceTimeScope,
 ) -> HealthServiceAccessibilityMask {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =2436", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =2436", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Check if a certain combination of metric, time span, aggregation operation, and scope is
 ! accessible for calculating aggregated, averaged data by returning a value of
@@ -2392,16 +2335,16 @@ gneiss: Vtable Slot 619, Offset 2476*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.health_service_metric_aggregate_averaged_accessible")]
 pub unsafe extern "C" fn health_service_metric_aggregate_averaged_accessible(
-    metric: HealthMetric,
-    time_start: time_t,
-    time_end: time_t,
-    aggregation: HealthAggregation,
-    scope: HealthServiceTimeScope,
+	metric: HealthMetric,
+	time_start: time_t,
+	time_end: time_t,
+	aggregation: HealthAggregation,
+	scope: HealthServiceTimeScope,
 ) -> HealthServiceAccessibilityMask {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =2476", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =2476", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Check if a certain combination of metric, \ref HealthActivityMask and time span is
 ! accessible. Developers should check if the return value is
@@ -2418,14 +2361,14 @@ gneiss: Vtable Slot 600, Offset 2400*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.health_service_any_activity_accessible")]
 pub unsafe extern "C" fn health_service_any_activity_accessible(
-    activity_mask: HealthActivityMask,
-    time_start: time_t,
-    time_end: time_t,
+	activity_mask: HealthActivityMask,
+	time_start: time_t,
+	time_end: time_t,
 ) -> HealthServiceAccessibilityMask {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =2400", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =2400", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! All data is considered as outdated and apps should re-read all health data.
 ! This happens after an app is subscribed via \ref health_service_events_subscribe(),
@@ -2450,7 +2393,7 @@ pub type HealthEventType = ::core::ffi::c_uchar;
 ! @param event The type of health-related event that occured.
 ! @param context The developer-supplied context pointer.*/
 pub type HealthEventHandler = ::core::option::Option<
-    unsafe extern "C" fn(event: HealthEventType, context: *mut ::core::ffi::c_void),
+	unsafe extern "C" fn(event: HealthEventType, context: *mut ::core::ffi::c_void),
 >;
 /**! Subscribe to HealthService events. This allocates a cache on the application's heap of up
 ! to 2048 bytes that will be de-allocated if you call \ref health_service_events_unsubscribe().
@@ -2465,13 +2408,13 @@ gneiss: Vtable Slot 601, Offset 2404*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.health_service_events_subscribe")]
 pub unsafe extern "C" fn health_service_events_subscribe(
-    handler: HealthEventHandler,
-    context: *mut ::core::ffi::c_void,
+	handler: HealthEventHandler,
+	context: *mut ::core::ffi::c_void,
 ) -> bool {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =2404", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =2404", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Unsubscribe from HealthService events.
 ! @return `true` on success, `false` on failure.*/
@@ -2481,10 +2424,10 @@ gneiss: Vtable Slot 602, Offset 2408*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.health_service_events_unsubscribe")]
 pub unsafe extern "C" fn health_service_events_unsubscribe() -> bool {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =2408", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =2408", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Set the desired sampling period for heart rate readings. Normally, the system will sample the
 ! heart rate using a sampling period that is automatically chosen to provide useful information
@@ -2514,13 +2457,11 @@ pub unsafe extern "C" fn health_service_events_unsubscribe() -> bool {
 gneiss: Vtable Slot 629, Offset 2516*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.health_service_set_heart_rate_sample_period")]
-pub unsafe extern "C" fn health_service_set_heart_rate_sample_period(
-    interval_sec: u16,
-) -> bool {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =2516", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+pub unsafe extern "C" fn health_service_set_heart_rate_sample_period(interval_sec: u16) -> bool {
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =2516", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Return how long a heart rate sample period request (sent via
 ! `health_service_set_heart_rate_sample_period`) will remain active after the app exits. If
@@ -2531,14 +2472,12 @@ pub unsafe extern "C" fn health_service_set_heart_rate_sample_period(
   -> Added in 86
 gneiss: Vtable Slot 628, Offset 2512*/
 #[unsafe(naked)]
-#[unsafe(
-    link_section = ".text.health_service_get_heart_rate_sample_period_expiration_sec"
-)]
+#[unsafe(link_section = ".text.health_service_get_heart_rate_sample_period_expiration_sec")]
 pub unsafe extern "C" fn health_service_get_heart_rate_sample_period_expiration_sec() -> u16 {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =2512", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =2512", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Register for an alert when a metric crosses the given threshold. When the metric crosses this
 ! threshold (either goes above or below it), a \ref HealthEventMetricAlert event will be
@@ -2567,13 +2506,13 @@ gneiss: Vtable Slot 621, Offset 2484*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.health_service_register_metric_alert")]
 pub unsafe extern "C" fn health_service_register_metric_alert(
-    metric: HealthMetric,
-    threshold: HealthValue,
+	metric: HealthMetric,
+	threshold: HealthValue,
 ) -> *mut HealthMetricAlert {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =2484", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =2484", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Cancel an metric alert previously created with \ref health_service_register_metric_alert.
 ! @param alert the \ref HealthMetricAlert previously returned by
@@ -2584,13 +2523,11 @@ pub unsafe extern "C" fn health_service_register_metric_alert(
 gneiss: Vtable Slot 618, Offset 2472*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.health_service_cancel_metric_alert")]
-pub unsafe extern "C" fn health_service_cancel_metric_alert(
-    alert: *mut HealthMetricAlert,
-) -> bool {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =2472", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+pub unsafe extern "C" fn health_service_cancel_metric_alert(alert: *mut HealthMetricAlert) -> bool {
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =2472", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 pub const AmbientLightLevel_AmbientLightLevelUnknown: AmbientLightLevel = 0;
 pub const AmbientLightLevel_AmbientLightLevelVeryDark: AmbientLightLevel = 1;
@@ -2609,201 +2546,173 @@ pub type AmbientLightLevel = ::core::ffi::c_uchar;
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct HealthMinuteData {
-    ///!< Number of steps taken in this minute.
-    pub steps: u8,
-    ///!< Quantized average orientation.
-    pub orientation: u8,
-    ///!< Vector Magnitude Counts (vmc).
-    pub vmc: u16,
-    pub _bitfield_1: __BindgenBitfieldUnit<[u8; 1usize]>,
-    ///!< heart rate in beats per minute
-    pub heart_rate_bpm: u8,
-    ///!< Reserved for future use.
-    pub reserved: [u8; 6usize],
+	///!< Number of steps taken in this minute.
+	pub steps:          u8,
+	///!< Quantized average orientation.
+	pub orientation:    u8,
+	///!< Vector Magnitude Counts (vmc).
+	pub vmc:            u16,
+	pub _bitfield_1:    __BindgenBitfieldUnit<[u8; 1usize]>,
+	///!< heart rate in beats per minute
+	pub heart_rate_bpm: u8,
+	///!< Reserved for future use.
+	pub reserved:       [u8; 6usize],
 }
 #[allow(clippy::unnecessary_operation, clippy::identity_op)]
 const _: () = {
-    ["Size of HealthMinuteData"][::core::mem::size_of::<HealthMinuteData>() - 12usize];
-    [
-        "Alignment of HealthMinuteData",
-    ][::core::mem::align_of::<HealthMinuteData>() - 2usize];
-    [
-        "Offset of field: HealthMinuteData::steps",
-    ][::core::mem::offset_of!(HealthMinuteData, steps) - 0usize];
-    [
-        "Offset of field: HealthMinuteData::orientation",
-    ][::core::mem::offset_of!(HealthMinuteData, orientation) - 1usize];
-    [
-        "Offset of field: HealthMinuteData::vmc",
-    ][::core::mem::offset_of!(HealthMinuteData, vmc) - 2usize];
-    [
-        "Offset of field: HealthMinuteData::heart_rate_bpm",
-    ][::core::mem::offset_of!(HealthMinuteData, heart_rate_bpm) - 5usize];
-    [
-        "Offset of field: HealthMinuteData::reserved",
-    ][::core::mem::offset_of!(HealthMinuteData, reserved) - 6usize];
+	["Size of HealthMinuteData"][::core::mem::size_of::<HealthMinuteData>() - 12usize];
+	["Alignment of HealthMinuteData"][::core::mem::align_of::<HealthMinuteData>() - 2usize];
+	["Offset of field: HealthMinuteData::steps"]
+		[::core::mem::offset_of!(HealthMinuteData, steps) - 0usize];
+	["Offset of field: HealthMinuteData::orientation"]
+		[::core::mem::offset_of!(HealthMinuteData, orientation) - 1usize];
+	["Offset of field: HealthMinuteData::vmc"]
+		[::core::mem::offset_of!(HealthMinuteData, vmc) - 2usize];
+	["Offset of field: HealthMinuteData::heart_rate_bpm"]
+		[::core::mem::offset_of!(HealthMinuteData, heart_rate_bpm) - 5usize];
+	["Offset of field: HealthMinuteData::reserved"]
+		[::core::mem::offset_of!(HealthMinuteData, reserved) - 6usize];
 };
 impl HealthMinuteData {
-    #[inline]
-    #[allow(unnecessary_transmutes)]
-    pub fn is_invalid(&self) -> bool {
-        unsafe {
-            ::core::mem::transmute(self._bitfield_1.get_const::<0usize, 1u8>() as u8)
-        }
-    }
-    #[inline]
-    #[allow(unnecessary_transmutes)]
-    pub fn set_is_invalid(&mut self, val: bool) {
-        unsafe {
-            let val: u8 = ::core::mem::transmute(val);
-            self._bitfield_1.set_const::<0usize, 1u8>(val as u64)
-        }
-    }
-    #[inline]
-    #[allow(unnecessary_transmutes)]
-    pub unsafe fn is_invalid_raw(this: *const Self) -> bool {
-        unsafe {
-            ::core::mem::transmute(
-                <__BindgenBitfieldUnit<
-                    [u8; 1usize],
-                >>::raw_get_const::<
-                    0usize,
-                    1u8,
-                >(::core::ptr::addr_of!((*this)._bitfield_1)) as u8,
-            )
-        }
-    }
-    #[inline]
-    #[allow(unnecessary_transmutes)]
-    pub unsafe fn set_is_invalid_raw(this: *mut Self, val: bool) {
-        unsafe {
-            let val: u8 = ::core::mem::transmute(val);
-            <__BindgenBitfieldUnit<
-                [u8; 1usize],
-            >>::raw_set_const::<
-                0usize,
-                1u8,
-            >(::core::ptr::addr_of_mut!((*this)._bitfield_1), val as u64)
-        }
-    }
-    #[inline]
-    #[allow(unnecessary_transmutes)]
-    pub fn light(&self) -> AmbientLightLevel {
-        unsafe {
-            ::core::mem::transmute(self._bitfield_1.get_const::<1usize, 3u8>() as u8)
-        }
-    }
-    #[inline]
-    #[allow(unnecessary_transmutes)]
-    pub fn set_light(&mut self, val: AmbientLightLevel) {
-        unsafe {
-            let val: u8 = ::core::mem::transmute(val);
-            self._bitfield_1.set_const::<1usize, 3u8>(val as u64)
-        }
-    }
-    #[inline]
-    #[allow(unnecessary_transmutes)]
-    pub unsafe fn light_raw(this: *const Self) -> AmbientLightLevel {
-        unsafe {
-            ::core::mem::transmute(
-                <__BindgenBitfieldUnit<
-                    [u8; 1usize],
-                >>::raw_get_const::<
-                    1usize,
-                    3u8,
-                >(::core::ptr::addr_of!((*this)._bitfield_1)) as u8,
-            )
-        }
-    }
-    #[inline]
-    #[allow(unnecessary_transmutes)]
-    pub unsafe fn set_light_raw(this: *mut Self, val: AmbientLightLevel) {
-        unsafe {
-            let val: u8 = ::core::mem::transmute(val);
-            <__BindgenBitfieldUnit<
-                [u8; 1usize],
-            >>::raw_set_const::<
-                1usize,
-                3u8,
-            >(::core::ptr::addr_of_mut!((*this)._bitfield_1), val as u64)
-        }
-    }
-    #[inline]
-    #[allow(unnecessary_transmutes)]
-    pub fn padding(&self) -> u8 {
-        unsafe {
-            ::core::mem::transmute(self._bitfield_1.get_const::<4usize, 4u8>() as u8)
-        }
-    }
-    #[inline]
-    #[allow(unnecessary_transmutes)]
-    pub fn set_padding(&mut self, val: u8) {
-        unsafe {
-            let val: u8 = ::core::mem::transmute(val);
-            self._bitfield_1.set_const::<4usize, 4u8>(val as u64)
-        }
-    }
-    #[inline]
-    #[allow(unnecessary_transmutes)]
-    pub unsafe fn padding_raw(this: *const Self) -> u8 {
-        unsafe {
-            ::core::mem::transmute(
-                <__BindgenBitfieldUnit<
-                    [u8; 1usize],
-                >>::raw_get_const::<
-                    4usize,
-                    4u8,
-                >(::core::ptr::addr_of!((*this)._bitfield_1)) as u8,
-            )
-        }
-    }
-    #[inline]
-    #[allow(unnecessary_transmutes)]
-    pub unsafe fn set_padding_raw(this: *mut Self, val: u8) {
-        unsafe {
-            let val: u8 = ::core::mem::transmute(val);
-            <__BindgenBitfieldUnit<
-                [u8; 1usize],
-            >>::raw_set_const::<
-                4usize,
-                4u8,
-            >(::core::ptr::addr_of_mut!((*this)._bitfield_1), val as u64)
-        }
-    }
-    #[inline]
-    #[allow(unnecessary_transmutes)]
-    pub fn new_bitfield_1(
-        is_invalid: bool,
-        light: AmbientLightLevel,
-        padding: u8,
-    ) -> __BindgenBitfieldUnit<[u8; 1usize]> {
-        let mut __bindgen_bitfield_unit: __BindgenBitfieldUnit<[u8; 1usize]> = Default::default();
-        __bindgen_bitfield_unit
-            .set_const::<
-                0usize,
-                1u8,
-            >({
-                let is_invalid: u8 = unsafe { ::core::mem::transmute(is_invalid) };
-                is_invalid as u64
-            });
-        __bindgen_bitfield_unit
-            .set_const::<
-                1usize,
-                3u8,
-            >({
-                let light: u8 = unsafe { ::core::mem::transmute(light) };
-                light as u64
-            });
-        __bindgen_bitfield_unit
-            .set_const::<
-                4usize,
-                4u8,
-            >({
-                let padding: u8 = unsafe { ::core::mem::transmute(padding) };
-                padding as u64
-            });
-        __bindgen_bitfield_unit
-    }
+	#[inline]
+	#[allow(unnecessary_transmutes)]
+	pub fn is_invalid(&self) -> bool {
+		unsafe { ::core::mem::transmute(self._bitfield_1.get_const::<0usize, 1u8>() as u8) }
+	}
+
+	#[inline]
+	#[allow(unnecessary_transmutes)]
+	pub fn set_is_invalid(&mut self, val: bool) {
+		unsafe {
+			let val: u8 = ::core::mem::transmute(val);
+			self._bitfield_1.set_const::<0usize, 1u8>(val as u64)
+		}
+	}
+
+	#[inline]
+	#[allow(unnecessary_transmutes)]
+	pub unsafe fn is_invalid_raw(this: *const Self) -> bool {
+		unsafe {
+			::core::mem::transmute(
+				<__BindgenBitfieldUnit<[u8; 1usize]>>::raw_get_const::<0usize, 1u8>(
+					::core::ptr::addr_of!((*this)._bitfield_1),
+				) as u8,
+			)
+		}
+	}
+
+	#[inline]
+	#[allow(unnecessary_transmutes)]
+	pub unsafe fn set_is_invalid_raw(this: *mut Self, val: bool) {
+		unsafe {
+			let val: u8 = ::core::mem::transmute(val);
+			<__BindgenBitfieldUnit<[u8; 1usize]>>::raw_set_const::<0usize, 1u8>(
+				::core::ptr::addr_of_mut!((*this)._bitfield_1),
+				val as u64,
+			)
+		}
+	}
+
+	#[inline]
+	#[allow(unnecessary_transmutes)]
+	pub fn light(&self) -> AmbientLightLevel {
+		unsafe { ::core::mem::transmute(self._bitfield_1.get_const::<1usize, 3u8>() as u8) }
+	}
+
+	#[inline]
+	#[allow(unnecessary_transmutes)]
+	pub fn set_light(&mut self, val: AmbientLightLevel) {
+		unsafe {
+			let val: u8 = ::core::mem::transmute(val);
+			self._bitfield_1.set_const::<1usize, 3u8>(val as u64)
+		}
+	}
+
+	#[inline]
+	#[allow(unnecessary_transmutes)]
+	pub unsafe fn light_raw(this: *const Self) -> AmbientLightLevel {
+		unsafe {
+			::core::mem::transmute(
+				<__BindgenBitfieldUnit<[u8; 1usize]>>::raw_get_const::<1usize, 3u8>(
+					::core::ptr::addr_of!((*this)._bitfield_1),
+				) as u8,
+			)
+		}
+	}
+
+	#[inline]
+	#[allow(unnecessary_transmutes)]
+	pub unsafe fn set_light_raw(this: *mut Self, val: AmbientLightLevel) {
+		unsafe {
+			let val: u8 = ::core::mem::transmute(val);
+			<__BindgenBitfieldUnit<[u8; 1usize]>>::raw_set_const::<1usize, 3u8>(
+				::core::ptr::addr_of_mut!((*this)._bitfield_1),
+				val as u64,
+			)
+		}
+	}
+
+	#[inline]
+	#[allow(unnecessary_transmutes)]
+	pub fn padding(&self) -> u8 {
+		unsafe { ::core::mem::transmute(self._bitfield_1.get_const::<4usize, 4u8>() as u8) }
+	}
+
+	#[inline]
+	#[allow(unnecessary_transmutes)]
+	pub fn set_padding(&mut self, val: u8) {
+		unsafe {
+			let val: u8 = ::core::mem::transmute(val);
+			self._bitfield_1.set_const::<4usize, 4u8>(val as u64)
+		}
+	}
+
+	#[inline]
+	#[allow(unnecessary_transmutes)]
+	pub unsafe fn padding_raw(this: *const Self) -> u8 {
+		unsafe {
+			::core::mem::transmute(
+				<__BindgenBitfieldUnit<[u8; 1usize]>>::raw_get_const::<4usize, 4u8>(
+					::core::ptr::addr_of!((*this)._bitfield_1),
+				) as u8,
+			)
+		}
+	}
+
+	#[inline]
+	#[allow(unnecessary_transmutes)]
+	pub unsafe fn set_padding_raw(this: *mut Self, val: u8) {
+		unsafe {
+			let val: u8 = ::core::mem::transmute(val);
+			<__BindgenBitfieldUnit<[u8; 1usize]>>::raw_set_const::<4usize, 4u8>(
+				::core::ptr::addr_of_mut!((*this)._bitfield_1),
+				val as u64,
+			)
+		}
+	}
+
+	#[inline]
+	#[allow(unnecessary_transmutes)]
+	pub fn new_bitfield_1(
+		is_invalid: bool,
+		light: AmbientLightLevel,
+		padding: u8,
+	) -> __BindgenBitfieldUnit<[u8; 1usize]> {
+		let mut __bindgen_bitfield_unit: __BindgenBitfieldUnit<[u8; 1usize]> = Default::default();
+		__bindgen_bitfield_unit.set_const::<0usize, 1u8>({
+			let is_invalid: u8 = unsafe { ::core::mem::transmute(is_invalid) };
+			is_invalid as u64
+		});
+		__bindgen_bitfield_unit.set_const::<1usize, 3u8>({
+			let light: u8 = unsafe { ::core::mem::transmute(light) };
+			light as u64
+		});
+		__bindgen_bitfield_unit.set_const::<4usize, 4u8>({
+			let padding: u8 = unsafe { ::core::mem::transmute(padding) };
+			padding as u64
+		});
+		__bindgen_bitfield_unit
+	}
 }
 /**! Return historical minute data records. This fills in the `minute_data` array parameter with
 ! minute by minute statistics of the user's steps, average watch orientation, etc. The data is
@@ -2830,15 +2739,15 @@ gneiss: Vtable Slot 603, Offset 2412*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.health_service_get_minute_history")]
 pub unsafe extern "C" fn health_service_get_minute_history(
-    minute_data: *mut HealthMinuteData,
-    max_records: u32,
-    time_start: *mut time_t,
-    time_end: *mut time_t,
+	minute_data: *mut HealthMinuteData,
+	max_records: u32,
+	time_start: *mut time_t,
+	time_end: *mut time_t,
 ) -> u32 {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =2412", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =2412", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 ///! The measurement system is unknown, or does not apply to the chosen metric.
 pub const MeasurementSystem_MeasurementSystemUnknown: MeasurementSystem = 0;
@@ -2858,12 +2767,12 @@ gneiss: Vtable Slot 611, Offset 2444*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.health_service_get_measurement_system_for_display")]
 pub unsafe extern "C" fn health_service_get_measurement_system_for_display(
-    metric: HealthMetric,
+	metric: HealthMetric,
 ) -> MeasurementSystem {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =2444", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =2444", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! @addtogroup DataLogging
 ! \brief Enables logging data asynchronously to a mobile app
@@ -2950,15 +2859,15 @@ gneiss: Vtable Slot 71, Offset 284*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.data_logging_create")]
 pub unsafe extern "C" fn data_logging_create(
-    tag: u32,
-    item_type: DataLoggingItemType,
-    item_length: u16,
-    resume: bool,
+	tag: u32,
+	item_type: DataLoggingItemType,
+	item_length: u16,
+	resume: bool,
 ) -> DataLoggingSessionRef {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =284", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =284", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Finish up a data logging_session. Logging data is kept until it has successfully been
 ! transferred over to the phone, but no data may be added to the session after this function is
@@ -2972,10 +2881,10 @@ gneiss: Vtable Slot 72, Offset 288*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.data_logging_finish")]
 pub unsafe extern "C" fn data_logging_finish(logging_session: DataLoggingSessionRef) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =288", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =288", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Add data to the data logging session. If a phone is available, the data is sent directly
 ! to the phone. Otherwise, it is saved to the watch storage until the watch is connected to a
@@ -3005,57 +2914,57 @@ gneiss: Vtable Slot 73, Offset 292*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.data_logging_log")]
 pub unsafe extern "C" fn data_logging_log(
-    logging_session: DataLoggingSessionRef,
-    data: *const ::core::ffi::c_void,
-    num_items: u32,
+	logging_session: DataLoggingSessionRef,
+	data: *const ::core::ffi::c_void,
+	num_items: u32,
 ) -> DataLoggingResult {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =292", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =292", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! @addtogroup UUID
 ! @{*/
 #[repr(C, packed)]
 #[derive(Debug, Copy, Clone)]
 pub struct Uuid {
-    pub byte0: u8,
-    pub byte1: u8,
-    pub byte2: u8,
-    pub byte3: u8,
-    pub byte4: u8,
-    pub byte5: u8,
-    pub byte6: u8,
-    pub byte7: u8,
-    pub byte8: u8,
-    pub byte9: u8,
-    pub byte10: u8,
-    pub byte11: u8,
-    pub byte12: u8,
-    pub byte13: u8,
-    pub byte14: u8,
-    pub byte15: u8,
+	pub byte0:  u8,
+	pub byte1:  u8,
+	pub byte2:  u8,
+	pub byte3:  u8,
+	pub byte4:  u8,
+	pub byte5:  u8,
+	pub byte6:  u8,
+	pub byte7:  u8,
+	pub byte8:  u8,
+	pub byte9:  u8,
+	pub byte10: u8,
+	pub byte11: u8,
+	pub byte12: u8,
+	pub byte13: u8,
+	pub byte14: u8,
+	pub byte15: u8,
 }
 #[allow(clippy::unnecessary_operation, clippy::identity_op)]
 const _: () = {
-    ["Size of Uuid"][::core::mem::size_of::<Uuid>() - 16usize];
-    ["Alignment of Uuid"][::core::mem::align_of::<Uuid>() - 1usize];
-    ["Offset of field: Uuid::byte0"][::core::mem::offset_of!(Uuid, byte0) - 0usize];
-    ["Offset of field: Uuid::byte1"][::core::mem::offset_of!(Uuid, byte1) - 1usize];
-    ["Offset of field: Uuid::byte2"][::core::mem::offset_of!(Uuid, byte2) - 2usize];
-    ["Offset of field: Uuid::byte3"][::core::mem::offset_of!(Uuid, byte3) - 3usize];
-    ["Offset of field: Uuid::byte4"][::core::mem::offset_of!(Uuid, byte4) - 4usize];
-    ["Offset of field: Uuid::byte5"][::core::mem::offset_of!(Uuid, byte5) - 5usize];
-    ["Offset of field: Uuid::byte6"][::core::mem::offset_of!(Uuid, byte6) - 6usize];
-    ["Offset of field: Uuid::byte7"][::core::mem::offset_of!(Uuid, byte7) - 7usize];
-    ["Offset of field: Uuid::byte8"][::core::mem::offset_of!(Uuid, byte8) - 8usize];
-    ["Offset of field: Uuid::byte9"][::core::mem::offset_of!(Uuid, byte9) - 9usize];
-    ["Offset of field: Uuid::byte10"][::core::mem::offset_of!(Uuid, byte10) - 10usize];
-    ["Offset of field: Uuid::byte11"][::core::mem::offset_of!(Uuid, byte11) - 11usize];
-    ["Offset of field: Uuid::byte12"][::core::mem::offset_of!(Uuid, byte12) - 12usize];
-    ["Offset of field: Uuid::byte13"][::core::mem::offset_of!(Uuid, byte13) - 13usize];
-    ["Offset of field: Uuid::byte14"][::core::mem::offset_of!(Uuid, byte14) - 14usize];
-    ["Offset of field: Uuid::byte15"][::core::mem::offset_of!(Uuid, byte15) - 15usize];
+	["Size of Uuid"][::core::mem::size_of::<Uuid>() - 16usize];
+	["Alignment of Uuid"][::core::mem::align_of::<Uuid>() - 1usize];
+	["Offset of field: Uuid::byte0"][::core::mem::offset_of!(Uuid, byte0) - 0usize];
+	["Offset of field: Uuid::byte1"][::core::mem::offset_of!(Uuid, byte1) - 1usize];
+	["Offset of field: Uuid::byte2"][::core::mem::offset_of!(Uuid, byte2) - 2usize];
+	["Offset of field: Uuid::byte3"][::core::mem::offset_of!(Uuid, byte3) - 3usize];
+	["Offset of field: Uuid::byte4"][::core::mem::offset_of!(Uuid, byte4) - 4usize];
+	["Offset of field: Uuid::byte5"][::core::mem::offset_of!(Uuid, byte5) - 5usize];
+	["Offset of field: Uuid::byte6"][::core::mem::offset_of!(Uuid, byte6) - 6usize];
+	["Offset of field: Uuid::byte7"][::core::mem::offset_of!(Uuid, byte7) - 7usize];
+	["Offset of field: Uuid::byte8"][::core::mem::offset_of!(Uuid, byte8) - 8usize];
+	["Offset of field: Uuid::byte9"][::core::mem::offset_of!(Uuid, byte9) - 9usize];
+	["Offset of field: Uuid::byte10"][::core::mem::offset_of!(Uuid, byte10) - 10usize];
+	["Offset of field: Uuid::byte11"][::core::mem::offset_of!(Uuid, byte11) - 11usize];
+	["Offset of field: Uuid::byte12"][::core::mem::offset_of!(Uuid, byte12) - 12usize];
+	["Offset of field: Uuid::byte13"][::core::mem::offset_of!(Uuid, byte13) - 13usize];
+	["Offset of field: Uuid::byte14"][::core::mem::offset_of!(Uuid, byte14) - 14usize];
+	["Offset of field: Uuid::byte15"][::core::mem::offset_of!(Uuid, byte15) - 15usize];
 };
 /**! Compares two UUIDs.
 ! @return True if the two UUIDs are equal, false if they are not.*/
@@ -3065,10 +2974,10 @@ gneiss: Vtable Slot 341, Offset 1364*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.uuid_equal")]
 pub unsafe extern "C" fn uuid_equal(uu1: *const Uuid, uu2: *const Uuid) -> bool {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1364", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1364", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Writes UUID in a string form into buffer that looks like the following...
 ! {12345678-1234-5678-1234-567812345678} or {NULL UUID} if NULL was passed.
@@ -3079,14 +2988,11 @@ pub unsafe extern "C" fn uuid_equal(uu1: *const Uuid, uu2: *const Uuid) -> bool 
 gneiss: Vtable Slot 342, Offset 1368*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.uuid_to_string")]
-pub unsafe extern "C" fn uuid_to_string(
-    uuid: *const Uuid,
-    buffer: *mut ::core::ffi::c_char,
-) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1368", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+pub unsafe extern "C" fn uuid_to_string(uuid: *const Uuid, buffer: *mut ::core::ffi::c_char) {
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1368", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! @addtogroup Logging Logging
 !   \brief Functions related to logging from apps.
@@ -3105,16 +3011,16 @@ gneiss: Vtable Slot 34, Offset 136*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.app_log")]
 pub unsafe extern "C" fn app_log(
-    log_level: u8,
-    src_filename: *const ::core::ffi::c_char,
-    src_line_number: ::core::ffi::c_int,
-    fmt: *const ::core::ffi::c_char,
-    args: ...
+	log_level: u8,
+	src_filename: *const ::core::ffi::c_char,
+	src_line_number: ::core::ffi::c_int,
+	fmt: *const ::core::ffi::c_char,
+	args: ...
 ) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =136", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =136", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 ///! Error level log message
 pub const AppLogLevel_APP_LOG_LEVEL_ERROR: AppLogLevel = 1;
@@ -3158,12 +3064,12 @@ pub type TupleType = ::core::ffi::c_uchar;
 ! contains.*/
 #[repr(C, packed)]
 pub struct Tuple {
-    ///! The key
-    pub key: u32,
-    pub _bitfield_1: __BindgenBitfieldUnit<[u8; 1usize]>,
-    ///! The length of `.value` in bytes
-    pub length: u16,
-    pub value: __IncompleteArrayField<Tuple__bindgen_ty_1>,
+	///! The key
+	pub key:         u32,
+	pub _bitfield_1: __BindgenBitfieldUnit<[u8; 1usize]>,
+	///! The length of `.value` in bytes
+	pub length:      u16,
+	pub value:       __IncompleteArrayField<Tuple__bindgen_ty_1>,
 }
 /**! @brief The value itself.
 !
@@ -3173,133 +3079,114 @@ pub struct Tuple {
 ! @note __Important: The integers are little endian!__*/
 #[repr(C)]
 pub struct Tuple__bindgen_ty_1 {
-    ///! The byte array value. Valid when `.type` is \ref TUPLE_BYTE_ARRAY.
-    pub data: __BindgenUnionField<[u8; 0usize]>,
-    ///! The C-string value. Valid when `.type` is \ref TUPLE_CSTRING.
-    pub cstring: __BindgenUnionField<[::core::ffi::c_char; 0usize]>,
-    /**! The 8-bit unsigned integer value. Valid when `.type` is \ref TUPLE_UINT
-! and `.length` is 1 byte.*/
-    pub uint8: __BindgenUnionField<u8>,
-    /**! The 16-bit unsigned integer value. Valid when `.type` is \ref TUPLE_UINT
-! and `.length` is 2 byte.*/
-    pub uint16: __BindgenUnionField<u16>,
-    /**! The 32-bit unsigned integer value. Valid when `.type` is \ref TUPLE_UINT
-! and `.length` is 4 byte.*/
-    pub uint32: __BindgenUnionField<u32>,
-    /**! The 8-bit signed integer value. Valid when `.type` is \ref TUPLE_INT
-! and `.length` is 1 byte.*/
-    pub int8: __BindgenUnionField<i8>,
-    /**! The 16-bit signed integer value. Valid when `.type` is \ref TUPLE_INT
-! and `.length` is 2 byte.*/
-    pub int16: __BindgenUnionField<i16>,
-    /**! The 32-bit signed integer value. Valid when `.type` is \ref TUPLE_INT
-! and `.length` is 4 byte.*/
-    pub int32: __BindgenUnionField<i32>,
-    pub bindgen_union_field: u32,
+	///! The byte array value. Valid when `.type` is \ref TUPLE_BYTE_ARRAY.
+	pub data:                __BindgenUnionField<[u8; 0usize]>,
+	///! The C-string value. Valid when `.type` is \ref TUPLE_CSTRING.
+	pub cstring:             __BindgenUnionField<[::core::ffi::c_char; 0usize]>,
+	/**! The 8-bit unsigned integer value. Valid when `.type` is \ref TUPLE_UINT
+	! and `.length` is 1 byte.*/
+	pub uint8:               __BindgenUnionField<u8>,
+	/**! The 16-bit unsigned integer value. Valid when `.type` is \ref TUPLE_UINT
+	! and `.length` is 2 byte.*/
+	pub uint16:              __BindgenUnionField<u16>,
+	/**! The 32-bit unsigned integer value. Valid when `.type` is \ref TUPLE_UINT
+	! and `.length` is 4 byte.*/
+	pub uint32:              __BindgenUnionField<u32>,
+	/**! The 8-bit signed integer value. Valid when `.type` is \ref TUPLE_INT
+	! and `.length` is 1 byte.*/
+	pub int8:                __BindgenUnionField<i8>,
+	/**! The 16-bit signed integer value. Valid when `.type` is \ref TUPLE_INT
+	! and `.length` is 2 byte.*/
+	pub int16:               __BindgenUnionField<i16>,
+	/**! The 32-bit signed integer value. Valid when `.type` is \ref TUPLE_INT
+	! and `.length` is 4 byte.*/
+	pub int32:               __BindgenUnionField<i32>,
+	pub bindgen_union_field: u32,
 }
 #[allow(clippy::unnecessary_operation, clippy::identity_op)]
 const _: () = {
-    [
-        "Size of Tuple__bindgen_ty_1",
-    ][::core::mem::size_of::<Tuple__bindgen_ty_1>() - 4usize];
-    [
-        "Alignment of Tuple__bindgen_ty_1",
-    ][::core::mem::align_of::<Tuple__bindgen_ty_1>() - 4usize];
-    [
-        "Offset of field: Tuple__bindgen_ty_1::data",
-    ][::core::mem::offset_of!(Tuple__bindgen_ty_1, data) - 0usize];
-    [
-        "Offset of field: Tuple__bindgen_ty_1::cstring",
-    ][::core::mem::offset_of!(Tuple__bindgen_ty_1, cstring) - 0usize];
-    [
-        "Offset of field: Tuple__bindgen_ty_1::uint8",
-    ][::core::mem::offset_of!(Tuple__bindgen_ty_1, uint8) - 0usize];
-    [
-        "Offset of field: Tuple__bindgen_ty_1::uint16",
-    ][::core::mem::offset_of!(Tuple__bindgen_ty_1, uint16) - 0usize];
-    [
-        "Offset of field: Tuple__bindgen_ty_1::uint32",
-    ][::core::mem::offset_of!(Tuple__bindgen_ty_1, uint32) - 0usize];
-    [
-        "Offset of field: Tuple__bindgen_ty_1::int8",
-    ][::core::mem::offset_of!(Tuple__bindgen_ty_1, int8) - 0usize];
-    [
-        "Offset of field: Tuple__bindgen_ty_1::int16",
-    ][::core::mem::offset_of!(Tuple__bindgen_ty_1, int16) - 0usize];
-    [
-        "Offset of field: Tuple__bindgen_ty_1::int32",
-    ][::core::mem::offset_of!(Tuple__bindgen_ty_1, int32) - 0usize];
+	["Size of Tuple__bindgen_ty_1"][::core::mem::size_of::<Tuple__bindgen_ty_1>() - 4usize];
+	["Alignment of Tuple__bindgen_ty_1"][::core::mem::align_of::<Tuple__bindgen_ty_1>() - 4usize];
+	["Offset of field: Tuple__bindgen_ty_1::data"]
+		[::core::mem::offset_of!(Tuple__bindgen_ty_1, data) - 0usize];
+	["Offset of field: Tuple__bindgen_ty_1::cstring"]
+		[::core::mem::offset_of!(Tuple__bindgen_ty_1, cstring) - 0usize];
+	["Offset of field: Tuple__bindgen_ty_1::uint8"]
+		[::core::mem::offset_of!(Tuple__bindgen_ty_1, uint8) - 0usize];
+	["Offset of field: Tuple__bindgen_ty_1::uint16"]
+		[::core::mem::offset_of!(Tuple__bindgen_ty_1, uint16) - 0usize];
+	["Offset of field: Tuple__bindgen_ty_1::uint32"]
+		[::core::mem::offset_of!(Tuple__bindgen_ty_1, uint32) - 0usize];
+	["Offset of field: Tuple__bindgen_ty_1::int8"]
+		[::core::mem::offset_of!(Tuple__bindgen_ty_1, int8) - 0usize];
+	["Offset of field: Tuple__bindgen_ty_1::int16"]
+		[::core::mem::offset_of!(Tuple__bindgen_ty_1, int16) - 0usize];
+	["Offset of field: Tuple__bindgen_ty_1::int32"]
+		[::core::mem::offset_of!(Tuple__bindgen_ty_1, int32) - 0usize];
 };
 #[allow(clippy::unnecessary_operation, clippy::identity_op)]
 const _: () = {
-    ["Size of Tuple"][::core::mem::size_of::<Tuple>() - 7usize];
-    ["Alignment of Tuple"][::core::mem::align_of::<Tuple>() - 1usize];
-    ["Offset of field: Tuple::key"][::core::mem::offset_of!(Tuple, key) - 0usize];
-    ["Offset of field: Tuple::length"][::core::mem::offset_of!(Tuple, length) - 5usize];
-    ["Offset of field: Tuple::value"][::core::mem::offset_of!(Tuple, value) - 7usize];
+	["Size of Tuple"][::core::mem::size_of::<Tuple>() - 7usize];
+	["Alignment of Tuple"][::core::mem::align_of::<Tuple>() - 1usize];
+	["Offset of field: Tuple::key"][::core::mem::offset_of!(Tuple, key) - 0usize];
+	["Offset of field: Tuple::length"][::core::mem::offset_of!(Tuple, length) - 5usize];
+	["Offset of field: Tuple::value"][::core::mem::offset_of!(Tuple, value) - 7usize];
 };
 impl Tuple {
-    #[inline]
-    #[allow(unnecessary_transmutes)]
-    pub fn type_(&self) -> TupleType {
-        unsafe {
-            ::core::mem::transmute(self._bitfield_1.get_const::<0usize, 8u8>() as u8)
-        }
-    }
-    #[inline]
-    #[allow(unnecessary_transmutes)]
-    pub fn set_type(&mut self, val: TupleType) {
-        unsafe {
-            let val: u8 = ::core::mem::transmute(val);
-            self._bitfield_1.set_const::<0usize, 8u8>(val as u64)
-        }
-    }
-    #[inline]
-    #[allow(unnecessary_transmutes)]
-    pub unsafe fn type__raw(this: *const Self) -> TupleType {
-        unsafe {
-            ::core::mem::transmute(
-                <__BindgenBitfieldUnit<
-                    [u8; 1usize],
-                >>::raw_get_const::<
-                    0usize,
-                    8u8,
-                >(::core::ptr::addr_of!((*this)._bitfield_1)) as u8,
-            )
-        }
-    }
-    #[inline]
-    #[allow(unnecessary_transmutes)]
-    pub unsafe fn set_type_raw(this: *mut Self, val: TupleType) {
-        unsafe {
-            let val: u8 = ::core::mem::transmute(val);
-            <__BindgenBitfieldUnit<
-                [u8; 1usize],
-            >>::raw_set_const::<
-                0usize,
-                8u8,
-            >(::core::ptr::addr_of_mut!((*this)._bitfield_1), val as u64)
-        }
-    }
-    #[inline]
-    #[allow(unnecessary_transmutes)]
-    pub fn new_bitfield_1(type_: TupleType) -> __BindgenBitfieldUnit<[u8; 1usize]> {
-        let mut __bindgen_bitfield_unit: __BindgenBitfieldUnit<[u8; 1usize]> = Default::default();
-        __bindgen_bitfield_unit
-            .set_const::<
-                0usize,
-                8u8,
-            >({
-                let type_: u8 = unsafe { ::core::mem::transmute(type_) };
-                type_ as u64
-            });
-        __bindgen_bitfield_unit
-    }
+	#[inline]
+	#[allow(unnecessary_transmutes)]
+	pub fn type_(&self) -> TupleType {
+		unsafe { ::core::mem::transmute(self._bitfield_1.get_const::<0usize, 8u8>() as u8) }
+	}
+
+	#[inline]
+	#[allow(unnecessary_transmutes)]
+	pub fn set_type(&mut self, val: TupleType) {
+		unsafe {
+			let val: u8 = ::core::mem::transmute(val);
+			self._bitfield_1.set_const::<0usize, 8u8>(val as u64)
+		}
+	}
+
+	#[inline]
+	#[allow(unnecessary_transmutes)]
+	pub unsafe fn type__raw(this: *const Self) -> TupleType {
+		unsafe {
+			::core::mem::transmute(
+				<__BindgenBitfieldUnit<[u8; 1usize]>>::raw_get_const::<0usize, 8u8>(
+					::core::ptr::addr_of!((*this)._bitfield_1),
+				) as u8,
+			)
+		}
+	}
+
+	#[inline]
+	#[allow(unnecessary_transmutes)]
+	pub unsafe fn set_type_raw(this: *mut Self, val: TupleType) {
+		unsafe {
+			let val: u8 = ::core::mem::transmute(val);
+			<__BindgenBitfieldUnit<[u8; 1usize]>>::raw_set_const::<0usize, 8u8>(
+				::core::ptr::addr_of_mut!((*this)._bitfield_1),
+				val as u64,
+			)
+		}
+	}
+
+	#[inline]
+	#[allow(unnecessary_transmutes)]
+	pub fn new_bitfield_1(type_: TupleType) -> __BindgenBitfieldUnit<[u8; 1usize]> {
+		let mut __bindgen_bitfield_unit: __BindgenBitfieldUnit<[u8; 1usize]> = Default::default();
+		__bindgen_bitfield_unit.set_const::<0usize, 8u8>({
+			let type_: u8 = unsafe { ::core::mem::transmute(type_) };
+			type_ as u64
+		});
+		__bindgen_bitfield_unit
+	}
 }
 #[repr(C)]
 #[derive(Debug)]
 pub struct Dictionary {
-    _unused: [u8; 0],
+	_unused: [u8; 0],
 }
 /**! An iterator can be used to iterate over the key/value
 ! tuples in an existing dictionary, using \ref dict_read_begin_from_buffer(),
@@ -3309,33 +3196,26 @@ pub struct Dictionary {
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct DictionaryIterator {
-    ///!< The dictionary being iterated
-    pub dictionary: *mut Dictionary,
-    ///!< Points to the first memory address after the last byte of the dictionary
-    pub end: *const ::core::ffi::c_void,
-    /**! Points to the next Tuple in the dictionary. Given the end of the
-! Dictionary has not yet been reached: when writing, the next key/value
-! pair will be written at the cursor. When reading, the next call
-! to \ref dict_read_next() will return the cursor.*/
-    pub cursor: *mut Tuple,
+	///!< The dictionary being iterated
+	pub dictionary: *mut Dictionary,
+	///!< Points to the first memory address after the last byte of the dictionary
+	pub end:        *const ::core::ffi::c_void,
+	/**! Points to the next Tuple in the dictionary. Given the end of the
+	! Dictionary has not yet been reached: when writing, the next key/value
+	! pair will be written at the cursor. When reading, the next call
+	! to \ref dict_read_next() will return the cursor.*/
+	pub cursor:     *mut Tuple,
 }
 #[allow(clippy::unnecessary_operation, clippy::identity_op)]
 const _: () = {
-    [
-        "Size of DictionaryIterator",
-    ][::core::mem::size_of::<DictionaryIterator>() - 12usize];
-    [
-        "Alignment of DictionaryIterator",
-    ][::core::mem::align_of::<DictionaryIterator>() - 4usize];
-    [
-        "Offset of field: DictionaryIterator::dictionary",
-    ][::core::mem::offset_of!(DictionaryIterator, dictionary) - 0usize];
-    [
-        "Offset of field: DictionaryIterator::end",
-    ][::core::mem::offset_of!(DictionaryIterator, end) - 4usize];
-    [
-        "Offset of field: DictionaryIterator::cursor",
-    ][::core::mem::offset_of!(DictionaryIterator, cursor) - 8usize];
+	["Size of DictionaryIterator"][::core::mem::size_of::<DictionaryIterator>() - 12usize];
+	["Alignment of DictionaryIterator"][::core::mem::align_of::<DictionaryIterator>() - 4usize];
+	["Offset of field: DictionaryIterator::dictionary"]
+		[::core::mem::offset_of!(DictionaryIterator, dictionary) - 0usize];
+	["Offset of field: DictionaryIterator::end"]
+		[::core::mem::offset_of!(DictionaryIterator, end) - 4usize];
+	["Offset of field: DictionaryIterator::cursor"]
+		[::core::mem::offset_of!(DictionaryIterator, cursor) - 8usize];
 };
 /**! Calculates the number of bytes that a dictionary will occupy, given
 ! one or more value lengths that need to be stored in the dictionary.
@@ -3354,10 +3234,10 @@ gneiss: Vtable Slot 74, Offset 296*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.dict_calc_buffer_size")]
 pub unsafe extern "C" fn dict_calc_buffer_size(tuple_count: u8, args: ...) -> u32 {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =296", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =296", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Calculates the size of data that has been written to the dictionary.
 ! AKA, the "dictionary size". Note that this is most likely different
@@ -3370,10 +3250,10 @@ gneiss: Vtable Slot 314, Offset 1256*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.dict_size")]
 pub unsafe extern "C" fn dict_size(iter: *mut DictionaryIterator) -> u32 {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1256", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1256", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Initializes the dictionary iterator with a given buffer and size,
 ! resets and empties it, in preparation of writing key/value tuples.
@@ -3389,14 +3269,14 @@ gneiss: Vtable Slot 84, Offset 336*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.dict_write_begin")]
 pub unsafe extern "C" fn dict_write_begin(
-    iter: *mut DictionaryIterator,
-    buffer: *mut u8,
-    size: u16,
+	iter: *mut DictionaryIterator,
+	buffer: *mut u8,
+	size: u16,
 ) -> DictionaryResult {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =336", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =336", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Adds a key with a byte array value pair to the dictionary.
 ! @param iter The dictionary iterator
@@ -3412,15 +3292,15 @@ gneiss: Vtable Slot 86, Offset 344*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.dict_write_data")]
 pub unsafe extern "C" fn dict_write_data(
-    iter: *mut DictionaryIterator,
-    key: u32,
-    data: *const u8,
-    size: u16,
+	iter: *mut DictionaryIterator,
+	key: u32,
+	data: *const u8,
+	size: u16,
 ) -> DictionaryResult {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =344", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =344", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Adds a key with a C string value pair to the dictionary.
 ! @param iter The dictionary iterator
@@ -3435,14 +3315,14 @@ gneiss: Vtable Slot 85, Offset 340*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.dict_write_cstring")]
 pub unsafe extern "C" fn dict_write_cstring(
-    iter: *mut DictionaryIterator,
-    key: u32,
-    cstring: *const ::core::ffi::c_char,
+	iter: *mut DictionaryIterator,
+	key: u32,
+	cstring: *const ::core::ffi::c_char,
 ) -> DictionaryResult {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =340", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =340", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Adds a key with an integer value pair to the dictionary.
 ! @param iter The dictionary iterator
@@ -3459,16 +3339,16 @@ gneiss: Vtable Slot 88, Offset 352*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.dict_write_int")]
 pub unsafe extern "C" fn dict_write_int(
-    iter: *mut DictionaryIterator,
-    key: u32,
-    integer: *const ::core::ffi::c_void,
-    width_bytes: u8,
-    is_signed: bool,
+	iter: *mut DictionaryIterator,
+	key: u32,
+	integer: *const ::core::ffi::c_void,
+	width_bytes: u8,
+	is_signed: bool,
 ) -> DictionaryResult {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =352", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =352", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Adds a key with an unsigned, 8-bit integer value pair to the dictionary.
 ! @param iter The dictionary iterator
@@ -3486,14 +3366,14 @@ gneiss: Vtable Slot 95, Offset 380*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.dict_write_uint8")]
 pub unsafe extern "C" fn dict_write_uint8(
-    iter: *mut DictionaryIterator,
-    key: u32,
-    value: u8,
+	iter: *mut DictionaryIterator,
+	key: u32,
+	value: u8,
 ) -> DictionaryResult {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =380", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =380", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /** dict_write_uint16
   -> Added in 0
@@ -3501,14 +3381,14 @@ gneiss: Vtable Slot 93, Offset 372*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.dict_write_uint16")]
 pub unsafe extern "C" fn dict_write_uint16(
-    iter: *mut DictionaryIterator,
-    key: u32,
-    value: u16,
+	iter: *mut DictionaryIterator,
+	key: u32,
+	value: u16,
 ) -> DictionaryResult {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =372", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =372", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /** dict_write_uint32
   -> Added in 0
@@ -3516,14 +3396,14 @@ gneiss: Vtable Slot 94, Offset 376*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.dict_write_uint32")]
 pub unsafe extern "C" fn dict_write_uint32(
-    iter: *mut DictionaryIterator,
-    key: u32,
-    value: u32,
+	iter: *mut DictionaryIterator,
+	key: u32,
+	value: u32,
 ) -> DictionaryResult {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =376", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =376", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /** dict_write_int8
   -> Added in 0
@@ -3531,14 +3411,14 @@ gneiss: Vtable Slot 91, Offset 364*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.dict_write_int8")]
 pub unsafe extern "C" fn dict_write_int8(
-    iter: *mut DictionaryIterator,
-    key: u32,
-    value: i8,
+	iter: *mut DictionaryIterator,
+	key: u32,
+	value: i8,
 ) -> DictionaryResult {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =364", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =364", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /** dict_write_int16
   -> Added in 0
@@ -3546,14 +3426,14 @@ gneiss: Vtable Slot 89, Offset 356*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.dict_write_int16")]
 pub unsafe extern "C" fn dict_write_int16(
-    iter: *mut DictionaryIterator,
-    key: u32,
-    value: i16,
+	iter: *mut DictionaryIterator,
+	key: u32,
+	value: i16,
 ) -> DictionaryResult {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =356", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =356", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /** dict_write_int32
   -> Added in 0
@@ -3561,14 +3441,14 @@ gneiss: Vtable Slot 90, Offset 360*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.dict_write_int32")]
 pub unsafe extern "C" fn dict_write_int32(
-    iter: *mut DictionaryIterator,
-    key: u32,
-    value: i32,
+	iter: *mut DictionaryIterator,
+	key: u32,
+	value: i32,
 ) -> DictionaryResult {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =360", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =360", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! End a series of writing operations to a dictionary.
 ! This must be called before reading back from the dictionary.
@@ -3580,10 +3460,10 @@ gneiss: Vtable Slot 87, Offset 348*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.dict_write_end")]
 pub unsafe extern "C" fn dict_write_end(iter: *mut DictionaryIterator) -> u32 {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =348", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =348", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Initializes the dictionary iterator with a given buffer and size,
 ! in preparation of reading key/value tuples.
@@ -3597,14 +3477,14 @@ gneiss: Vtable Slot 78, Offset 312*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.dict_read_begin_from_buffer")]
 pub unsafe extern "C" fn dict_read_begin_from_buffer(
-    iter: *mut DictionaryIterator,
-    buffer: *const u8,
-    size: u16,
+	iter: *mut DictionaryIterator,
+	buffer: *const u8,
+	size: u16,
 ) -> *mut Tuple {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =312", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =312", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Progresses the iterator to the next key/value pair.
 ! @param iter The dictionary iterator
@@ -3615,10 +3495,10 @@ gneiss: Vtable Slot 80, Offset 320*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.dict_read_next")]
 pub unsafe extern "C" fn dict_read_next(iter: *mut DictionaryIterator) -> *mut Tuple {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =320", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =320", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Resets the iterator back to the same state as a call to \ref dict_read_begin_from_buffer() would do.
 ! @param iter The dictionary iterator
@@ -3629,10 +3509,10 @@ gneiss: Vtable Slot 79, Offset 316*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.dict_read_first")]
 pub unsafe extern "C" fn dict_read_first(iter: *mut DictionaryIterator) -> *mut Tuple {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =316", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =316", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Non-serialized, template data structure for a key/value pair.
 ! For strings and byte arrays, it only has a pointer to the actual data.
@@ -3643,12 +3523,12 @@ pub unsafe extern "C" fn dict_read_first(iter: *mut DictionaryIterator) -> *mut 
 #[repr(C)]
 #[derive(Copy, Clone)]
 pub struct Tuplet {
-    /**! The type of the Tuplet. This determines which of the struct fields in the
-! anonymomous union are valid.*/
-    pub type_: TupleType,
-    ///! The key.
-    pub key: u32,
-    pub __bindgen_anon_1: Tuplet__bindgen_ty_1,
+	/**! The type of the Tuplet. This determines which of the struct fields in the
+	! anonymomous union are valid.*/
+	pub type_:            TupleType,
+	///! The key.
+	pub key:              u32,
+	pub __bindgen_anon_1: Tuplet__bindgen_ty_1,
 }
 /**! Anonymous union containing the reference to the Tuplet's value, being
 ! either a byte array, c-string or integer. See documentation of `.bytes`,
@@ -3656,107 +3536,88 @@ pub struct Tuplet {
 #[repr(C)]
 #[derive(Copy, Clone)]
 pub union Tuplet__bindgen_ty_1 {
-    pub bytes: Tuplet__bindgen_ty_1__bindgen_ty_1,
-    pub cstring: Tuplet__bindgen_ty_1__bindgen_ty_2,
-    pub integer: Tuplet__bindgen_ty_1__bindgen_ty_3,
+	pub bytes:   Tuplet__bindgen_ty_1__bindgen_ty_1,
+	pub cstring: Tuplet__bindgen_ty_1__bindgen_ty_2,
+	pub integer: Tuplet__bindgen_ty_1__bindgen_ty_3,
 }
 ///! Valid when `.type.` is \ref TUPLE_BYTE_ARRAY
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct Tuplet__bindgen_ty_1__bindgen_ty_1 {
-    ///! Pointer to the data
-    pub data: *const u8,
-    ///! Length of the data
-    pub length: u16,
+	///! Pointer to the data
+	pub data:   *const u8,
+	///! Length of the data
+	pub length: u16,
 }
 #[allow(clippy::unnecessary_operation, clippy::identity_op)]
 const _: () = {
-    [
-        "Size of Tuplet__bindgen_ty_1__bindgen_ty_1",
-    ][::core::mem::size_of::<Tuplet__bindgen_ty_1__bindgen_ty_1>() - 8usize];
-    [
-        "Alignment of Tuplet__bindgen_ty_1__bindgen_ty_1",
-    ][::core::mem::align_of::<Tuplet__bindgen_ty_1__bindgen_ty_1>() - 4usize];
-    [
-        "Offset of field: Tuplet__bindgen_ty_1__bindgen_ty_1::data",
-    ][::core::mem::offset_of!(Tuplet__bindgen_ty_1__bindgen_ty_1, data) - 0usize];
-    [
-        "Offset of field: Tuplet__bindgen_ty_1__bindgen_ty_1::length",
-    ][::core::mem::offset_of!(Tuplet__bindgen_ty_1__bindgen_ty_1, length) - 4usize];
+	["Size of Tuplet__bindgen_ty_1__bindgen_ty_1"]
+		[::core::mem::size_of::<Tuplet__bindgen_ty_1__bindgen_ty_1>() - 8usize];
+	["Alignment of Tuplet__bindgen_ty_1__bindgen_ty_1"]
+		[::core::mem::align_of::<Tuplet__bindgen_ty_1__bindgen_ty_1>() - 4usize];
+	["Offset of field: Tuplet__bindgen_ty_1__bindgen_ty_1::data"]
+		[::core::mem::offset_of!(Tuplet__bindgen_ty_1__bindgen_ty_1, data) - 0usize];
+	["Offset of field: Tuplet__bindgen_ty_1__bindgen_ty_1::length"]
+		[::core::mem::offset_of!(Tuplet__bindgen_ty_1__bindgen_ty_1, length) - 4usize];
 };
 ///! Valid when `.type.` is \ref TUPLE_CSTRING
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct Tuplet__bindgen_ty_1__bindgen_ty_2 {
-    ///! Pointer to the c-string data
-    pub data: *const ::core::ffi::c_char,
-    ///! Length of the c-string, including terminating zero.
-    pub length: u16,
+	///! Pointer to the c-string data
+	pub data:   *const ::core::ffi::c_char,
+	///! Length of the c-string, including terminating zero.
+	pub length: u16,
 }
 #[allow(clippy::unnecessary_operation, clippy::identity_op)]
 const _: () = {
-    [
-        "Size of Tuplet__bindgen_ty_1__bindgen_ty_2",
-    ][::core::mem::size_of::<Tuplet__bindgen_ty_1__bindgen_ty_2>() - 8usize];
-    [
-        "Alignment of Tuplet__bindgen_ty_1__bindgen_ty_2",
-    ][::core::mem::align_of::<Tuplet__bindgen_ty_1__bindgen_ty_2>() - 4usize];
-    [
-        "Offset of field: Tuplet__bindgen_ty_1__bindgen_ty_2::data",
-    ][::core::mem::offset_of!(Tuplet__bindgen_ty_1__bindgen_ty_2, data) - 0usize];
-    [
-        "Offset of field: Tuplet__bindgen_ty_1__bindgen_ty_2::length",
-    ][::core::mem::offset_of!(Tuplet__bindgen_ty_1__bindgen_ty_2, length) - 4usize];
+	["Size of Tuplet__bindgen_ty_1__bindgen_ty_2"]
+		[::core::mem::size_of::<Tuplet__bindgen_ty_1__bindgen_ty_2>() - 8usize];
+	["Alignment of Tuplet__bindgen_ty_1__bindgen_ty_2"]
+		[::core::mem::align_of::<Tuplet__bindgen_ty_1__bindgen_ty_2>() - 4usize];
+	["Offset of field: Tuplet__bindgen_ty_1__bindgen_ty_2::data"]
+		[::core::mem::offset_of!(Tuplet__bindgen_ty_1__bindgen_ty_2, data) - 0usize];
+	["Offset of field: Tuplet__bindgen_ty_1__bindgen_ty_2::length"]
+		[::core::mem::offset_of!(Tuplet__bindgen_ty_1__bindgen_ty_2, length) - 4usize];
 };
 ///! Valid when `.type.` is \ref TUPLE_INT or \ref TUPLE_UINT
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct Tuplet__bindgen_ty_1__bindgen_ty_3 {
-    /**! Actual storage of the integer.
-! The signedness can be derived from the `.type` value.*/
-    pub storage: u32,
-    ///! Width of the integer.
-    pub width: u16,
+	/**! Actual storage of the integer.
+	! The signedness can be derived from the `.type` value.*/
+	pub storage: u32,
+	///! Width of the integer.
+	pub width:   u16,
 }
 #[allow(clippy::unnecessary_operation, clippy::identity_op)]
 const _: () = {
-    [
-        "Size of Tuplet__bindgen_ty_1__bindgen_ty_3",
-    ][::core::mem::size_of::<Tuplet__bindgen_ty_1__bindgen_ty_3>() - 8usize];
-    [
-        "Alignment of Tuplet__bindgen_ty_1__bindgen_ty_3",
-    ][::core::mem::align_of::<Tuplet__bindgen_ty_1__bindgen_ty_3>() - 4usize];
-    [
-        "Offset of field: Tuplet__bindgen_ty_1__bindgen_ty_3::storage",
-    ][::core::mem::offset_of!(Tuplet__bindgen_ty_1__bindgen_ty_3, storage) - 0usize];
-    [
-        "Offset of field: Tuplet__bindgen_ty_1__bindgen_ty_3::width",
-    ][::core::mem::offset_of!(Tuplet__bindgen_ty_1__bindgen_ty_3, width) - 4usize];
+	["Size of Tuplet__bindgen_ty_1__bindgen_ty_3"]
+		[::core::mem::size_of::<Tuplet__bindgen_ty_1__bindgen_ty_3>() - 8usize];
+	["Alignment of Tuplet__bindgen_ty_1__bindgen_ty_3"]
+		[::core::mem::align_of::<Tuplet__bindgen_ty_1__bindgen_ty_3>() - 4usize];
+	["Offset of field: Tuplet__bindgen_ty_1__bindgen_ty_3::storage"]
+		[::core::mem::offset_of!(Tuplet__bindgen_ty_1__bindgen_ty_3, storage) - 0usize];
+	["Offset of field: Tuplet__bindgen_ty_1__bindgen_ty_3::width"]
+		[::core::mem::offset_of!(Tuplet__bindgen_ty_1__bindgen_ty_3, width) - 4usize];
 };
 #[allow(clippy::unnecessary_operation, clippy::identity_op)]
 const _: () = {
-    [
-        "Size of Tuplet__bindgen_ty_1",
-    ][::core::mem::size_of::<Tuplet__bindgen_ty_1>() - 8usize];
-    [
-        "Alignment of Tuplet__bindgen_ty_1",
-    ][::core::mem::align_of::<Tuplet__bindgen_ty_1>() - 4usize];
-    [
-        "Offset of field: Tuplet__bindgen_ty_1::bytes",
-    ][::core::mem::offset_of!(Tuplet__bindgen_ty_1, bytes) - 0usize];
-    [
-        "Offset of field: Tuplet__bindgen_ty_1::cstring",
-    ][::core::mem::offset_of!(Tuplet__bindgen_ty_1, cstring) - 0usize];
-    [
-        "Offset of field: Tuplet__bindgen_ty_1::integer",
-    ][::core::mem::offset_of!(Tuplet__bindgen_ty_1, integer) - 0usize];
+	["Size of Tuplet__bindgen_ty_1"][::core::mem::size_of::<Tuplet__bindgen_ty_1>() - 8usize];
+	["Alignment of Tuplet__bindgen_ty_1"][::core::mem::align_of::<Tuplet__bindgen_ty_1>() - 4usize];
+	["Offset of field: Tuplet__bindgen_ty_1::bytes"]
+		[::core::mem::offset_of!(Tuplet__bindgen_ty_1, bytes) - 0usize];
+	["Offset of field: Tuplet__bindgen_ty_1::cstring"]
+		[::core::mem::offset_of!(Tuplet__bindgen_ty_1, cstring) - 0usize];
+	["Offset of field: Tuplet__bindgen_ty_1::integer"]
+		[::core::mem::offset_of!(Tuplet__bindgen_ty_1, integer) - 0usize];
 };
 #[allow(clippy::unnecessary_operation, clippy::identity_op)]
 const _: () = {
-    ["Size of Tuplet"][::core::mem::size_of::<Tuplet>() - 16usize];
-    ["Alignment of Tuplet"][::core::mem::align_of::<Tuplet>() - 4usize];
-    ["Offset of field: Tuplet::type_"][::core::mem::offset_of!(Tuplet, type_) - 0usize];
-    ["Offset of field: Tuplet::key"][::core::mem::offset_of!(Tuplet, key) - 4usize];
+	["Size of Tuplet"][::core::mem::size_of::<Tuplet>() - 16usize];
+	["Alignment of Tuplet"][::core::mem::align_of::<Tuplet>() - 4usize];
+	["Offset of field: Tuplet::type_"][::core::mem::offset_of!(Tuplet, type_) - 0usize];
+	["Offset of field: Tuplet::key"][::core::mem::offset_of!(Tuplet, key) - 4usize];
 };
 /**! Callback for \ref dict_serialize_tuplets() utility.
 ! @param data The data of the serialized dictionary
@@ -3764,7 +3625,7 @@ const _: () = {
 ! @param context The context pointer as passed in to \ref dict_serialize_tuplets()
 ! @see dict_serialize_tuplets*/
 pub type DictionarySerializeCallback = ::core::option::Option<
-    unsafe extern "C" fn(data: *const u8, size: u16, context: *mut ::core::ffi::c_void),
+	unsafe extern "C" fn(data: *const u8, size: u16, context: *mut ::core::ffi::c_void),
 >;
 /**! Utility function that takes a list of Tuplets from which a dictionary
 ! will be serialized, ready to transmit or store.
@@ -3781,15 +3642,15 @@ gneiss: Vtable Slot 81, Offset 324*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.dict_serialize_tuplets")]
 pub unsafe extern "C" fn dict_serialize_tuplets(
-    callback: DictionarySerializeCallback,
-    context: *mut ::core::ffi::c_void,
-    tuplets: *const Tuplet,
-    tuplets_count: u8,
+	callback: DictionarySerializeCallback,
+	context: *mut ::core::ffi::c_void,
+	tuplets: *const Tuplet,
+	tuplets_count: u8,
 ) -> DictionaryResult {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =324", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =324", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Utility function that takes an array of Tuplets and serializes them into
 ! a dictionary with a given buffer and size.
@@ -3804,15 +3665,15 @@ gneiss: Vtable Slot 310, Offset 1240*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.dict_serialize_tuplets_to_buffer")]
 pub unsafe extern "C" fn dict_serialize_tuplets_to_buffer(
-    tuplets: *const Tuplet,
-    tuplets_count: u8,
-    buffer: *mut u8,
-    size_in_out: *mut u32,
+	tuplets: *const Tuplet,
+	tuplets_count: u8,
+	buffer: *mut u8,
+	size_in_out: *mut u32,
 ) -> DictionaryResult {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1240", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1240", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Serializes an array of Tuplets into a dictionary with a given buffer and size.
 ! @param iter The dictionary iterator
@@ -3827,16 +3688,16 @@ gneiss: Vtable Slot 83, Offset 332*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.dict_serialize_tuplets_to_buffer_with_iter")]
 pub unsafe extern "C" fn dict_serialize_tuplets_to_buffer_with_iter(
-    iter: *mut DictionaryIterator,
-    tuplets: *const Tuplet,
-    tuplets_count: u8,
-    buffer: *mut u8,
-    size_in_out: *mut u32,
+	iter: *mut DictionaryIterator,
+	tuplets: *const Tuplet,
+	tuplets_count: u8,
+	buffer: *mut u8,
+	size_in_out: *mut u32,
 ) -> DictionaryResult {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =332", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =332", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Serializes a Tuplet and writes the resulting Tuple into a dictionary.
 ! @param iter The dictionary iterator
@@ -3848,13 +3709,13 @@ gneiss: Vtable Slot 92, Offset 368*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.dict_write_tuplet")]
 pub unsafe extern "C" fn dict_write_tuplet(
-    iter: *mut DictionaryIterator,
-    tuplet: *const Tuplet,
+	iter: *mut DictionaryIterator,
+	tuplet: *const Tuplet,
 ) -> DictionaryResult {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =368", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =368", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Calculates the number of bytes that a dictionary will occupy, given
 ! one or more Tuplets that need to be stored in the dictionary.
@@ -3869,13 +3730,13 @@ gneiss: Vtable Slot 75, Offset 300*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.dict_calc_buffer_size_from_tuplets")]
 pub unsafe extern "C" fn dict_calc_buffer_size_from_tuplets(
-    tuplets: *const Tuplet,
-    tuplets_count: u8,
+	tuplets: *const Tuplet,
+	tuplets_count: u8,
 ) -> u32 {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =300", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =300", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Type of the callback used in \ref dict_merge()
 ! @param key The key that is being updated.
@@ -3891,12 +3752,12 @@ pub unsafe extern "C" fn dict_calc_buffer_size_from_tuplets(
 ! will no longer be valid after the callback returns.
 ! @see dict_merge*/
 pub type DictionaryKeyUpdatedCallback = ::core::option::Option<
-    unsafe extern "C" fn(
-        key: u32,
-        new_tuple: *const Tuple,
-        old_tuple: *const Tuple,
-        context: *mut ::core::ffi::c_void,
-    ),
+	unsafe extern "C" fn(
+		key: u32,
+		new_tuple: *const Tuple,
+		old_tuple: *const Tuple,
+		context: *mut ::core::ffi::c_void,
+	),
 >;
 /**! Merges entries from another "source" dictionary into a "destination" dictionary.
 ! All Tuples from the source are written into the destination dictionary, while
@@ -3914,17 +3775,17 @@ gneiss: Vtable Slot 77, Offset 308*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.dict_merge")]
 pub unsafe extern "C" fn dict_merge(
-    dest: *mut DictionaryIterator,
-    dest_max_size_in_out: *mut u32,
-    source: *mut DictionaryIterator,
-    update_existing_keys_only: bool,
-    key_callback: DictionaryKeyUpdatedCallback,
-    context: *mut ::core::ffi::c_void,
+	dest: *mut DictionaryIterator,
+	dest_max_size_in_out: *mut u32,
+	source: *mut DictionaryIterator,
+	update_existing_keys_only: bool,
+	key_callback: DictionaryKeyUpdatedCallback,
+	context: *mut ::core::ffi::c_void,
 ) -> DictionaryResult {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =308", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =308", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Tries to find a Tuple with specified key in a dictionary
 ! @param iter Iterator to the dictionary to search in.
@@ -3935,40 +3796,44 @@ pub unsafe extern "C" fn dict_merge(
 gneiss: Vtable Slot 76, Offset 304*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.dict_find")]
-pub unsafe extern "C" fn dict_find(
-    iter: *const DictionaryIterator,
-    key: u32,
-) -> *mut Tuple {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =304", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+pub unsafe extern "C" fn dict_find(iter: *const DictionaryIterator, key: u32) -> *mut Tuple {
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =304", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! @addtogroup Dictation
 ! @{*/
 #[repr(C)]
 #[derive(Debug)]
 pub struct DictationSession {
-    _unused: [u8; 0],
+	_unused: [u8; 0],
 }
 ///! Transcription successful, with a valid result
 pub const DictationSessionStatus_DictationSessionStatusSuccess: DictationSessionStatus = 0;
 ///! User rejected transcription and exited UI
-pub const DictationSessionStatus_DictationSessionStatusFailureTranscriptionRejected: DictationSessionStatus = 1;
+pub const DictationSessionStatus_DictationSessionStatusFailureTranscriptionRejected:
+	DictationSessionStatus = 1;
 ///! User exited UI after transcription error
-pub const DictationSessionStatus_DictationSessionStatusFailureTranscriptionRejectedWithError: DictationSessionStatus = 2;
+pub const DictationSessionStatus_DictationSessionStatusFailureTranscriptionRejectedWithError:
+	DictationSessionStatus = 2;
 ///! Too many errors occurred during transcription and the UI exited
-pub const DictationSessionStatus_DictationSessionStatusFailureSystemAborted: DictationSessionStatus = 3;
+pub const DictationSessionStatus_DictationSessionStatusFailureSystemAborted:
+	DictationSessionStatus = 3;
 ///! No speech was detected and UI exited
-pub const DictationSessionStatus_DictationSessionStatusFailureNoSpeechDetected: DictationSessionStatus = 4;
+pub const DictationSessionStatus_DictationSessionStatusFailureNoSpeechDetected:
+	DictationSessionStatus = 4;
 ///! No BT or internet connection
-pub const DictationSessionStatus_DictationSessionStatusFailureConnectivityError: DictationSessionStatus = 5;
+pub const DictationSessionStatus_DictationSessionStatusFailureConnectivityError:
+	DictationSessionStatus = 5;
 ///! Voice transcription disabled for this user
 pub const DictationSessionStatus_DictationSessionStatusFailureDisabled: DictationSessionStatus = 6;
 ///! Voice transcription failed due to internal error
-pub const DictationSessionStatus_DictationSessionStatusFailureInternalError: DictationSessionStatus = 7;
+pub const DictationSessionStatus_DictationSessionStatusFailureInternalError:
+	DictationSessionStatus = 7;
 ///! Cloud recognizer failed to transcribe speech (only possible if error dialogs disabled)
-pub const DictationSessionStatus_DictationSessionStatusFailureRecognizerError: DictationSessionStatus = 8;
+pub const DictationSessionStatus_DictationSessionStatusFailureRecognizerError:
+	DictationSessionStatus = 8;
 pub type DictationSessionStatus = ::core::ffi::c_uchar;
 /**! Dictation status callback. Indicates success or failure of the dictation session and, if
 ! successful, passes the transcribed string to the user of the dictation session. The transcribed
@@ -3979,12 +3844,12 @@ pub type DictationSessionStatus = ::core::ffi::c_uchar;
 ! @param transcription  transcribed string
 ! @param context        callback context specified when starting the session*/
 pub type DictationSessionStatusCallback = ::core::option::Option<
-    unsafe extern "C" fn(
-        session: *mut DictationSession,
-        status: DictationSessionStatus,
-        transcription: *mut ::core::ffi::c_char,
-        context: *mut ::core::ffi::c_void,
-    ),
+	unsafe extern "C" fn(
+		session: *mut DictationSession,
+		status: DictationSessionStatus,
+		transcription: *mut ::core::ffi::c_char,
+		context: *mut ::core::ffi::c_void,
+	),
 >;
 /**! Create a dictation session. The session object can be used more than once to get a
 ! transcription. When a transcription is received a buffer will be allocated to store the text in
@@ -4006,14 +3871,14 @@ gneiss: Vtable Slot 550, Offset 2200*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.dictation_session_create")]
 pub unsafe extern "C" fn dictation_session_create(
-    buffer_size: u32,
-    callback: DictationSessionStatusCallback,
-    callback_context: *mut ::core::ffi::c_void,
+	buffer_size: u32,
+	callback: DictationSessionStatusCallback,
+	callback_context: *mut ::core::ffi::c_void,
 ) -> *mut DictationSession {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =2200", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =2200", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Destroy the dictation session and free its memory. Will terminate a session in progress.
 ! @param session  dictation session to be destroyed*/
@@ -4023,10 +3888,10 @@ gneiss: Vtable Slot 551, Offset 2204*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.dictation_session_destroy")]
 pub unsafe extern "C" fn dictation_session_destroy(session: *mut DictationSession) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =2204", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =2204", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Start the dictation session. The dictation UI will be shown. When the user accepts a
 ! transcription or exits the UI, or, when the confirmation dialog is disabled and a status is
@@ -4040,12 +3905,12 @@ gneiss: Vtable Slot 553, Offset 2212*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.dictation_session_start")]
 pub unsafe extern "C" fn dictation_session_start(
-    session: *mut DictationSession,
+	session: *mut DictationSession,
 ) -> DictationSessionStatus {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =2212", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =2212", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Stop the current dictation session. The UI will be hidden and no status callbacks will be
 ! received after the session is stopped.
@@ -4057,12 +3922,12 @@ gneiss: Vtable Slot 554, Offset 2216*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.dictation_session_stop")]
 pub unsafe extern "C" fn dictation_session_stop(
-    session: *mut DictationSession,
+	session: *mut DictationSession,
 ) -> DictationSessionStatus {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =2216", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =2216", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Enable or disable user confirmation of transcribed text, which allows the user to accept or
 ! reject (and restart) the transcription. Must be called before the session is started.
@@ -4075,13 +3940,13 @@ gneiss: Vtable Slot 552, Offset 2208*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.dictation_session_enable_confirmation")]
 pub unsafe extern "C" fn dictation_session_enable_confirmation(
-    session: *mut DictationSession,
-    is_enabled: bool,
+	session: *mut DictationSession,
+	is_enabled: bool,
 ) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =2208", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =2208", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Enable or disable error dialogs when transcription fails. Must be called before the session
 ! is started. Disabling error dialogs will also disable automatic retries if transcription fails.
@@ -4093,13 +3958,13 @@ gneiss: Vtable Slot 570, Offset 2280*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.dictation_session_enable_error_dialogs")]
 pub unsafe extern "C" fn dictation_session_enable_error_dialogs(
-    session: *mut DictationSession,
-    is_enabled: bool,
+	session: *mut DictationSession,
+	is_enabled: bool,
 ) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =2280", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =2280", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 ///! (0) All good, operation was successful.
 pub const AppMessageResult_APP_MSG_OK: AppMessageResult = 0;
@@ -4154,13 +4019,13 @@ gneiss: Vtable Slot 36, Offset 144*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.app_message_open")]
 pub unsafe extern "C" fn app_message_open(
-    size_inbound: u32,
-    size_outbound: u32,
+	size_inbound: u32,
+	size_outbound: u32,
 ) -> AppMessageResult {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =144", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =144", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Deregisters all callbacks and their context.
 !*/
@@ -4170,10 +4035,10 @@ gneiss: Vtable Slot 35, Offset 140*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.app_message_deregister_callbacks")]
 pub unsafe extern "C" fn app_message_deregister_callbacks() {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =140", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =140", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Called after an incoming message is received.
 !
@@ -4187,10 +4052,7 @@ pub unsafe extern "C" fn app_message_deregister_callbacks() {
 !   Pointer to application data as specified when registering the callback.
 !*/
 pub type AppMessageInboxReceived = ::core::option::Option<
-    unsafe extern "C" fn(
-        iterator: *mut DictionaryIterator,
-        context: *mut ::core::ffi::c_void,
-    ),
+	unsafe extern "C" fn(iterator: *mut DictionaryIterator, context: *mut ::core::ffi::c_void),
 >;
 /**! Called after an incoming message is dropped.
 !
@@ -4205,7 +4067,7 @@ pub type AppMessageInboxReceived = ::core::option::Option<
 ! This will invalidate the previous dictionary iterator; do not use it after calling app_message_outbox_begin().
 !*/
 pub type AppMessageInboxDropped = ::core::option::Option<
-    unsafe extern "C" fn(reason: AppMessageResult, context: *mut ::core::ffi::c_void),
+	unsafe extern "C" fn(reason: AppMessageResult, context: *mut ::core::ffi::c_void),
 >;
 /**! Called after an outbound message has been sent and the reply has been received.
 !
@@ -4218,10 +4080,7 @@ pub type AppMessageInboxDropped = ::core::option::Option<
 !   Pointer to application data as specified when registering the callback.
 !*/
 pub type AppMessageOutboxSent = ::core::option::Option<
-    unsafe extern "C" fn(
-        iterator: *mut DictionaryIterator,
-        context: *mut ::core::ffi::c_void,
-    ),
+	unsafe extern "C" fn(iterator: *mut DictionaryIterator, context: *mut ::core::ffi::c_void),
 >;
 /**! Called after an outbound message has not been sent successfully.
 !
@@ -4242,11 +4101,11 @@ pub type AppMessageOutboxSent = ::core::option::Option<
 ! This will invalidate the previous dictionary iterator; do not use it after calling app_message_outbox_begin().
 !*/
 pub type AppMessageOutboxFailed = ::core::option::Option<
-    unsafe extern "C" fn(
-        iterator: *mut DictionaryIterator,
-        reason: AppMessageResult,
-        context: *mut ::core::ffi::c_void,
-    ),
+	unsafe extern "C" fn(
+		iterator: *mut DictionaryIterator,
+		reason: AppMessageResult,
+		context: *mut ::core::ffi::c_void,
+	),
 >;
 /**! Gets the context that will be passed to all AppMessage callbacks.
 !
@@ -4258,10 +4117,10 @@ gneiss: Vtable Slot 293, Offset 1172*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.app_message_get_context")]
 pub unsafe extern "C" fn app_message_get_context() -> *mut ::core::ffi::c_void {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1172", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1172", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Sets the context that will be passed to all AppMessage callbacks.
 !
@@ -4275,12 +4134,12 @@ gneiss: Vtable Slot 302, Offset 1208*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.app_message_set_context")]
 pub unsafe extern "C" fn app_message_set_context(
-    context: *mut ::core::ffi::c_void,
+	context: *mut ::core::ffi::c_void,
 ) -> *mut ::core::ffi::c_void {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1208", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1208", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Registers a function that will be called after any Inbox message is received successfully.
 !
@@ -4298,12 +4157,12 @@ gneiss: Vtable Slot 299, Offset 1196*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.app_message_register_inbox_received")]
 pub unsafe extern "C" fn app_message_register_inbox_received(
-    received_callback: AppMessageInboxReceived,
+	received_callback: AppMessageInboxReceived,
 ) -> AppMessageInboxReceived {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1196", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1196", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Registers a function that will be called after any Inbox message is received but dropped by the system.
 !
@@ -4321,12 +4180,12 @@ gneiss: Vtable Slot 298, Offset 1192*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.app_message_register_inbox_dropped")]
 pub unsafe extern "C" fn app_message_register_inbox_dropped(
-    dropped_callback: AppMessageInboxDropped,
+	dropped_callback: AppMessageInboxDropped,
 ) -> AppMessageInboxDropped {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1192", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1192", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Registers a function that will be called after any Outbox message is sent and an ACK reply occurs in a timely
 ! fashion.
@@ -4345,12 +4204,12 @@ gneiss: Vtable Slot 301, Offset 1204*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.app_message_register_outbox_sent")]
 pub unsafe extern "C" fn app_message_register_outbox_sent(
-    sent_callback: AppMessageOutboxSent,
+	sent_callback: AppMessageOutboxSent,
 ) -> AppMessageOutboxSent {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1204", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1204", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Registers a function that will be called after any Outbox message is not sent with a timely ACK reply.
 ! The call to \ref app_message_outbox_send() must have succeeded.
@@ -4369,12 +4228,12 @@ gneiss: Vtable Slot 300, Offset 1200*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.app_message_register_outbox_failed")]
 pub unsafe extern "C" fn app_message_register_outbox_failed(
-    failed_callback: AppMessageOutboxFailed,
+	failed_callback: AppMessageOutboxFailed,
 ) -> AppMessageOutboxFailed {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1200", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1200", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Programatically determine the inbox size maximum in the current configuration.
 !
@@ -4389,10 +4248,10 @@ gneiss: Vtable Slot 294, Offset 1176*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.app_message_inbox_size_maximum")]
 pub unsafe extern "C" fn app_message_inbox_size_maximum() -> u32 {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1176", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1176", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Programatically determine the outbox size maximum in the current configuration.
 !
@@ -4407,10 +4266,10 @@ gneiss: Vtable Slot 297, Offset 1188*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.app_message_outbox_size_maximum")]
 pub unsafe extern "C" fn app_message_outbox_size_maximum() -> u32 {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1188", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1188", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Begin writing to the Outbox's Dictionary buffer.
 !
@@ -4430,12 +4289,12 @@ gneiss: Vtable Slot 295, Offset 1180*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.app_message_outbox_begin")]
 pub unsafe extern "C" fn app_message_outbox_begin(
-    iterator: *mut *mut DictionaryIterator,
+	iterator: *mut *mut DictionaryIterator,
 ) -> AppMessageResult {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1180", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1180", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Sends the outbound dictionary.
 !
@@ -4452,10 +4311,10 @@ gneiss: Vtable Slot 296, Offset 1184*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.app_message_outbox_send")]
 pub unsafe extern "C" fn app_message_outbox_send() -> AppMessageResult {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1184", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1184", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Called whenever a Tuple changes. This does not necessarily mean the value in
 ! the Tuple has changed. When the internal "current" dictionary gets updated,
@@ -4480,12 +4339,12 @@ pub unsafe extern "C" fn app_message_outbox_send() -> AppMessageResult {
 ! \ref app_sync_init()
 ! @see \ref app_sync_init()*/
 pub type AppSyncTupleChangedCallback = ::core::option::Option<
-    unsafe extern "C" fn(
-        key: u32,
-        new_tuple: *const Tuple,
-        old_tuple: *const Tuple,
-        context: *mut ::core::ffi::c_void,
-    ),
+	unsafe extern "C" fn(
+		key: u32,
+		new_tuple: *const Tuple,
+		old_tuple: *const Tuple,
+		context: *mut ::core::ffi::c_void,
+	),
 >;
 /**! Called whenever there was an error.
 ! @param dict_error The dictionary result error code, if the error was
@@ -4496,79 +4355,64 @@ pub type AppSyncTupleChangedCallback = ::core::option::Option<
 ! \ref app_sync_init()
 ! @see \ref app_sync_init()*/
 pub type AppSyncErrorCallback = ::core::option::Option<
-    unsafe extern "C" fn(
-        dict_error: DictionaryResult,
-        app_message_error: AppMessageResult,
-        context: *mut ::core::ffi::c_void,
-    ),
+	unsafe extern "C" fn(
+		dict_error: DictionaryResult,
+		app_message_error: AppMessageResult,
+		context: *mut ::core::ffi::c_void,
+	),
 >;
 #[repr(C)]
 #[derive(Copy, Clone)]
 pub struct AppSync {
-    pub current_iter: DictionaryIterator,
-    pub __bindgen_anon_1: AppSync__bindgen_ty_1,
-    pub buffer_size: u16,
-    pub callback: AppSync__bindgen_ty_2,
+	pub current_iter:     DictionaryIterator,
+	pub __bindgen_anon_1: AppSync__bindgen_ty_1,
+	pub buffer_size:      u16,
+	pub callback:         AppSync__bindgen_ty_2,
 }
 #[repr(C)]
 #[derive(Copy, Clone)]
 pub union AppSync__bindgen_ty_1 {
-    pub current: *mut Dictionary,
-    pub buffer: *mut u8,
+	pub current: *mut Dictionary,
+	pub buffer:  *mut u8,
 }
 #[allow(clippy::unnecessary_operation, clippy::identity_op)]
 const _: () = {
-    [
-        "Size of AppSync__bindgen_ty_1",
-    ][::core::mem::size_of::<AppSync__bindgen_ty_1>() - 4usize];
-    [
-        "Alignment of AppSync__bindgen_ty_1",
-    ][::core::mem::align_of::<AppSync__bindgen_ty_1>() - 4usize];
-    [
-        "Offset of field: AppSync__bindgen_ty_1::current",
-    ][::core::mem::offset_of!(AppSync__bindgen_ty_1, current) - 0usize];
-    [
-        "Offset of field: AppSync__bindgen_ty_1::buffer",
-    ][::core::mem::offset_of!(AppSync__bindgen_ty_1, buffer) - 0usize];
+	["Size of AppSync__bindgen_ty_1"][::core::mem::size_of::<AppSync__bindgen_ty_1>() - 4usize];
+	["Alignment of AppSync__bindgen_ty_1"]
+		[::core::mem::align_of::<AppSync__bindgen_ty_1>() - 4usize];
+	["Offset of field: AppSync__bindgen_ty_1::current"]
+		[::core::mem::offset_of!(AppSync__bindgen_ty_1, current) - 0usize];
+	["Offset of field: AppSync__bindgen_ty_1::buffer"]
+		[::core::mem::offset_of!(AppSync__bindgen_ty_1, buffer) - 0usize];
 };
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct AppSync__bindgen_ty_2 {
-    pub value_changed: AppSyncTupleChangedCallback,
-    pub error: AppSyncErrorCallback,
-    pub context: *mut ::core::ffi::c_void,
+	pub value_changed: AppSyncTupleChangedCallback,
+	pub error:         AppSyncErrorCallback,
+	pub context:       *mut ::core::ffi::c_void,
 }
 #[allow(clippy::unnecessary_operation, clippy::identity_op)]
 const _: () = {
-    [
-        "Size of AppSync__bindgen_ty_2",
-    ][::core::mem::size_of::<AppSync__bindgen_ty_2>() - 12usize];
-    [
-        "Alignment of AppSync__bindgen_ty_2",
-    ][::core::mem::align_of::<AppSync__bindgen_ty_2>() - 4usize];
-    [
-        "Offset of field: AppSync__bindgen_ty_2::value_changed",
-    ][::core::mem::offset_of!(AppSync__bindgen_ty_2, value_changed) - 0usize];
-    [
-        "Offset of field: AppSync__bindgen_ty_2::error",
-    ][::core::mem::offset_of!(AppSync__bindgen_ty_2, error) - 4usize];
-    [
-        "Offset of field: AppSync__bindgen_ty_2::context",
-    ][::core::mem::offset_of!(AppSync__bindgen_ty_2, context) - 8usize];
+	["Size of AppSync__bindgen_ty_2"][::core::mem::size_of::<AppSync__bindgen_ty_2>() - 12usize];
+	["Alignment of AppSync__bindgen_ty_2"]
+		[::core::mem::align_of::<AppSync__bindgen_ty_2>() - 4usize];
+	["Offset of field: AppSync__bindgen_ty_2::value_changed"]
+		[::core::mem::offset_of!(AppSync__bindgen_ty_2, value_changed) - 0usize];
+	["Offset of field: AppSync__bindgen_ty_2::error"]
+		[::core::mem::offset_of!(AppSync__bindgen_ty_2, error) - 4usize];
+	["Offset of field: AppSync__bindgen_ty_2::context"]
+		[::core::mem::offset_of!(AppSync__bindgen_ty_2, context) - 8usize];
 };
 #[allow(clippy::unnecessary_operation, clippy::identity_op)]
 const _: () = {
-    ["Size of AppSync"][::core::mem::size_of::<AppSync>() - 32usize];
-    ["Alignment of AppSync"][::core::mem::align_of::<AppSync>() - 4usize];
-    [
-        "Offset of field: AppSync::current_iter",
-    ][::core::mem::offset_of!(AppSync, current_iter) - 0usize];
-    [
-        "Offset of field: AppSync::buffer_size",
-    ][::core::mem::offset_of!(AppSync, buffer_size) - 16usize];
-    [
-        "Offset of field: AppSync::callback",
-    ][::core::mem::offset_of!(AppSync, callback) - 20usize];
+	["Size of AppSync"][::core::mem::size_of::<AppSync>() - 32usize];
+	["Alignment of AppSync"][::core::mem::align_of::<AppSync>() - 4usize];
+	["Offset of field: AppSync::current_iter"]
+		[::core::mem::offset_of!(AppSync, current_iter) - 0usize];
+	["Offset of field: AppSync::buffer_size"]
+		[::core::mem::offset_of!(AppSync, buffer_size) - 16usize];
+	["Offset of field: AppSync::callback"][::core::mem::offset_of!(AppSync, callback) - 20usize];
 };
 /**! Initialized an AppSync system with specific buffer size and initial keys and
 ! values. The `callback.value_changed` callback will be called
@@ -4596,19 +4440,19 @@ gneiss: Vtable Slot 45, Offset 180*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.app_sync_init")]
 pub unsafe extern "C" fn app_sync_init(
-    s: *mut AppSync,
-    buffer: *mut u8,
-    buffer_size: u16,
-    keys_and_initial_values: *const Tuplet,
-    count: u8,
-    tuple_changed_callback: AppSyncTupleChangedCallback,
-    error_callback: AppSyncErrorCallback,
-    context: *mut ::core::ffi::c_void,
+	s: *mut AppSync,
+	buffer: *mut u8,
+	buffer_size: u16,
+	keys_and_initial_values: *const Tuplet,
+	count: u8,
+	tuple_changed_callback: AppSyncTupleChangedCallback,
+	error_callback: AppSyncErrorCallback,
+	context: *mut ::core::ffi::c_void,
 ) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =180", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =180", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Cleans up an AppSync system.
 ! It frees the buffer allocated by an \ref app_sync_init() call and
@@ -4620,10 +4464,10 @@ gneiss: Vtable Slot 43, Offset 172*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.app_sync_deinit")]
 pub unsafe extern "C" fn app_sync_deinit(s: *mut AppSync) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =172", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =172", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Updates key/value pairs using an array of Tuplets.
 ! @note The call will attempt to send the updated keys and values to the
@@ -4644,14 +4488,14 @@ gneiss: Vtable Slot 46, Offset 184*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.app_sync_set")]
 pub unsafe extern "C" fn app_sync_set(
-    s: *mut AppSync,
-    keys_and_values_to_update: *const Tuplet,
-    count: u8,
+	s: *mut AppSync,
+	keys_and_values_to_update: *const Tuplet,
+	count: u8,
 ) -> AppMessageResult {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =184", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =184", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Finds and gets a tuple in the "current" dictionary.
 ! @param s The AppSync context
@@ -4664,10 +4508,10 @@ gneiss: Vtable Slot 44, Offset 176*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.app_sync_get")]
 pub unsafe extern "C" fn app_sync_get(s: *const AppSync, key: u32) -> *const Tuple {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =176", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =176", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Opaque reference to a resource.
 ! @see @c resource_get_handle()*/
@@ -4703,10 +4547,10 @@ gneiss: Vtable Slot 206, Offset 824*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.resource_get_handle")]
 pub unsafe extern "C" fn resource_get_handle(resource_id: u32) -> ResHandle {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =824", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =824", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Gets the size of the resource given a resource handle.
 ! @param h The handle to the resource
@@ -4717,10 +4561,10 @@ gneiss: Vtable Slot 209, Offset 836*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.resource_size")]
 pub unsafe extern "C" fn resource_size(h: ResHandle) -> usize {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =836", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =836", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Copies the bytes for the resource with a given handle from flash storage into a given buffer.
 ! @param h The handle to the resource
@@ -4732,15 +4576,11 @@ pub unsafe extern "C" fn resource_size(h: ResHandle) -> usize {
 gneiss: Vtable Slot 207, Offset 828*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.resource_load")]
-pub unsafe extern "C" fn resource_load(
-    h: ResHandle,
-    buffer: *mut u8,
-    max_length: usize,
-) -> usize {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =828", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+pub unsafe extern "C" fn resource_load(h: ResHandle, buffer: *mut u8, max_length: usize) -> usize {
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =828", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Copies a range of bytes from a resource with a given handle into a given buffer.
 ! @param h The handle to the resource
@@ -4754,15 +4594,15 @@ gneiss: Vtable Slot 208, Offset 832*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.resource_load_byte_range")]
 pub unsafe extern "C" fn resource_load_byte_range(
-    h: ResHandle,
-    start_offset: u32,
-    buffer: *mut u8,
-    num_bytes: usize,
+	h: ResHandle,
+	start_offset: u32,
+	buffer: *mut u8,
+	num_bytes: usize,
 ) -> usize {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =832", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =832", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! The event loop for C apps, to be used in app's main().
 ! Will block until the app is ready to exit.*/
@@ -4772,10 +4612,10 @@ gneiss: Vtable Slot 31, Offset 124*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.app_event_loop")]
 pub unsafe extern "C" fn app_event_loop() {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =124", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =124", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Configuration record for creating a Moddable XS virtual machine.
 ! Used with moddable_createMachine() to customize the JS runtime.
@@ -4783,45 +4623,36 @@ pub unsafe extern "C" fn app_event_loop() {
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct ModdableCreationRecord {
-    ///!< Size of this struct in bytes (for versioning)
-    pub recordSize: u32,
-    ///!< Stack size in bytes (0 for default)
-    pub stack: u32,
-    ///!< Slot heap size in bytes (0 for default)
-    pub slot: u32,
-    ///!< Chunk heap size in bytes (0 for default)
-    pub chunk: u32,
-    ///!< Combination of kModdableCreationFlag* values
-    pub flags: u32,
-    ///!< Optional pointer to an fxBuildFFI function for custom native bindings
-    pub fxBuildFFI: *mut ::core::ffi::c_void,
+	///!< Size of this struct in bytes (for versioning)
+	pub recordSize: u32,
+	///!< Stack size in bytes (0 for default)
+	pub stack:      u32,
+	///!< Slot heap size in bytes (0 for default)
+	pub slot:       u32,
+	///!< Chunk heap size in bytes (0 for default)
+	pub chunk:      u32,
+	///!< Combination of kModdableCreationFlag* values
+	pub flags:      u32,
+	///!< Optional pointer to an fxBuildFFI function for custom native bindings
+	pub fxBuildFFI: *mut ::core::ffi::c_void,
 }
 #[allow(clippy::unnecessary_operation, clippy::identity_op)]
 const _: () = {
-    [
-        "Size of ModdableCreationRecord",
-    ][::core::mem::size_of::<ModdableCreationRecord>() - 24usize];
-    [
-        "Alignment of ModdableCreationRecord",
-    ][::core::mem::align_of::<ModdableCreationRecord>() - 4usize];
-    [
-        "Offset of field: ModdableCreationRecord::recordSize",
-    ][::core::mem::offset_of!(ModdableCreationRecord, recordSize) - 0usize];
-    [
-        "Offset of field: ModdableCreationRecord::stack",
-    ][::core::mem::offset_of!(ModdableCreationRecord, stack) - 4usize];
-    [
-        "Offset of field: ModdableCreationRecord::slot",
-    ][::core::mem::offset_of!(ModdableCreationRecord, slot) - 8usize];
-    [
-        "Offset of field: ModdableCreationRecord::chunk",
-    ][::core::mem::offset_of!(ModdableCreationRecord, chunk) - 12usize];
-    [
-        "Offset of field: ModdableCreationRecord::flags",
-    ][::core::mem::offset_of!(ModdableCreationRecord, flags) - 16usize];
-    [
-        "Offset of field: ModdableCreationRecord::fxBuildFFI",
-    ][::core::mem::offset_of!(ModdableCreationRecord, fxBuildFFI) - 20usize];
+	["Size of ModdableCreationRecord"][::core::mem::size_of::<ModdableCreationRecord>() - 24usize];
+	["Alignment of ModdableCreationRecord"]
+		[::core::mem::align_of::<ModdableCreationRecord>() - 4usize];
+	["Offset of field: ModdableCreationRecord::recordSize"]
+		[::core::mem::offset_of!(ModdableCreationRecord, recordSize) - 0usize];
+	["Offset of field: ModdableCreationRecord::stack"]
+		[::core::mem::offset_of!(ModdableCreationRecord, stack) - 4usize];
+	["Offset of field: ModdableCreationRecord::slot"]
+		[::core::mem::offset_of!(ModdableCreationRecord, slot) - 8usize];
+	["Offset of field: ModdableCreationRecord::chunk"]
+		[::core::mem::offset_of!(ModdableCreationRecord, chunk) - 12usize];
+	["Offset of field: ModdableCreationRecord::flags"]
+		[::core::mem::offset_of!(ModdableCreationRecord, flags) - 16usize];
+	["Offset of field: ModdableCreationRecord::fxBuildFFI"]
+		[::core::mem::offset_of!(ModdableCreationRecord, fxBuildFFI) - 20usize];
 };
 /**! Create and start a Moddable XS virtual machine for an Alloy app.
 ! @param creation Configuration record, or NULL for default settings.
@@ -4832,10 +4663,10 @@ gneiss: Vtable Slot 632, Offset 2528*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.moddable_createMachine")]
 pub unsafe extern "C" fn moddable_createMachine(creation: *mut ModdableCreationRecord) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =2528", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =2528", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 ///! Success
 pub const AppWorkerResult_APP_WORKER_RESULT_SUCCESS: AppWorkerResult = 0;
@@ -4855,25 +4686,20 @@ pub type AppWorkerResult = ::core::ffi::c_uchar;
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct AppWorkerMessage {
-    pub data0: u16,
-    pub data1: u16,
-    pub data2: u16,
+	pub data0: u16,
+	pub data1: u16,
+	pub data2: u16,
 }
 #[allow(clippy::unnecessary_operation, clippy::identity_op)]
 const _: () = {
-    ["Size of AppWorkerMessage"][::core::mem::size_of::<AppWorkerMessage>() - 6usize];
-    [
-        "Alignment of AppWorkerMessage",
-    ][::core::mem::align_of::<AppWorkerMessage>() - 2usize];
-    [
-        "Offset of field: AppWorkerMessage::data0",
-    ][::core::mem::offset_of!(AppWorkerMessage, data0) - 0usize];
-    [
-        "Offset of field: AppWorkerMessage::data1",
-    ][::core::mem::offset_of!(AppWorkerMessage, data1) - 2usize];
-    [
-        "Offset of field: AppWorkerMessage::data2",
-    ][::core::mem::offset_of!(AppWorkerMessage, data2) - 4usize];
+	["Size of AppWorkerMessage"][::core::mem::size_of::<AppWorkerMessage>() - 6usize];
+	["Alignment of AppWorkerMessage"][::core::mem::align_of::<AppWorkerMessage>() - 2usize];
+	["Offset of field: AppWorkerMessage::data0"]
+		[::core::mem::offset_of!(AppWorkerMessage, data0) - 0usize];
+	["Offset of field: AppWorkerMessage::data1"]
+		[::core::mem::offset_of!(AppWorkerMessage, data1) - 2usize];
+	["Offset of field: AppWorkerMessage::data2"]
+		[::core::mem::offset_of!(AppWorkerMessage, data2) - 4usize];
 };
 /**! Determine if the worker for the current app is running
 ! @return true if running*/
@@ -4883,10 +4709,10 @@ gneiss: Vtable Slot 327, Offset 1308*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.app_worker_is_running")]
 pub unsafe extern "C" fn app_worker_is_running() -> bool {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1308", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1308", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Launch the worker for the current app. Note that this is an asynchronous operation, a result code
 ! of APP_WORKER_RESULT_SUCCESS merely means that the request was successfully queued up.
@@ -4897,10 +4723,10 @@ gneiss: Vtable Slot 329, Offset 1316*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.app_worker_launch")]
 pub unsafe extern "C" fn app_worker_launch() -> AppWorkerResult {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1316", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1316", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Kill the worker for the current app. Note that this is an asynchronous operation, a result code
 ! of APP_WORKER_RESULT_SUCCESS merely means that the request was successfully queued up.
@@ -4911,17 +4737,16 @@ gneiss: Vtable Slot 328, Offset 1312*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.app_worker_kill")]
 pub unsafe extern "C" fn app_worker_kill() -> AppWorkerResult {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1312", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1312", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Callback type for worker messages. Messages can be sent from worker to app or vice versa.
 ! @param type An application defined message type
 ! @param data pointer to message data. The receiver must know the structure of the data provided by the sender.*/
-pub type AppWorkerMessageHandler = ::core::option::Option<
-    unsafe extern "C" fn(type_: u16, data: *mut AppWorkerMessage),
->;
+pub type AppWorkerMessageHandler =
+	::core::option::Option<unsafe extern "C" fn(type_: u16, data: *mut AppWorkerMessage)>;
 /**! Subscribe to worker messages. Once subscribed, the handler gets called on every message emitted by the other task
 ! (either worker or app).
 ! @param handler A callback to be executed when the event is received
@@ -4931,13 +4756,11 @@ pub type AppWorkerMessageHandler = ::core::option::Option<
 gneiss: Vtable Slot 330, Offset 1320*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.app_worker_message_subscribe")]
-pub unsafe extern "C" fn app_worker_message_subscribe(
-    handler: AppWorkerMessageHandler,
-) -> bool {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1320", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+pub unsafe extern "C" fn app_worker_message_subscribe(handler: AppWorkerMessageHandler) -> bool {
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1320", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Unsubscribe from worker messages. Once unsubscribed, the previously registered handler will no longer be called.
 ! @return true on success*/
@@ -4947,10 +4770,10 @@ gneiss: Vtable Slot 331, Offset 1324*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.app_worker_message_unsubscribe")]
 pub unsafe extern "C" fn app_worker_message_unsubscribe() -> bool {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1324", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1324", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Send a message to the other task (either worker or app).
 ! @param type An application defined message type
@@ -4960,14 +4783,11 @@ pub unsafe extern "C" fn app_worker_message_unsubscribe() -> bool {
 gneiss: Vtable Slot 332, Offset 1328*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.app_worker_send_message")]
-pub unsafe extern "C" fn app_worker_send_message(
-    type_: u8,
-    data: *mut AppWorkerMessage,
-) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1328", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+pub unsafe extern "C" fn app_worker_send_message(type_: u8, data: *mut AppWorkerMessage) {
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1328", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 ///! Set the sniff interval to normal (power-saving) mode
 pub const SniffInterval_SNIFF_INTERVAL_NORMAL: SniffInterval = 0;
@@ -4998,10 +4818,10 @@ gneiss: Vtable Slot 30, Offset 120*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.app_comm_set_sniff_interval")]
 pub unsafe extern "C" fn app_comm_set_sniff_interval(interval: SniffInterval) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =120", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =120", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Get the Bluetooth module's sniff interval
 ! @return The SniffInterval value corresponding to the current interval*/
@@ -5011,10 +4831,10 @@ gneiss: Vtable Slot 29, Offset 116*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.app_comm_get_sniff_interval")]
 pub unsafe extern "C" fn app_comm_get_sniff_interval() -> SniffInterval {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =116", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =116", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Waits for a certain amount of milliseconds
 ! @param millis The number of milliseconds to wait for*/
@@ -5024,21 +4844,20 @@ gneiss: Vtable Slot 204, Offset 816*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.psleep")]
 pub unsafe extern "C" fn psleep(millis: ::core::ffi::c_int) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =816", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =816", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 #[repr(C)]
 #[derive(Debug)]
 pub struct AppTimer {
-    _unused: [u8; 0],
+	_unused: [u8; 0],
 }
 /**! The type of function which can be called when a timer fires.  The argument will be the @p callback_data passed to
 ! @ref app_timer_register().*/
-pub type AppTimerCallback = ::core::option::Option<
-    unsafe extern "C" fn(data: *mut ::core::ffi::c_void),
->;
+pub type AppTimerCallback =
+	::core::option::Option<unsafe extern "C" fn(data: *mut ::core::ffi::c_void)>;
 /**! Registers a timer that ends up in callback being called some specified time in the future.
 ! @param timeout_ms The expiry time in milliseconds from the current time
 ! @param callback The callback that gets called at expiry time
@@ -5050,14 +4869,14 @@ gneiss: Vtable Slot 48, Offset 192*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.app_timer_register")]
 pub unsafe extern "C" fn app_timer_register(
-    timeout_ms: u32,
-    callback: AppTimerCallback,
-    callback_data: *mut ::core::ffi::c_void,
+	timeout_ms: u32,
+	callback: AppTimerCallback,
+	callback_data: *mut ::core::ffi::c_void,
 ) -> *mut AppTimer {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =192", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =192", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Reschedules an already running timer for some point in the future.
 ! Elapsed timers cannot be rescheduled.
@@ -5070,13 +4889,13 @@ gneiss: Vtable Slot 49, Offset 196*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.app_timer_reschedule")]
 pub unsafe extern "C" fn app_timer_reschedule(
-    timer_handle: *mut AppTimer,
-    new_timeout_ms: u32,
+	timer_handle: *mut AppTimer,
+	new_timeout_ms: u32,
 ) -> bool {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =196", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =196", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Cancels an already registered timer.
 ! Once cancelled the handle may no longer be used for any purpose.
@@ -5087,10 +4906,10 @@ gneiss: Vtable Slot 47, Offset 188*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.app_timer_cancel")]
 pub unsafe extern "C" fn app_timer_cancel(timer_handle: *mut AppTimer) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =188", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =188", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Calculates the number of bytes of heap memory \a not currently being used by the application.
 ! @return The number of bytes on the heap not currently being used.*/
@@ -5100,10 +4919,10 @@ gneiss: Vtable Slot 335, Offset 1340*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.heap_bytes_free")]
 pub unsafe extern "C" fn heap_bytes_free() -> usize {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1340", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1340", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Calculates the number of bytes of heap memory currently being used by the application.
 ! @return The number of bytes on the heap currently being used.*/
@@ -5113,10 +4932,10 @@ gneiss: Vtable Slot 336, Offset 1344*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.heap_bytes_used")]
 pub unsafe extern "C" fn heap_bytes_used() -> usize {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1344", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1344", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Flushes the data cache and invalidates the instruction cache for the given region of memory,
 ! if necessary. This is only required when your app is loading or modifying code in memory and
@@ -5130,14 +4949,11 @@ pub unsafe extern "C" fn heap_bytes_used() -> usize {
 gneiss: Vtable Slot 626, Offset 2504*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.memory_cache_flush")]
-pub unsafe extern "C" fn memory_cache_flush(
-    start: *mut ::core::ffi::c_void,
-    size: usize,
-) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =2504", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+pub unsafe extern "C" fn memory_cache_flush(start: *mut ::core::ffi::c_void, size: usize) {
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =2504", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 ///! Operation completed successfully.
 pub const StatusCode_S_SUCCESS: StatusCode = 0;
@@ -5186,10 +5002,10 @@ gneiss: Vtable Slot 188, Offset 752*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.persist_exists")]
 pub unsafe extern "C" fn persist_exists(key: u32) -> bool {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =752", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =752", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Gets the maximum total size in bytes of all persisted values for the
 ! current app on this firmware. Apps targeting older SDKs that don't have
@@ -5201,10 +5017,10 @@ gneiss: Vtable Slot 651, Offset 2604*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.persist_get_max_size")]
 pub unsafe extern "C" fn persist_get_max_size() -> usize {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =2604", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =2604", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Gets the size of a value for a given key in persistent storage.
 ! @param key The key of the field to lookup the data size.
@@ -5216,10 +5032,10 @@ gneiss: Vtable Slot 189, Offset 756*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.persist_get_size")]
 pub unsafe extern "C" fn persist_get_size(key: u32) -> ::core::ffi::c_int {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =756", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =756", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Reads a bool value for a given key from persistent storage.
 ! If the value has not yet been set, this will return false.
@@ -5231,10 +5047,10 @@ gneiss: Vtable Slot 190, Offset 760*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.persist_read_bool")]
 pub unsafe extern "C" fn persist_read_bool(key: u32) -> bool {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =760", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =760", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Reads an int value for a given key from persistent storage.
 ! @note The int is a signed 32-bit integer.
@@ -5247,10 +5063,10 @@ gneiss: Vtable Slot 192, Offset 768*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.persist_read_int")]
 pub unsafe extern "C" fn persist_read_int(key: u32) -> i32 {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =768", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =768", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Reads a blob of data for a given key from persistent storage into a given buffer.
 ! If the value has not yet been set, the given buffer is left unchanged.
@@ -5265,14 +5081,14 @@ gneiss: Vtable Slot 311, Offset 1244*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.persist_read_data")]
 pub unsafe extern "C" fn persist_read_data(
-    key: u32,
-    buffer: *mut ::core::ffi::c_void,
-    buffer_size: usize,
+	key: u32,
+	buffer: *mut ::core::ffi::c_void,
+	buffer_size: usize,
 ) -> ::core::ffi::c_int {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1244", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1244", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Reads a string for a given key from persistent storage into a given buffer.
 ! The string will be null terminated.
@@ -5288,14 +5104,14 @@ gneiss: Vtable Slot 312, Offset 1248*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.persist_read_string")]
 pub unsafe extern "C" fn persist_read_string(
-    key: u32,
-    buffer: *mut ::core::ffi::c_char,
-    buffer_size: usize,
+	key: u32,
+	buffer: *mut ::core::ffi::c_char,
+	buffer_size: usize,
 ) -> ::core::ffi::c_int {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1248", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1248", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Writes a bool value flag for a given key into persistent storage.
 ! @param key The key of the field to write to.
@@ -5307,10 +5123,10 @@ gneiss: Vtable Slot 194, Offset 776*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.persist_write_bool")]
 pub unsafe extern "C" fn persist_write_bool(key: u32, value: bool) -> status_t {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =776", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =776", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Writes an int value for a given key into persistent storage.
 ! @note The int is a signed 32-bit integer.
@@ -5323,10 +5139,10 @@ gneiss: Vtable Slot 196, Offset 784*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.persist_write_int")]
 pub unsafe extern "C" fn persist_write_int(key: u32, value: i32) -> status_t {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =784", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =784", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Writes a blob of data of a specified size in bytes for a given key into persistent storage.
 ! The maximum size is \ref PERSIST_DATA_MAX_LENGTH
@@ -5340,14 +5156,14 @@ gneiss: Vtable Slot 313, Offset 1252*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.persist_write_data")]
 pub unsafe extern "C" fn persist_write_data(
-    key: u32,
-    data: *const ::core::ffi::c_void,
-    size: usize,
+	key: u32,
+	data: *const ::core::ffi::c_void,
+	size: usize,
 ) -> ::core::ffi::c_int {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1252", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1252", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Writes a string a given key into persistent storage.
 ! The maximum size is \ref PERSIST_STRING_MAX_LENGTH including the null terminator.
@@ -5360,13 +5176,13 @@ gneiss: Vtable Slot 197, Offset 788*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.persist_write_string")]
 pub unsafe extern "C" fn persist_write_string(
-    key: u32,
-    cstring: *const ::core::ffi::c_char,
+	key: u32,
+	cstring: *const ::core::ffi::c_char,
 ) -> ::core::ffi::c_int {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =788", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =788", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Deletes the value of a key from persistent storage.
 ! @param key The key of the field to delete from.
@@ -5377,19 +5193,18 @@ gneiss: Vtable Slot 187, Offset 748*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.persist_delete")]
 pub unsafe extern "C" fn persist_delete(key: u32) -> status_t {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =748", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =748", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 ///! WakeupId is an identifier for a wakeup event
 pub type WakeupId = i32;
 /**! The type of function which can be called when a wakeup event occurs.
 ! The arguments will be the id of the wakeup event that occurred,
 ! as well as the scheduled cookie provided to @c wakeup_schedule.*/
-pub type WakeupHandler = ::core::option::Option<
-    unsafe extern "C" fn(wakeup_id: WakeupId, cookie: i32),
->;
+pub type WakeupHandler =
+	::core::option::Option<unsafe extern "C" fn(wakeup_id: WakeupId, cookie: i32)>;
 /**! Registers a WakeupHandler to be called when wakeup events occur.
 ! @note The handler is only called for wakeup events which occur while the app is already running;
 !       use @c launch_reason() === \ref APP_LAUNCH_WAKEUP to detect when the app was launched by a wakeup event.
@@ -5400,10 +5215,10 @@ gneiss: Vtable Slot 358, Offset 1432*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.wakeup_service_subscribe")]
 pub unsafe extern "C" fn wakeup_service_subscribe(handler: WakeupHandler) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1432", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1432", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Registers a wakeup event that triggers a callback at the specified time.
 ! Applications may only schedule up to 8 wakeup events.
@@ -5424,14 +5239,14 @@ gneiss: Vtable Slot 357, Offset 1428*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.wakeup_schedule")]
 pub unsafe extern "C" fn wakeup_schedule(
-    timestamp: time_t,
-    cookie: i32,
-    notify_if_missed: bool,
+	timestamp: time_t,
+	cookie: i32,
+	notify_if_missed: bool,
 ) -> WakeupId {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1428", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1428", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Cancels a wakeup event.
 ! @param wakeup_id Wakeup event to cancel*/
@@ -5441,10 +5256,10 @@ gneiss: Vtable Slot 353, Offset 1412*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.wakeup_cancel")]
 pub unsafe extern "C" fn wakeup_cancel(wakeup_id: WakeupId) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1412", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1412", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 ///! Cancels all wakeup event for the app.
 /** wakeup_cancel_all
@@ -5453,10 +5268,10 @@ gneiss: Vtable Slot 354, Offset 1416*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.wakeup_cancel_all")]
 pub unsafe extern "C" fn wakeup_cancel_all() {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1416", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1416", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Retrieves the wakeup event info for an app that was launched
 ! by a wakeup_event (ie. @c launch_reason() === APP_LAUNCH_WAKEUP)
@@ -5470,13 +5285,13 @@ gneiss: Vtable Slot 355, Offset 1420*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.wakeup_get_launch_event")]
 pub unsafe extern "C" fn wakeup_get_launch_event(
-    wakeup_id: *mut WakeupId,
-    cookie: *mut i32,
+	wakeup_id: *mut WakeupId,
+	cookie: *mut i32,
 ) -> bool {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1420", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1420", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Checks if the current WakeupId is still scheduled and therefore valid
 ! @param wakeup_id Wakeup event to query for validity and scheduled time
@@ -5492,14 +5307,11 @@ pub unsafe extern "C" fn wakeup_get_launch_event(
 gneiss: Vtable Slot 356, Offset 1424*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.wakeup_query")]
-pub unsafe extern "C" fn wakeup_query(
-    wakeup_id: WakeupId,
-    timestamp: *mut time_t,
-) -> bool {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1424", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+pub unsafe extern "C" fn wakeup_query(wakeup_id: WakeupId, timestamp: *mut time_t) -> bool {
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1424", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 ///!< App launched by the system
 pub const AppLaunchReason_APP_LAUNCH_SYSTEM: AppLaunchReason = 0;
@@ -5541,10 +5353,10 @@ gneiss: Vtable Slot 352, Offset 1408*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.launch_reason")]
 pub unsafe extern "C" fn launch_reason() -> AppLaunchReason {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1408", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1408", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Get the argument passed to the app when it was launched.
 ! @note Currently the only way to pass arguments to apps is by using an openWatchApp action
@@ -5556,10 +5368,10 @@ gneiss: Vtable Slot 438, Offset 1752*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.launch_get_args")]
 pub unsafe extern "C" fn launch_get_args() -> u32 {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1752", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1752", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Get the button id used to launch the app.
 ! Only valid if the launch reason is APP_LAUNCH_USER or APP_LAUNCH_QUICK_LAUNCH.*/
@@ -5569,10 +5381,10 @@ gneiss: Vtable Slot 655, Offset 2620*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.launch_button")]
 pub unsafe extern "C" fn launch_button() -> ButtonId {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =2620", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =2620", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Get the action that was used to quick launch the app.
 ! @return The \ref AppQuickLaunchAction used to launch the app, or
@@ -5583,10 +5395,10 @@ gneiss: Vtable Slot 656, Offset 2624*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.launch_get_quick_launch_action")]
 pub unsafe extern "C" fn launch_get_quick_launch_action() -> AppQuickLaunchAction {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =2624", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =2624", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 ///!< Exit reason not specified
 pub const AppExitReason_APP_EXIT_NOT_SPECIFIED: AppExitReason = 0;
@@ -5605,10 +5417,10 @@ gneiss: Vtable Slot 616, Offset 2464*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.exit_reason_set")]
 pub unsafe extern "C" fn exit_reason_set(exit_reason: AppExitReason) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =2464", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =2464", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 ///! The ID of a published app resource defined within the publishedMedia section of package.json.
 pub type PublishedId = u32;
@@ -5616,27 +5428,21 @@ pub type PublishedId = u32;
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct AppGlanceSliceLayout {
-    /**! The published resource ID of the bitmap icon to display in the app's glance. Use \ref
-! APP_GLANCE_SLICE_DEFAULT_ICON to use the app's default bitmap icon.*/
-    pub icon: PublishedId,
-    /**! A template string to visualize in the app's glance. The string will be copied, so it is safe
-! to destroy after adding the slice to the glance. Use NULL if no string should be displayed.*/
-    pub subtitle_template_string: *const ::core::ffi::c_char,
+	/**! The published resource ID of the bitmap icon to display in the app's glance. Use \ref
+	! APP_GLANCE_SLICE_DEFAULT_ICON to use the app's default bitmap icon.*/
+	pub icon: PublishedId,
+	/**! A template string to visualize in the app's glance. The string will be copied, so it is safe
+	! to destroy after adding the slice to the glance. Use NULL if no string should be displayed.*/
+	pub subtitle_template_string: *const ::core::ffi::c_char,
 }
 #[allow(clippy::unnecessary_operation, clippy::identity_op)]
 const _: () = {
-    [
-        "Size of AppGlanceSliceLayout",
-    ][::core::mem::size_of::<AppGlanceSliceLayout>() - 8usize];
-    [
-        "Alignment of AppGlanceSliceLayout",
-    ][::core::mem::align_of::<AppGlanceSliceLayout>() - 4usize];
-    [
-        "Offset of field: AppGlanceSliceLayout::icon",
-    ][::core::mem::offset_of!(AppGlanceSliceLayout, icon) - 0usize];
-    [
-        "Offset of field: AppGlanceSliceLayout::subtitle_template_string",
-    ][::core::mem::offset_of!(AppGlanceSliceLayout, subtitle_template_string) - 4usize];
+	["Size of AppGlanceSliceLayout"][::core::mem::size_of::<AppGlanceSliceLayout>() - 8usize];
+	["Alignment of AppGlanceSliceLayout"][::core::mem::align_of::<AppGlanceSliceLayout>() - 4usize];
+	["Offset of field: AppGlanceSliceLayout::icon"]
+		[::core::mem::offset_of!(AppGlanceSliceLayout, icon) - 0usize];
+	["Offset of field: AppGlanceSliceLayout::subtitle_template_string"]
+		[::core::mem::offset_of!(AppGlanceSliceLayout, subtitle_template_string) - 4usize];
 };
 /**! An app's glance can change over time as defined by zero or more app glance slices that each
 ! describe the state of the app glance at a particular point in time. Slices are displayed in the
@@ -5644,22 +5450,20 @@ const _: () = {
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct AppGlanceSlice {
-    ///! Describes how the slice should be visualized in the app's glance in the launcher.
-    pub layout: AppGlanceSliceLayout,
-    /**! The UTC time after which this slice should no longer be shown in the app's glance. Use \ref
-! APP_GLANCE_SLICE_NO_EXPIRATION if the slice should never expire.*/
-    pub expiration_time: time_t,
+	///! Describes how the slice should be visualized in the app's glance in the launcher.
+	pub layout:          AppGlanceSliceLayout,
+	/**! The UTC time after which this slice should no longer be shown in the app's glance. Use \ref
+	! APP_GLANCE_SLICE_NO_EXPIRATION if the slice should never expire.*/
+	pub expiration_time: time_t,
 }
 #[allow(clippy::unnecessary_operation, clippy::identity_op)]
 const _: () = {
-    ["Size of AppGlanceSlice"][::core::mem::size_of::<AppGlanceSlice>() - 12usize];
-    ["Alignment of AppGlanceSlice"][::core::mem::align_of::<AppGlanceSlice>() - 4usize];
-    [
-        "Offset of field: AppGlanceSlice::layout",
-    ][::core::mem::offset_of!(AppGlanceSlice, layout) - 0usize];
-    [
-        "Offset of field: AppGlanceSlice::expiration_time",
-    ][::core::mem::offset_of!(AppGlanceSlice, expiration_time) - 8usize];
+	["Size of AppGlanceSlice"][::core::mem::size_of::<AppGlanceSlice>() - 12usize];
+	["Alignment of AppGlanceSlice"][::core::mem::align_of::<AppGlanceSlice>() - 4usize];
+	["Offset of field: AppGlanceSlice::layout"]
+		[::core::mem::offset_of!(AppGlanceSlice, layout) - 0usize];
+	["Offset of field: AppGlanceSlice::expiration_time"]
+		[::core::mem::offset_of!(AppGlanceSlice, expiration_time) - 8usize];
 };
 ///! The slice was successfully added to the app's glance.
 pub const AppGlanceResult_APP_GLANCE_RESULT_SUCCESS: AppGlanceResult = 0;
@@ -5680,7 +5484,7 @@ pub type AppGlanceResult = ::core::ffi::c_uchar;
 #[repr(C)]
 #[derive(Debug)]
 pub struct AppGlanceReloadSession {
-    _unused: [u8; 0],
+	_unused: [u8; 0],
 }
 /**! Add a slice to the app's glance. This function will only succeed if called with a valid
 ! \ref AppGlanceReloadSession that is provided in an \ref AppGlanceReloadCallback.
@@ -5693,13 +5497,13 @@ gneiss: Vtable Slot 614, Offset 2456*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.app_glance_add_slice")]
 pub unsafe extern "C" fn app_glance_add_slice(
-    session: *mut AppGlanceReloadSession,
-    slice: AppGlanceSlice,
+	session: *mut AppGlanceReloadSession,
+	slice: AppGlanceSlice,
 ) -> AppGlanceResult {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =2456", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =2456", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! User-provided callback for reloading the slices in the app's glance.
 ! @param session A session variable that must be passed to \ref app_glance_add_slice when adding
@@ -5707,11 +5511,11 @@ pub unsafe extern "C" fn app_glance_add_slice(
 ! @param limit The number of entries that can be added to the app's glance
 ! @param context User-provided context provided when calling \ref app_glance_reload()*/
 pub type AppGlanceReloadCallback = ::core::option::Option<
-    unsafe extern "C" fn(
-        session: *mut AppGlanceReloadSession,
-        limit: usize,
-        context: *mut ::core::ffi::c_void,
-    ),
+	unsafe extern "C" fn(
+		session: *mut AppGlanceReloadSession,
+		limit: usize,
+		context: *mut ::core::ffi::c_void,
+	),
 >;
 /**! Clear any existing slices in the app's glance and trigger a reload via the provided callback.
 ! @param callback A function that will be called to add new slices to the app's glance; even if
@@ -5723,13 +5527,13 @@ gneiss: Vtable Slot 615, Offset 2460*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.app_glance_reload")]
 pub unsafe extern "C" fn app_glance_reload(
-    callback: AppGlanceReloadCallback,
-    context: *mut ::core::ffi::c_void,
+	callback: AppGlanceReloadCallback,
+	context: *mut ::core::ffi::c_void,
 ) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =2460", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =2460", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! @addtogroup GraphicsTypes Graphics Types
 ! \brief Basic graphics types (point, rect, size, color, bitmaps, etc.) and utility functions.
@@ -5738,241 +5542,205 @@ pub unsafe extern "C" fn app_glance_reload(
 #[repr(C)]
 #[derive(Copy, Clone)]
 pub union GColor8 {
-    pub argb: u8,
-    pub __bindgen_anon_1: GColor8__bindgen_ty_1,
+	pub argb:             u8,
+	pub __bindgen_anon_1: GColor8__bindgen_ty_1,
 }
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct GColor8__bindgen_ty_1 {
-    pub _bitfield_1: __BindgenBitfieldUnit<[u8; 1usize]>,
+	pub _bitfield_1: __BindgenBitfieldUnit<[u8; 1usize]>,
 }
 #[allow(clippy::unnecessary_operation, clippy::identity_op)]
 const _: () = {
-    [
-        "Size of GColor8__bindgen_ty_1",
-    ][::core::mem::size_of::<GColor8__bindgen_ty_1>() - 1usize];
-    [
-        "Alignment of GColor8__bindgen_ty_1",
-    ][::core::mem::align_of::<GColor8__bindgen_ty_1>() - 1usize];
+	["Size of GColor8__bindgen_ty_1"][::core::mem::size_of::<GColor8__bindgen_ty_1>() - 1usize];
+	["Alignment of GColor8__bindgen_ty_1"]
+		[::core::mem::align_of::<GColor8__bindgen_ty_1>() - 1usize];
 };
 impl GColor8__bindgen_ty_1 {
-    #[inline]
-    #[allow(unnecessary_transmutes)]
-    pub fn b(&self) -> u8 {
-        unsafe {
-            ::core::mem::transmute(self._bitfield_1.get_const::<0usize, 2u8>() as u8)
-        }
-    }
-    #[inline]
-    #[allow(unnecessary_transmutes)]
-    pub fn set_b(&mut self, val: u8) {
-        unsafe {
-            let val: u8 = ::core::mem::transmute(val);
-            self._bitfield_1.set_const::<0usize, 2u8>(val as u64)
-        }
-    }
-    #[inline]
-    #[allow(unnecessary_transmutes)]
-    pub unsafe fn b_raw(this: *const Self) -> u8 {
-        unsafe {
-            ::core::mem::transmute(
-                <__BindgenBitfieldUnit<
-                    [u8; 1usize],
-                >>::raw_get_const::<
-                    0usize,
-                    2u8,
-                >(::core::ptr::addr_of!((*this)._bitfield_1)) as u8,
-            )
-        }
-    }
-    #[inline]
-    #[allow(unnecessary_transmutes)]
-    pub unsafe fn set_b_raw(this: *mut Self, val: u8) {
-        unsafe {
-            let val: u8 = ::core::mem::transmute(val);
-            <__BindgenBitfieldUnit<
-                [u8; 1usize],
-            >>::raw_set_const::<
-                0usize,
-                2u8,
-            >(::core::ptr::addr_of_mut!((*this)._bitfield_1), val as u64)
-        }
-    }
-    #[inline]
-    #[allow(unnecessary_transmutes)]
-    pub fn g(&self) -> u8 {
-        unsafe {
-            ::core::mem::transmute(self._bitfield_1.get_const::<2usize, 2u8>() as u8)
-        }
-    }
-    #[inline]
-    #[allow(unnecessary_transmutes)]
-    pub fn set_g(&mut self, val: u8) {
-        unsafe {
-            let val: u8 = ::core::mem::transmute(val);
-            self._bitfield_1.set_const::<2usize, 2u8>(val as u64)
-        }
-    }
-    #[inline]
-    #[allow(unnecessary_transmutes)]
-    pub unsafe fn g_raw(this: *const Self) -> u8 {
-        unsafe {
-            ::core::mem::transmute(
-                <__BindgenBitfieldUnit<
-                    [u8; 1usize],
-                >>::raw_get_const::<
-                    2usize,
-                    2u8,
-                >(::core::ptr::addr_of!((*this)._bitfield_1)) as u8,
-            )
-        }
-    }
-    #[inline]
-    #[allow(unnecessary_transmutes)]
-    pub unsafe fn set_g_raw(this: *mut Self, val: u8) {
-        unsafe {
-            let val: u8 = ::core::mem::transmute(val);
-            <__BindgenBitfieldUnit<
-                [u8; 1usize],
-            >>::raw_set_const::<
-                2usize,
-                2u8,
-            >(::core::ptr::addr_of_mut!((*this)._bitfield_1), val as u64)
-        }
-    }
-    #[inline]
-    #[allow(unnecessary_transmutes)]
-    pub fn r(&self) -> u8 {
-        unsafe {
-            ::core::mem::transmute(self._bitfield_1.get_const::<4usize, 2u8>() as u8)
-        }
-    }
-    #[inline]
-    #[allow(unnecessary_transmutes)]
-    pub fn set_r(&mut self, val: u8) {
-        unsafe {
-            let val: u8 = ::core::mem::transmute(val);
-            self._bitfield_1.set_const::<4usize, 2u8>(val as u64)
-        }
-    }
-    #[inline]
-    #[allow(unnecessary_transmutes)]
-    pub unsafe fn r_raw(this: *const Self) -> u8 {
-        unsafe {
-            ::core::mem::transmute(
-                <__BindgenBitfieldUnit<
-                    [u8; 1usize],
-                >>::raw_get_const::<
-                    4usize,
-                    2u8,
-                >(::core::ptr::addr_of!((*this)._bitfield_1)) as u8,
-            )
-        }
-    }
-    #[inline]
-    #[allow(unnecessary_transmutes)]
-    pub unsafe fn set_r_raw(this: *mut Self, val: u8) {
-        unsafe {
-            let val: u8 = ::core::mem::transmute(val);
-            <__BindgenBitfieldUnit<
-                [u8; 1usize],
-            >>::raw_set_const::<
-                4usize,
-                2u8,
-            >(::core::ptr::addr_of_mut!((*this)._bitfield_1), val as u64)
-        }
-    }
-    #[inline]
-    #[allow(unnecessary_transmutes)]
-    pub fn a(&self) -> u8 {
-        unsafe {
-            ::core::mem::transmute(self._bitfield_1.get_const::<6usize, 2u8>() as u8)
-        }
-    }
-    #[inline]
-    #[allow(unnecessary_transmutes)]
-    pub fn set_a(&mut self, val: u8) {
-        unsafe {
-            let val: u8 = ::core::mem::transmute(val);
-            self._bitfield_1.set_const::<6usize, 2u8>(val as u64)
-        }
-    }
-    #[inline]
-    #[allow(unnecessary_transmutes)]
-    pub unsafe fn a_raw(this: *const Self) -> u8 {
-        unsafe {
-            ::core::mem::transmute(
-                <__BindgenBitfieldUnit<
-                    [u8; 1usize],
-                >>::raw_get_const::<
-                    6usize,
-                    2u8,
-                >(::core::ptr::addr_of!((*this)._bitfield_1)) as u8,
-            )
-        }
-    }
-    #[inline]
-    #[allow(unnecessary_transmutes)]
-    pub unsafe fn set_a_raw(this: *mut Self, val: u8) {
-        unsafe {
-            let val: u8 = ::core::mem::transmute(val);
-            <__BindgenBitfieldUnit<
-                [u8; 1usize],
-            >>::raw_set_const::<
-                6usize,
-                2u8,
-            >(::core::ptr::addr_of_mut!((*this)._bitfield_1), val as u64)
-        }
-    }
-    #[inline]
-    #[allow(unnecessary_transmutes)]
-    pub fn new_bitfield_1(
-        b: u8,
-        g: u8,
-        r: u8,
-        a: u8,
-    ) -> __BindgenBitfieldUnit<[u8; 1usize]> {
-        let mut __bindgen_bitfield_unit: __BindgenBitfieldUnit<[u8; 1usize]> = Default::default();
-        __bindgen_bitfield_unit
-            .set_const::<
-                0usize,
-                2u8,
-            >({
-                let b: u8 = unsafe { ::core::mem::transmute(b) };
-                b as u64
-            });
-        __bindgen_bitfield_unit
-            .set_const::<
-                2usize,
-                2u8,
-            >({
-                let g: u8 = unsafe { ::core::mem::transmute(g) };
-                g as u64
-            });
-        __bindgen_bitfield_unit
-            .set_const::<
-                4usize,
-                2u8,
-            >({
-                let r: u8 = unsafe { ::core::mem::transmute(r) };
-                r as u64
-            });
-        __bindgen_bitfield_unit
-            .set_const::<
-                6usize,
-                2u8,
-            >({
-                let a: u8 = unsafe { ::core::mem::transmute(a) };
-                a as u64
-            });
-        __bindgen_bitfield_unit
-    }
+	#[inline]
+	#[allow(unnecessary_transmutes)]
+	pub fn b(&self) -> u8 {
+		unsafe { ::core::mem::transmute(self._bitfield_1.get_const::<0usize, 2u8>() as u8) }
+	}
+
+	#[inline]
+	#[allow(unnecessary_transmutes)]
+	pub fn set_b(&mut self, val: u8) {
+		unsafe {
+			let val: u8 = ::core::mem::transmute(val);
+			self._bitfield_1.set_const::<0usize, 2u8>(val as u64)
+		}
+	}
+
+	#[inline]
+	#[allow(unnecessary_transmutes)]
+	pub unsafe fn b_raw(this: *const Self) -> u8 {
+		unsafe {
+			::core::mem::transmute(
+				<__BindgenBitfieldUnit<[u8; 1usize]>>::raw_get_const::<0usize, 2u8>(
+					::core::ptr::addr_of!((*this)._bitfield_1),
+				) as u8,
+			)
+		}
+	}
+
+	#[inline]
+	#[allow(unnecessary_transmutes)]
+	pub unsafe fn set_b_raw(this: *mut Self, val: u8) {
+		unsafe {
+			let val: u8 = ::core::mem::transmute(val);
+			<__BindgenBitfieldUnit<[u8; 1usize]>>::raw_set_const::<0usize, 2u8>(
+				::core::ptr::addr_of_mut!((*this)._bitfield_1),
+				val as u64,
+			)
+		}
+	}
+
+	#[inline]
+	#[allow(unnecessary_transmutes)]
+	pub fn g(&self) -> u8 {
+		unsafe { ::core::mem::transmute(self._bitfield_1.get_const::<2usize, 2u8>() as u8) }
+	}
+
+	#[inline]
+	#[allow(unnecessary_transmutes)]
+	pub fn set_g(&mut self, val: u8) {
+		unsafe {
+			let val: u8 = ::core::mem::transmute(val);
+			self._bitfield_1.set_const::<2usize, 2u8>(val as u64)
+		}
+	}
+
+	#[inline]
+	#[allow(unnecessary_transmutes)]
+	pub unsafe fn g_raw(this: *const Self) -> u8 {
+		unsafe {
+			::core::mem::transmute(
+				<__BindgenBitfieldUnit<[u8; 1usize]>>::raw_get_const::<2usize, 2u8>(
+					::core::ptr::addr_of!((*this)._bitfield_1),
+				) as u8,
+			)
+		}
+	}
+
+	#[inline]
+	#[allow(unnecessary_transmutes)]
+	pub unsafe fn set_g_raw(this: *mut Self, val: u8) {
+		unsafe {
+			let val: u8 = ::core::mem::transmute(val);
+			<__BindgenBitfieldUnit<[u8; 1usize]>>::raw_set_const::<2usize, 2u8>(
+				::core::ptr::addr_of_mut!((*this)._bitfield_1),
+				val as u64,
+			)
+		}
+	}
+
+	#[inline]
+	#[allow(unnecessary_transmutes)]
+	pub fn r(&self) -> u8 {
+		unsafe { ::core::mem::transmute(self._bitfield_1.get_const::<4usize, 2u8>() as u8) }
+	}
+
+	#[inline]
+	#[allow(unnecessary_transmutes)]
+	pub fn set_r(&mut self, val: u8) {
+		unsafe {
+			let val: u8 = ::core::mem::transmute(val);
+			self._bitfield_1.set_const::<4usize, 2u8>(val as u64)
+		}
+	}
+
+	#[inline]
+	#[allow(unnecessary_transmutes)]
+	pub unsafe fn r_raw(this: *const Self) -> u8 {
+		unsafe {
+			::core::mem::transmute(
+				<__BindgenBitfieldUnit<[u8; 1usize]>>::raw_get_const::<4usize, 2u8>(
+					::core::ptr::addr_of!((*this)._bitfield_1),
+				) as u8,
+			)
+		}
+	}
+
+	#[inline]
+	#[allow(unnecessary_transmutes)]
+	pub unsafe fn set_r_raw(this: *mut Self, val: u8) {
+		unsafe {
+			let val: u8 = ::core::mem::transmute(val);
+			<__BindgenBitfieldUnit<[u8; 1usize]>>::raw_set_const::<4usize, 2u8>(
+				::core::ptr::addr_of_mut!((*this)._bitfield_1),
+				val as u64,
+			)
+		}
+	}
+
+	#[inline]
+	#[allow(unnecessary_transmutes)]
+	pub fn a(&self) -> u8 {
+		unsafe { ::core::mem::transmute(self._bitfield_1.get_const::<6usize, 2u8>() as u8) }
+	}
+
+	#[inline]
+	#[allow(unnecessary_transmutes)]
+	pub fn set_a(&mut self, val: u8) {
+		unsafe {
+			let val: u8 = ::core::mem::transmute(val);
+			self._bitfield_1.set_const::<6usize, 2u8>(val as u64)
+		}
+	}
+
+	#[inline]
+	#[allow(unnecessary_transmutes)]
+	pub unsafe fn a_raw(this: *const Self) -> u8 {
+		unsafe {
+			::core::mem::transmute(
+				<__BindgenBitfieldUnit<[u8; 1usize]>>::raw_get_const::<6usize, 2u8>(
+					::core::ptr::addr_of!((*this)._bitfield_1),
+				) as u8,
+			)
+		}
+	}
+
+	#[inline]
+	#[allow(unnecessary_transmutes)]
+	pub unsafe fn set_a_raw(this: *mut Self, val: u8) {
+		unsafe {
+			let val: u8 = ::core::mem::transmute(val);
+			<__BindgenBitfieldUnit<[u8; 1usize]>>::raw_set_const::<6usize, 2u8>(
+				::core::ptr::addr_of_mut!((*this)._bitfield_1),
+				val as u64,
+			)
+		}
+	}
+
+	#[inline]
+	#[allow(unnecessary_transmutes)]
+	pub fn new_bitfield_1(b: u8, g: u8, r: u8, a: u8) -> __BindgenBitfieldUnit<[u8; 1usize]> {
+		let mut __bindgen_bitfield_unit: __BindgenBitfieldUnit<[u8; 1usize]> = Default::default();
+		__bindgen_bitfield_unit.set_const::<0usize, 2u8>({
+			let b: u8 = unsafe { ::core::mem::transmute(b) };
+			b as u64
+		});
+		__bindgen_bitfield_unit.set_const::<2usize, 2u8>({
+			let g: u8 = unsafe { ::core::mem::transmute(g) };
+			g as u64
+		});
+		__bindgen_bitfield_unit.set_const::<4usize, 2u8>({
+			let r: u8 = unsafe { ::core::mem::transmute(r) };
+			r as u64
+		});
+		__bindgen_bitfield_unit.set_const::<6usize, 2u8>({
+			let a: u8 = unsafe { ::core::mem::transmute(a) };
+			a as u64
+		});
+		__bindgen_bitfield_unit
+	}
 }
 #[allow(clippy::unnecessary_operation, clippy::identity_op)]
 const _: () = {
-    ["Size of GColor8"][::core::mem::size_of::<GColor8>() - 1usize];
-    ["Alignment of GColor8"][::core::mem::align_of::<GColor8>() - 1usize];
-    ["Offset of field: GColor8::argb"][::core::mem::offset_of!(GColor8, argb) - 0usize];
+	["Size of GColor8"][::core::mem::size_of::<GColor8>() - 1usize];
+	["Alignment of GColor8"][::core::mem::align_of::<GColor8>() - 1usize];
+	["Offset of field: GColor8::argb"][::core::mem::offset_of!(GColor8, argb) - 0usize];
 };
 /**! @addtogroup GraphicsTypes Graphics Types
 ! \brief Basic graphics types (point, rect, size, color, bitmaps, etc.) and utility functions.
@@ -5986,10 +5754,10 @@ gneiss: Vtable Slot 613, Offset 2452*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.gcolor_equal")]
 pub unsafe extern "C" fn gcolor_equal(x: GColor8, y: GColor8) -> bool {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =2452", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =2452", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! This method assists in improving the legibility of text on various background colors.
 ! It takes the background color for the region in question and computes a color for
@@ -6002,10 +5770,10 @@ gneiss: Vtable Slot 533, Offset 2132*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.gcolor_legible_over")]
 pub unsafe extern "C" fn gcolor_legible_over(background_color: GColor8) -> GColor8 {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =2132", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =2132", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Represents a point in a 2-dimensional coordinate system.
 ! @note Conventionally, the origin of Pebble's 2D coordinate system is in the upper,
@@ -6014,17 +5782,17 @@ pub unsafe extern "C" fn gcolor_legible_over(background_color: GColor8) -> GColo
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct GPoint {
-    ///! The x-coordinate.
-    pub x: i16,
-    ///! The y-coordinate.
-    pub y: i16,
+	///! The x-coordinate.
+	pub x: i16,
+	///! The y-coordinate.
+	pub y: i16,
 }
 #[allow(clippy::unnecessary_operation, clippy::identity_op)]
 const _: () = {
-    ["Size of GPoint"][::core::mem::size_of::<GPoint>() - 4usize];
-    ["Alignment of GPoint"][::core::mem::align_of::<GPoint>() - 2usize];
-    ["Offset of field: GPoint::x"][::core::mem::offset_of!(GPoint, x) - 0usize];
-    ["Offset of field: GPoint::y"][::core::mem::offset_of!(GPoint, y) - 2usize];
+	["Size of GPoint"][::core::mem::size_of::<GPoint>() - 4usize];
+	["Alignment of GPoint"][::core::mem::align_of::<GPoint>() - 2usize];
+	["Offset of field: GPoint::x"][::core::mem::offset_of!(GPoint, x) - 0usize];
+	["Offset of field: GPoint::y"][::core::mem::offset_of!(GPoint, y) - 2usize];
 };
 /**! Tests whether 2 points are equal.
 ! @param point_a Pointer to the first point
@@ -6035,30 +5803,27 @@ const _: () = {
 gneiss: Vtable Slot 111, Offset 444*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.gpoint_equal")]
-pub unsafe extern "C" fn gpoint_equal(
-    point_a: *const GPoint,
-    point_b: *const GPoint,
-) -> bool {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =444", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+pub unsafe extern "C" fn gpoint_equal(point_a: *const GPoint, point_b: *const GPoint) -> bool {
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =444", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 ///! Represents a 2-dimensional size.
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct GSize {
-    ///! The width
-    pub w: i16,
-    ///! The height
-    pub h: i16,
+	///! The width
+	pub w: i16,
+	///! The height
+	pub h: i16,
 }
 #[allow(clippy::unnecessary_operation, clippy::identity_op)]
 const _: () = {
-    ["Size of GSize"][::core::mem::size_of::<GSize>() - 4usize];
-    ["Alignment of GSize"][::core::mem::align_of::<GSize>() - 2usize];
-    ["Offset of field: GSize::w"][::core::mem::offset_of!(GSize, w) - 0usize];
-    ["Offset of field: GSize::h"][::core::mem::offset_of!(GSize, h) - 2usize];
+	["Size of GSize"][::core::mem::size_of::<GSize>() - 4usize];
+	["Alignment of GSize"][::core::mem::align_of::<GSize>() - 2usize];
+	["Offset of field: GSize::w"][::core::mem::offset_of!(GSize, w) - 0usize];
+	["Offset of field: GSize::h"][::core::mem::offset_of!(GSize, h) - 2usize];
 };
 /**! Tests whether 2 sizes are equal.
 ! @param size_a Pointer to the first size
@@ -6069,31 +5834,28 @@ const _: () = {
 gneiss: Vtable Slot 134, Offset 536*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.gsize_equal")]
-pub unsafe extern "C" fn gsize_equal(
-    size_a: *const GSize,
-    size_b: *const GSize,
-) -> bool {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =536", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+pub unsafe extern "C" fn gsize_equal(size_a: *const GSize, size_b: *const GSize) -> bool {
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =536", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Represents a rectangle and defining it using the origin of
 ! the upper-lefthand corner and its size.*/
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct GRect {
-    ///! The coordinate of the upper-lefthand corner point of the rectangle.
-    pub origin: GPoint,
-    ///! The size of the rectangle.
-    pub size: GSize,
+	///! The coordinate of the upper-lefthand corner point of the rectangle.
+	pub origin: GPoint,
+	///! The size of the rectangle.
+	pub size:   GSize,
 }
 #[allow(clippy::unnecessary_operation, clippy::identity_op)]
 const _: () = {
-    ["Size of GRect"][::core::mem::size_of::<GRect>() - 8usize];
-    ["Alignment of GRect"][::core::mem::align_of::<GRect>() - 2usize];
-    ["Offset of field: GRect::origin"][::core::mem::offset_of!(GRect, origin) - 0usize];
-    ["Offset of field: GRect::size"][::core::mem::offset_of!(GRect, size) - 4usize];
+	["Size of GRect"][::core::mem::size_of::<GRect>() - 8usize];
+	["Alignment of GRect"][::core::mem::align_of::<GRect>() - 2usize];
+	["Offset of field: GRect::origin"][::core::mem::offset_of!(GRect, origin) - 0usize];
+	["Offset of field: GRect::size"][::core::mem::offset_of!(GRect, size) - 4usize];
 };
 /**! Tests whether 2 rectangles are equal.
 ! @param rect_a Pointer to the first rectangle
@@ -6104,14 +5866,11 @@ const _: () = {
 gneiss: Vtable Slot 131, Offset 524*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.grect_equal")]
-pub unsafe extern "C" fn grect_equal(
-    rect_a: *const GRect,
-    rect_b: *const GRect,
-) -> bool {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =524", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+pub unsafe extern "C" fn grect_equal(rect_a: *const GRect, rect_b: *const GRect) -> bool {
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =524", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Tests whether the size of the rectangle is (0, 0).
 ! @param rect Pointer to the rectangle
@@ -6124,10 +5883,10 @@ gneiss: Vtable Slot 132, Offset 528*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.grect_is_empty")]
 pub unsafe extern "C" fn grect_is_empty(rect: *const GRect) -> bool {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =528", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =528", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Converts a rectangle's values so that the components of its size
 ! (width and/or height) are both positive. In the width and/or height are negative,
@@ -6141,10 +5900,10 @@ gneiss: Vtable Slot 133, Offset 532*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.grect_standardize")]
 pub unsafe extern "C" fn grect_standardize(rect: *mut GRect) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =532", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =532", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Trim one rectangle using the edges of a second rectangle.
 ! @param[in,out] rect_to_clip The rectangle that needs to be clipped (in place).
@@ -6155,14 +5914,11 @@ pub unsafe extern "C" fn grect_standardize(rect: *mut GRect) {
 gneiss: Vtable Slot 128, Offset 512*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.grect_clip")]
-pub unsafe extern "C" fn grect_clip(
-    rect_to_clip: *mut GRect,
-    rect_clipper: *const GRect,
-) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =512", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+pub unsafe extern "C" fn grect_clip(rect_to_clip: *mut GRect, rect_clipper: *const GRect) {
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =512", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Tests whether a rectangle contains a point.
 ! @param rect The rectangle
@@ -6173,14 +5929,11 @@ pub unsafe extern "C" fn grect_clip(
 gneiss: Vtable Slot 129, Offset 516*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.grect_contains_point")]
-pub unsafe extern "C" fn grect_contains_point(
-    rect: *const GRect,
-    point: *const GPoint,
-) -> bool {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =516", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+pub unsafe extern "C" fn grect_contains_point(rect: *const GRect, point: *const GPoint) -> bool {
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =516", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Convenience function to compute the center-point of a given rectangle.
 ! This is equal to `(rect->x + rect->width / 2, rect->y + rect->height / 2)`.
@@ -6192,10 +5945,10 @@ gneiss: Vtable Slot 127, Offset 508*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.grect_center_point")]
 pub unsafe extern "C" fn grect_center_point(rect: *const GRect) -> GPoint {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =508", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =508", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Reduce the width and height of a rectangle by insetting each of the edges with
 ! a fixed inset. The returned rectangle will be centered relative to the input rectangle.
@@ -6211,10 +5964,10 @@ gneiss: Vtable Slot 130, Offset 520*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.grect_crop")]
 pub unsafe extern "C" fn grect_crop(rect: GRect, crop_size_px: i32) -> GRect {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =520", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =520", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 pub const GBitmapFormat_GBitmapFormat1Bit: GBitmapFormat = 0;
 pub const GBitmapFormat_GBitmapFormat8Bit: GBitmapFormat = 1;
@@ -6227,12 +5980,12 @@ pub type GBitmapFormat = ::core::ffi::c_uchar;
 #[repr(C)]
 #[derive(Debug)]
 pub struct GBitmap {
-    _unused: [u8; 0],
+	_unused: [u8; 0],
 }
 #[repr(C)]
 #[derive(Debug)]
 pub struct GBitmapSequence {
-    _unused: [u8; 0],
+	_unused: [u8; 0],
 }
 /**! Get the number of bytes per row in the bitmap data for the given \ref GBitmap.
 ! On rectangular displays, this can be used as a safe way of iterating over the rows in the
@@ -6249,10 +6002,10 @@ gneiss: Vtable Slot 408, Offset 1632*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.gbitmap_get_bytes_per_row")]
 pub unsafe extern "C" fn gbitmap_get_bytes_per_row(bitmap: *const GBitmap) -> u16 {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1632", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1632", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Get the \ref GBitmapFormat for the \ref GBitmap.
 ! @param bitmap A pointer to the GBitmap to get the format
@@ -6263,10 +6016,10 @@ gneiss: Vtable Slot 410, Offset 1640*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.gbitmap_get_format")]
 pub unsafe extern "C" fn gbitmap_get_format(bitmap: *const GBitmap) -> GBitmapFormat {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1640", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1640", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Get a pointer to the raw image data section of the given \ref GBitmap as specified by the format
 ! of the bitmap.
@@ -6280,10 +6033,10 @@ gneiss: Vtable Slot 409, Offset 1636*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.gbitmap_get_data")]
 pub unsafe extern "C" fn gbitmap_get_data(bitmap: *const GBitmap) -> *mut u8 {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1636", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1636", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Set the bitmap data for the given \ref GBitmap.
 ! @param bitmap A pointer to the GBitmap to set data to
@@ -6300,16 +6053,16 @@ gneiss: Vtable Slot 413, Offset 1652*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.gbitmap_set_data")]
 pub unsafe extern "C" fn gbitmap_set_data(
-    bitmap: *mut GBitmap,
-    data: *mut u8,
-    format: GBitmapFormat,
-    row_size_bytes: u16,
-    free_on_destroy: bool,
+	bitmap: *mut GBitmap,
+	data: *mut u8,
+	format: GBitmapFormat,
+	row_size_bytes: u16,
+	free_on_destroy: bool,
 ) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1652", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1652", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Gets the bounds of the content for the \ref GBitmap. This is set when loading the image or
 ! if changed by \ref gbitmap_set_bounds.
@@ -6322,10 +6075,10 @@ gneiss: Vtable Slot 407, Offset 1628*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.gbitmap_get_bounds")]
 pub unsafe extern "C" fn gbitmap_get_bounds(bitmap: *const GBitmap) -> GRect {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1628", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1628", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Set the bounds of the given \ref GBitmap.
 ! @param bitmap A pointer to the GBitmap to set the bounding box.
@@ -6337,10 +6090,10 @@ gneiss: Vtable Slot 412, Offset 1648*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.gbitmap_set_bounds")]
 pub unsafe extern "C" fn gbitmap_set_bounds(bitmap: *mut GBitmap, bounds: GRect) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1648", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1648", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Get the palette for the given \ref GBitmap.
 ! @param bitmap A pointer to the GBitmap to get the palette from.
@@ -6352,10 +6105,10 @@ gneiss: Vtable Slot 411, Offset 1644*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.gbitmap_get_palette")]
 pub unsafe extern "C" fn gbitmap_get_palette(bitmap: *const GBitmap) -> *mut GColor {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1644", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1644", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Set the palette for the given \ref GBitmap.
 ! @param bitmap A pointer to the GBitmap to set the palette to
@@ -6372,14 +6125,14 @@ gneiss: Vtable Slot 414, Offset 1656*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.gbitmap_set_palette")]
 pub unsafe extern "C" fn gbitmap_set_palette(
-    bitmap: *mut GBitmap,
-    palette: *mut GColor,
-    free_on_destroy: bool,
+	bitmap: *mut GBitmap,
+	palette: *mut GColor,
+	free_on_destroy: bool,
 ) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1656", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1656", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Creates a new \ref GBitmap on the heap using a Pebble image file stored as a resource.
 ! The resulting GBitmap must be destroyed using \ref gbitmap_destroy().
@@ -6392,10 +6145,10 @@ gneiss: Vtable Slot 102, Offset 408*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.gbitmap_create_with_resource")]
 pub unsafe extern "C" fn gbitmap_create_with_resource(resource_id: u32) -> *mut GBitmap {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =408", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =408", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Creates a new GBitmap on the heap initialized with the provided Pebble image data.
 !
@@ -6416,10 +6169,10 @@ gneiss: Vtable Slot 101, Offset 404*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.gbitmap_create_with_data")]
 pub unsafe extern "C" fn gbitmap_create_with_data(data: *const u8) -> *mut GBitmap {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =404", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =404", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Create a new \ref GBitmap on the heap as a sub-bitmap of a 'base' \ref
 ! GBitmap, using a GRect to indicate what portion of the base to use. The
@@ -6441,13 +6194,13 @@ gneiss: Vtable Slot 100, Offset 400*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.gbitmap_create_as_sub_bitmap")]
 pub unsafe extern "C" fn gbitmap_create_as_sub_bitmap(
-    base_bitmap: *const GBitmap,
-    sub_rect: GRect,
+	base_bitmap: *const GBitmap,
+	sub_rect: GRect,
 ) -> *mut GBitmap {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =400", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =400", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Create a \ref GBitmap based on raw PNG data.
 ! The resulting \ref GBitmap must be destroyed using \ref gbitmap_destroy().
@@ -6463,13 +6216,13 @@ gneiss: Vtable Slot 421, Offset 1684*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.gbitmap_create_from_png_data")]
 pub unsafe extern "C" fn gbitmap_create_from_png_data(
-    png_data: *const u8,
-    png_data_size: usize,
+	png_data: *const u8,
+	png_data_size: usize,
 ) -> *mut GBitmap {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1684", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1684", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Creates a new blank GBitmap on the heap initialized to zeroes.
 ! In the case that the format indicates a palettized bitmap, a palette of appropriate size will
@@ -6484,14 +6237,11 @@ pub unsafe extern "C" fn gbitmap_create_from_png_data(
 gneiss: Vtable Slot 393, Offset 1572*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.gbitmap_create_blank")]
-pub unsafe extern "C" fn gbitmap_create_blank(
-    size: GSize,
-    format: GBitmapFormat,
-) -> *mut GBitmap {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1572", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+pub unsafe extern "C" fn gbitmap_create_blank(size: GSize, format: GBitmapFormat) -> *mut GBitmap {
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1572", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Creates a new blank GBitmap on the heap, initialized to zeroes, and assigns it the given
 ! palette.
@@ -6512,15 +6262,15 @@ gneiss: Vtable Slot 406, Offset 1624*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.gbitmap_create_blank_with_palette")]
 pub unsafe extern "C" fn gbitmap_create_blank_with_palette(
-    size: GSize,
-    format: GBitmapFormat,
-    palette: *mut GColor,
-    free_on_destroy: bool,
+	size: GSize,
+	format: GBitmapFormat,
+	palette: *mut GColor,
+	free_on_destroy: bool,
 ) -> *mut GBitmap {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1624", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1624", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Given a 1-bit GBitmap, create a new bitmap of format GBitmapFormat1BitPalette.
 ! The new data buffer is allocated on the heap, and a 2-color palette is allocated as well.
@@ -6535,12 +6285,12 @@ gneiss: Vtable Slot 458, Offset 1832*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.gbitmap_create_palettized_from_1bit")]
 pub unsafe extern "C" fn gbitmap_create_palettized_from_1bit(
-    src_bitmap: *const GBitmap,
+	src_bitmap: *const GBitmap,
 ) -> *mut GBitmap {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1832", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1832", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Destroy a \ref GBitmap.
 ! This must be called for every bitmap that's been created with gbitmap_create_*
@@ -6556,10 +6306,10 @@ gneiss: Vtable Slot 103, Offset 412*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.gbitmap_destroy")]
 pub unsafe extern "C" fn gbitmap_destroy(bitmap: *mut GBitmap) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =412", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =412", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Creates a GBitmapSequence from the specified resource (APNG/PNG files)
 ! @param resource_id Resource to load and create GBitmapSequence from.
@@ -6570,12 +6320,12 @@ gneiss: Vtable Slot 415, Offset 1660*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.gbitmap_sequence_create_with_resource")]
 pub unsafe extern "C" fn gbitmap_sequence_create_with_resource(
-    resource_id: u32,
+	resource_id: u32,
 ) -> *mut GBitmapSequence {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1660", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1660", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Updates the contents of the bitmap sequence to the next frame
 ! and optionally returns the delay in milliseconds until the next frame.
@@ -6593,14 +6343,14 @@ gneiss: Vtable Slot 420, Offset 1680*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.gbitmap_sequence_update_bitmap_next_frame")]
 pub unsafe extern "C" fn gbitmap_sequence_update_bitmap_next_frame(
-    bitmap_sequence: *mut GBitmapSequence,
-    bitmap: *mut GBitmap,
-    delay_ms: *mut u32,
+	bitmap_sequence: *mut GBitmapSequence,
+	bitmap: *mut GBitmap,
+	delay_ms: *mut u32,
 ) -> bool {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1680", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1680", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Updates the contents of the bitmap sequence to the frame at elapsed in the sequence.
 ! For looping animations this accounts for the loop, for example an animation of 1 second that
@@ -6622,14 +6372,14 @@ gneiss: Vtable Slot 457, Offset 1828*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.gbitmap_sequence_update_bitmap_by_elapsed")]
 pub unsafe extern "C" fn gbitmap_sequence_update_bitmap_by_elapsed(
-    bitmap_sequence: *mut GBitmapSequence,
-    bitmap: *mut GBitmap,
-    elapsed_ms: u32,
+	bitmap_sequence: *mut GBitmapSequence,
+	bitmap: *mut GBitmap,
+	elapsed_ms: u32,
 ) -> bool {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1828", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1828", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Deletes the GBitmapSequence structure and frees any allocated memory/decoder_data
 ! @param bitmap_sequence Pointer to the bitmap sequence to free (delete)*/
@@ -6638,13 +6388,11 @@ pub unsafe extern "C" fn gbitmap_sequence_update_bitmap_by_elapsed(
 gneiss: Vtable Slot 416, Offset 1664*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.gbitmap_sequence_destroy")]
-pub unsafe extern "C" fn gbitmap_sequence_destroy(
-    bitmap_sequence: *mut GBitmapSequence,
-) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1664", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+pub unsafe extern "C" fn gbitmap_sequence_destroy(bitmap_sequence: *mut GBitmapSequence) {
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1664", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Restarts the GBitmapSequence to the first frame \ref gbitmap_sequence_update_bitmap_next_frame
 ! @param bitmap_sequence Pointer to loaded bitmap sequence
@@ -6654,13 +6402,11 @@ pub unsafe extern "C" fn gbitmap_sequence_destroy(
 gneiss: Vtable Slot 442, Offset 1768*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.gbitmap_sequence_restart")]
-pub unsafe extern "C" fn gbitmap_sequence_restart(
-    bitmap_sequence: *mut GBitmapSequence,
-) -> bool {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1768", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+pub unsafe extern "C" fn gbitmap_sequence_restart(bitmap_sequence: *mut GBitmapSequence) -> bool {
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1768", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! This function gets the current frame number for the bitmap sequence
 ! @param bitmap_sequence Pointer to loaded bitmap sequence
@@ -6671,12 +6417,12 @@ gneiss: Vtable Slot 418, Offset 1672*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.gbitmap_sequence_get_current_frame_idx")]
 pub unsafe extern "C" fn gbitmap_sequence_get_current_frame_idx(
-    bitmap_sequence: *mut GBitmapSequence,
+	bitmap_sequence: *mut GBitmapSequence,
 ) -> i32 {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1672", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1672", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! This function sets the total number of frames for the bitmap sequence
 ! @param bitmap_sequence Pointer to loaded bitmap sequence
@@ -6687,12 +6433,12 @@ gneiss: Vtable Slot 419, Offset 1676*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.gbitmap_sequence_get_total_num_frames")]
 pub unsafe extern "C" fn gbitmap_sequence_get_total_num_frames(
-    bitmap_sequence: *mut GBitmapSequence,
+	bitmap_sequence: *mut GBitmapSequence,
 ) -> u32 {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1676", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1676", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! This function gets the play count (number of times to repeat) the bitmap sequence
 ! @note This value is initialized by the bitmap sequence data, and is modified by
@@ -6705,12 +6451,12 @@ gneiss: Vtable Slot 441, Offset 1764*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.gbitmap_sequence_get_play_count")]
 pub unsafe extern "C" fn gbitmap_sequence_get_play_count(
-    bitmap_sequence: *mut GBitmapSequence,
+	bitmap_sequence: *mut GBitmapSequence,
 ) -> u32 {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1764", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1764", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! This function sets the play count (number of times to repeat) the bitmap sequence
 ! @param bitmap_sequence Pointer to loaded bitmap sequence
@@ -6723,13 +6469,13 @@ gneiss: Vtable Slot 443, Offset 1772*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.gbitmap_sequence_set_play_count")]
 pub unsafe extern "C" fn gbitmap_sequence_set_play_count(
-    bitmap_sequence: *mut GBitmapSequence,
-    play_count: u32,
+	bitmap_sequence: *mut GBitmapSequence,
+	play_count: u32,
 ) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1772", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1772", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! This function gets the minimum required size (dimensions) necessary
 ! to render the bitmap sequence to a GBitmap
@@ -6742,12 +6488,12 @@ gneiss: Vtable Slot 417, Offset 1668*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.gbitmap_sequence_get_bitmap_size")]
 pub unsafe extern "C" fn gbitmap_sequence_get_bitmap_size(
-    bitmap_sequence: *mut GBitmapSequence,
+	bitmap_sequence: *mut GBitmapSequence,
 ) -> GSize {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1668", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1668", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Description of a single data row in the pixel data of a bitmap
 ! @note This data type describes the actual pixel data of a bitmap and does not respect the
@@ -6758,38 +6504,31 @@ pub unsafe extern "C" fn gbitmap_sequence_get_bitmap_size(
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct GBitmapDataRowInfo {
-    /**! Address of the byte at column 0 of a given data row in a bitmap. Use this to calculate the
-! memory address of a pixel. For GBitmapFormat8BitCircular or GBitmapFormat8Bit this would
-! be: `uint8_t *pixel_addr = row_info.addr + x`.
-! Note that this byte can be outside of the valid range for this row.
-! For example: The first valid pixel (`min_x=76`) of a row might start at 76 bytes after the
-! given data pointer (assuming that 1 pixel is represented as 1 byte as in
-! GBitmapFormat8BitCircular or GBitmapFormat8Bit).*/
-    pub data: *mut u8,
-    ///! The absolute column of a first valid pixel for a given data row.
-    pub min_x: i16,
-    /**! The absolute column of the last valid pixel for a given data row.
-! For optimization reasons the result can be anywhere between
-! grect_get_max_x(bitmap_bounds) - 1 and the physical data boundary.*/
-    pub max_x: i16,
+	/**! Address of the byte at column 0 of a given data row in a bitmap. Use this to calculate the
+	! memory address of a pixel. For GBitmapFormat8BitCircular or GBitmapFormat8Bit this would
+	! be: `uint8_t *pixel_addr = row_info.addr + x`.
+	! Note that this byte can be outside of the valid range for this row.
+	! For example: The first valid pixel (`min_x=76`) of a row might start at 76 bytes after the
+	! given data pointer (assuming that 1 pixel is represented as 1 byte as in
+	! GBitmapFormat8BitCircular or GBitmapFormat8Bit).*/
+	pub data:  *mut u8,
+	///! The absolute column of a first valid pixel for a given data row.
+	pub min_x: i16,
+	/**! The absolute column of the last valid pixel for a given data row.
+	! For optimization reasons the result can be anywhere between
+	! grect_get_max_x(bitmap_bounds) - 1 and the physical data boundary.*/
+	pub max_x: i16,
 }
 #[allow(clippy::unnecessary_operation, clippy::identity_op)]
 const _: () = {
-    [
-        "Size of GBitmapDataRowInfo",
-    ][::core::mem::size_of::<GBitmapDataRowInfo>() - 8usize];
-    [
-        "Alignment of GBitmapDataRowInfo",
-    ][::core::mem::align_of::<GBitmapDataRowInfo>() - 4usize];
-    [
-        "Offset of field: GBitmapDataRowInfo::data",
-    ][::core::mem::offset_of!(GBitmapDataRowInfo, data) - 0usize];
-    [
-        "Offset of field: GBitmapDataRowInfo::min_x",
-    ][::core::mem::offset_of!(GBitmapDataRowInfo, min_x) - 4usize];
-    [
-        "Offset of field: GBitmapDataRowInfo::max_x",
-    ][::core::mem::offset_of!(GBitmapDataRowInfo, max_x) - 6usize];
+	["Size of GBitmapDataRowInfo"][::core::mem::size_of::<GBitmapDataRowInfo>() - 8usize];
+	["Alignment of GBitmapDataRowInfo"][::core::mem::align_of::<GBitmapDataRowInfo>() - 4usize];
+	["Offset of field: GBitmapDataRowInfo::data"]
+		[::core::mem::offset_of!(GBitmapDataRowInfo, data) - 0usize];
+	["Offset of field: GBitmapDataRowInfo::min_x"]
+		[::core::mem::offset_of!(GBitmapDataRowInfo, min_x) - 4usize];
+	["Offset of field: GBitmapDataRowInfo::max_x"]
+		[::core::mem::offset_of!(GBitmapDataRowInfo, max_x) - 6usize];
 };
 /**! Provides information about a pixel data row
 ! @param bitmap A pointer to the GBitmap to get row info
@@ -6805,13 +6544,13 @@ gneiss: Vtable Slot 571, Offset 2284*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.gbitmap_get_data_row_info")]
 pub unsafe extern "C" fn gbitmap_get_data_row_info(
-    bitmap: *const GBitmap,
-    y: u16,
+	bitmap: *const GBitmap,
+	y: u16,
 ) -> GBitmapDataRowInfo {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =2284", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =2284", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 ///! Align by centering
 pub const GAlign_GAlignCenter: GAlign = 0;
@@ -6851,15 +6590,15 @@ gneiss: Vtable Slot 126, Offset 504*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.grect_align")]
 pub unsafe extern "C" fn grect_align(
-    rect: *mut GRect,
-    inside_rect: *const GRect,
-    alignment: GAlign,
-    clip: bool,
+	rect: *mut GRect,
+	inside_rect: *const GRect,
+	alignment: GAlign,
+	clip: bool,
 ) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =504", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =504", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Assign the pixel values of the source image to the destination pixels,
 ! effectively replacing the previous values for those pixels. For color displays, when drawing
@@ -6915,38 +6654,30 @@ pub type GCompOp = ::core::ffi::c_uchar;
 #[repr(C)]
 #[derive(Debug)]
 pub struct GContext {
-    _unused: [u8; 0],
+	_unused: [u8; 0],
 }
 /**! Represents insets for four sides. Negative values mean a side extends.
 ! @see \ref grect_inset*/
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct GEdgeInsets {
-    ///! The inset at the top of an object.
-    pub top: i16,
-    ///! The inset at the right of an object.
-    pub right: i16,
-    ///! The inset at the bottom of an object.
-    pub bottom: i16,
-    ///! The inset at the left of an object.
-    pub left: i16,
+	///! The inset at the top of an object.
+	pub top:    i16,
+	///! The inset at the right of an object.
+	pub right:  i16,
+	///! The inset at the bottom of an object.
+	pub bottom: i16,
+	///! The inset at the left of an object.
+	pub left:   i16,
 }
 #[allow(clippy::unnecessary_operation, clippy::identity_op)]
 const _: () = {
-    ["Size of GEdgeInsets"][::core::mem::size_of::<GEdgeInsets>() - 8usize];
-    ["Alignment of GEdgeInsets"][::core::mem::align_of::<GEdgeInsets>() - 2usize];
-    [
-        "Offset of field: GEdgeInsets::top",
-    ][::core::mem::offset_of!(GEdgeInsets, top) - 0usize];
-    [
-        "Offset of field: GEdgeInsets::right",
-    ][::core::mem::offset_of!(GEdgeInsets, right) - 2usize];
-    [
-        "Offset of field: GEdgeInsets::bottom",
-    ][::core::mem::offset_of!(GEdgeInsets, bottom) - 4usize];
-    [
-        "Offset of field: GEdgeInsets::left",
-    ][::core::mem::offset_of!(GEdgeInsets, left) - 6usize];
+	["Size of GEdgeInsets"][::core::mem::size_of::<GEdgeInsets>() - 8usize];
+	["Alignment of GEdgeInsets"][::core::mem::align_of::<GEdgeInsets>() - 2usize];
+	["Offset of field: GEdgeInsets::top"][::core::mem::offset_of!(GEdgeInsets, top) - 0usize];
+	["Offset of field: GEdgeInsets::right"][::core::mem::offset_of!(GEdgeInsets, right) - 2usize];
+	["Offset of field: GEdgeInsets::bottom"][::core::mem::offset_of!(GEdgeInsets, bottom) - 4usize];
+	["Offset of field: GEdgeInsets::left"][::core::mem::offset_of!(GEdgeInsets, left) - 6usize];
 };
 /**! Returns a rectangle that is shrinked or expanded by the given edge insets.
 ! @note The rectangle is standardized and then the inset parameters are applied.
@@ -6966,10 +6697,10 @@ gneiss: Vtable Slot 580, Offset 2320*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.grect_inset")]
 pub unsafe extern "C" fn grect_inset(rect: GRect, insets: GEdgeInsets) -> GRect {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =2320", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =2320", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Sets the current stroke color of the graphics context.
 ! @param ctx The graphics context onto which to set the stroke color
@@ -6979,14 +6710,11 @@ pub unsafe extern "C" fn grect_inset(rect: GRect, insets: GEdgeInsets) -> GRect 
 gneiss: Vtable Slot 372, Offset 1488*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.graphics_context_set_stroke_color")]
-pub unsafe extern "C" fn graphics_context_set_stroke_color(
-    ctx: *mut GContext,
-    color: GColor,
-) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1488", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+pub unsafe extern "C" fn graphics_context_set_stroke_color(ctx: *mut GContext, color: GColor) {
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1488", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Sets the current fill color of the graphics context.
 ! @param ctx The graphics context onto which to set the fill color
@@ -6996,14 +6724,11 @@ pub unsafe extern "C" fn graphics_context_set_stroke_color(
 gneiss: Vtable Slot 371, Offset 1484*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.graphics_context_set_fill_color")]
-pub unsafe extern "C" fn graphics_context_set_fill_color(
-    ctx: *mut GContext,
-    color: GColor,
-) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1484", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+pub unsafe extern "C" fn graphics_context_set_fill_color(ctx: *mut GContext, color: GColor) {
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1484", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Sets the current text color of the graphics context.
 ! @param ctx The graphics context onto which to set the text color
@@ -7013,14 +6738,11 @@ pub unsafe extern "C" fn graphics_context_set_fill_color(
 gneiss: Vtable Slot 373, Offset 1492*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.graphics_context_set_text_color")]
-pub unsafe extern "C" fn graphics_context_set_text_color(
-    ctx: *mut GContext,
-    color: GColor,
-) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1492", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+pub unsafe extern "C" fn graphics_context_set_text_color(ctx: *mut GContext, color: GColor) {
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1492", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Sets the current bitmap compositing mode of the graphics context.
 ! The default mode is GCompOpAssign i.e. bitmap transparency disabled.
@@ -7037,14 +6759,11 @@ pub unsafe extern "C" fn graphics_context_set_text_color(
 gneiss: Vtable Slot 112, Offset 448*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.graphics_context_set_compositing_mode")]
-pub unsafe extern "C" fn graphics_context_set_compositing_mode(
-    ctx: *mut GContext,
-    mode: GCompOp,
-) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =448", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+pub unsafe extern "C" fn graphics_context_set_compositing_mode(ctx: *mut GContext, mode: GCompOp) {
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =448", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Sets whether antialiasing is applied to stroke drawing
 ! @param ctx The graphics context onto which to set the antialiasing
@@ -7055,14 +6774,11 @@ pub unsafe extern "C" fn graphics_context_set_compositing_mode(
 gneiss: Vtable Slot 444, Offset 1776*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.graphics_context_set_antialiased")]
-pub unsafe extern "C" fn graphics_context_set_antialiased(
-    ctx: *mut GContext,
-    enable: bool,
-) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1776", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+pub unsafe extern "C" fn graphics_context_set_antialiased(ctx: *mut GContext, enable: bool) {
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1776", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Sets the width of the stroke for drawing routines
 ! @param ctx The graphics context onto which to set the stroke width
@@ -7076,14 +6792,11 @@ pub unsafe extern "C" fn graphics_context_set_antialiased(
 gneiss: Vtable Slot 445, Offset 1780*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.graphics_context_set_stroke_width")]
-pub unsafe extern "C" fn graphics_context_set_stroke_width(
-    ctx: *mut GContext,
-    stroke_width: u8,
-) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1780", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+pub unsafe extern "C" fn graphics_context_set_stroke_width(ctx: *mut GContext, stroke_width: u8) {
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1780", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 ///! No corners
 pub const GCornerMask_GCornerNone: GCornerMask = 0;
@@ -7119,10 +6832,10 @@ gneiss: Vtable Slot 119, Offset 476*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.graphics_draw_pixel")]
 pub unsafe extern "C" fn graphics_draw_pixel(ctx: *mut GContext, point: GPoint) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =476", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =476", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Draws line in the current stroke color, current stroke width and AA flag
 ! @param ctx The destination graphics context in which to draw
@@ -7134,10 +6847,10 @@ gneiss: Vtable Slot 118, Offset 472*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.graphics_draw_line")]
 pub unsafe extern "C" fn graphics_draw_line(ctx: *mut GContext, p0: GPoint, p1: GPoint) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =472", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =472", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Draws a 1-pixel wide rectangle outline in the current stroke color
 ! @param ctx The destination graphics context in which to draw
@@ -7148,10 +6861,10 @@ gneiss: Vtable Slot 120, Offset 480*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.graphics_draw_rect")]
 pub unsafe extern "C" fn graphics_draw_rect(ctx: *mut GContext, rect: GRect) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =480", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =480", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Fills a rectangle with the current fill color, optionally rounding all or a
 ! selection of its corners.
@@ -7166,15 +6879,15 @@ gneiss: Vtable Slot 123, Offset 492*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.graphics_fill_rect")]
 pub unsafe extern "C" fn graphics_fill_rect(
-    ctx: *mut GContext,
-    rect: GRect,
-    corner_radius: u16,
-    corner_mask: GCornerMask,
+	ctx: *mut GContext,
+	rect: GRect,
+	corner_radius: u16,
+	corner_mask: GCornerMask,
 ) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =492", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =492", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Draws the outline of a circle in the current stroke color
 ! @param ctx The destination graphics context in which to draw
@@ -7185,15 +6898,11 @@ pub unsafe extern "C" fn graphics_fill_rect(
 gneiss: Vtable Slot 117, Offset 468*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.graphics_draw_circle")]
-pub unsafe extern "C" fn graphics_draw_circle(
-    ctx: *mut GContext,
-    p: GPoint,
-    radius: u16,
-) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =468", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+pub unsafe extern "C" fn graphics_draw_circle(ctx: *mut GContext, p: GPoint, radius: u16) {
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =468", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Fills a circle in the current fill color
 ! @param ctx The destination graphics context in which to draw
@@ -7204,15 +6913,11 @@ pub unsafe extern "C" fn graphics_draw_circle(
 gneiss: Vtable Slot 122, Offset 488*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.graphics_fill_circle")]
-pub unsafe extern "C" fn graphics_fill_circle(
-    ctx: *mut GContext,
-    p: GPoint,
-    radius: u16,
-) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =488", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+pub unsafe extern "C" fn graphics_fill_circle(ctx: *mut GContext, p: GPoint, radius: u16) {
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =488", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Draws the outline of a rounded rectangle in the current stroke color
 ! @param ctx The destination graphics context in which to draw
@@ -7223,15 +6928,11 @@ pub unsafe extern "C" fn graphics_fill_circle(
 gneiss: Vtable Slot 121, Offset 484*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.graphics_draw_round_rect")]
-pub unsafe extern "C" fn graphics_draw_round_rect(
-    ctx: *mut GContext,
-    rect: GRect,
-    radius: u16,
-) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =484", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+pub unsafe extern "C" fn graphics_draw_round_rect(ctx: *mut GContext, rect: GRect, radius: u16) {
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =484", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Draws a bitmap into the graphics context, inside the specified rectangle
 ! @param ctx The destination graphics context in which to draw the bitmap
@@ -7250,14 +6951,14 @@ gneiss: Vtable Slot 116, Offset 464*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.graphics_draw_bitmap_in_rect")]
 pub unsafe extern "C" fn graphics_draw_bitmap_in_rect(
-    ctx: *mut GContext,
-    bitmap: *const GBitmap,
-    rect: GRect,
+	ctx: *mut GContext,
+	bitmap: *const GBitmap,
+	rect: GRect,
 ) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =464", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =464", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! A shortcut to capture the framebuffer in the native format of the watch.
 ! @see graphics_capture_frame_buffer_format*/
@@ -7266,13 +6967,11 @@ pub unsafe extern "C" fn graphics_draw_bitmap_in_rect(
 gneiss: Vtable Slot 394, Offset 1576*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.graphics_capture_frame_buffer")]
-pub unsafe extern "C" fn graphics_capture_frame_buffer(
-    ctx: *mut GContext,
-) -> *mut GBitmap {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1576", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+pub unsafe extern "C" fn graphics_capture_frame_buffer(ctx: *mut GContext) -> *mut GBitmap {
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1576", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Captures the frame buffer for direct access, using the given format.
 ! Graphics functions will not affect the frame buffer while it is captured.
@@ -7302,13 +7001,13 @@ gneiss: Vtable Slot 395, Offset 1580*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.graphics_capture_frame_buffer_format")]
 pub unsafe extern "C" fn graphics_capture_frame_buffer_format(
-    ctx: *mut GContext,
-    format: GBitmapFormat,
+	ctx: *mut GContext,
+	format: GBitmapFormat,
 ) -> *mut GBitmap {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1580", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1580", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Releases the frame buffer.
 ! Must be called before the end of a layer's `.update_proc` for the layer to be drawn properly.
@@ -7324,13 +7023,13 @@ gneiss: Vtable Slot 350, Offset 1400*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.graphics_release_frame_buffer")]
 pub unsafe extern "C" fn graphics_release_frame_buffer(
-    ctx: *mut GContext,
-    buffer: *mut GBitmap,
+	ctx: *mut GContext,
+	buffer: *mut GBitmap,
 ) -> bool {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1400", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1400", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Whether or not the frame buffer has been captured by {@link graphics_capture_frame_buffer}.
 ! Graphics functions will not affect the frame buffer until it has been released by
@@ -7343,10 +7042,10 @@ gneiss: Vtable Slot 349, Offset 1396*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.graphics_frame_buffer_is_captured")]
 pub unsafe extern "C" fn graphics_frame_buffer_is_captured(ctx: *mut GContext) -> bool {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1396", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1396", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Draws a rotated bitmap with a memory-sensitive 2x anti-aliasing technique
 ! (using ray-finding instead of super-sampling), which is thresholded into a b/w bitmap for 1-bit
@@ -7365,16 +7064,16 @@ gneiss: Vtable Slot 460, Offset 1840*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.graphics_draw_rotated_bitmap")]
 pub unsafe extern "C" fn graphics_draw_rotated_bitmap(
-    ctx: *mut GContext,
-    src: *mut GBitmap,
-    src_ic: GPoint,
-    rotation: ::core::ffi::c_int,
-    dest_ic: GPoint,
+	ctx: *mut GContext,
+	src: *mut GBitmap,
+	src_ic: GPoint,
+	rotation: ::core::ffi::c_int,
+	dest_ic: GPoint,
 ) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1840", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1840", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Places a circle at the center of the rectangle, with a diameter that matches
 ! the rectangle's shortest side.*/
@@ -7405,16 +7104,16 @@ gneiss: Vtable Slot 582, Offset 2328*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.graphics_draw_arc")]
 pub unsafe extern "C" fn graphics_draw_arc(
-    ctx: *mut GContext,
-    rect: GRect,
-    scale_mode: GOvalScaleMode,
-    angle_start: i32,
-    angle_end: i32,
+	ctx: *mut GContext,
+	rect: GRect,
+	scale_mode: GOvalScaleMode,
+	angle_start: i32,
+	angle_end: i32,
 ) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =2328", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =2328", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Fills a circle clockwise between `angle_start` and `angle_end`, where 0° is
 ! the top of the circle. If the difference between `angle_start` and `angle_end` is greater
@@ -7438,17 +7137,17 @@ gneiss: Vtable Slot 583, Offset 2332*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.graphics_fill_radial")]
 pub unsafe extern "C" fn graphics_fill_radial(
-    ctx: *mut GContext,
-    rect: GRect,
-    scale_mode: GOvalScaleMode,
-    inset_thickness: u16,
-    angle_start: i32,
-    angle_end: i32,
+	ctx: *mut GContext,
+	rect: GRect,
+	scale_mode: GOvalScaleMode,
+	inset_thickness: u16,
+	angle_start: i32,
+	angle_end: i32,
 ) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =2332", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =2332", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Calculates a GPoint located at the angle provided on the perimeter of a circle defined by the
 ! provided GRect.
@@ -7463,14 +7162,14 @@ gneiss: Vtable Slot 581, Offset 2324*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.gpoint_from_polar")]
 pub unsafe extern "C" fn gpoint_from_polar(
-    rect: GRect,
-    scale_mode: GOvalScaleMode,
-    angle: i32,
+	rect: GRect,
+	scale_mode: GOvalScaleMode,
+	angle: i32,
 ) -> GPoint {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =2324", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =2324", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Calculates a rectangle centered on the perimeter of a circle at a given angle.
 ! Use this to construct rectangles that follow the perimeter of a circle as an input for
@@ -7490,15 +7189,15 @@ gneiss: Vtable Slot 584, Offset 2336*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.grect_centered_from_polar")]
 pub unsafe extern "C" fn grect_centered_from_polar(
-    rect: GRect,
-    scale_mode: GOvalScaleMode,
-    angle: i32,
-    size: GSize,
+	rect: GRect,
+	scale_mode: GOvalScaleMode,
+	angle: i32,
+	size: GSize,
 ) -> GRect {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =2336", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =2336", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Draw commands are the basic building block of the draw command system, encoding the type of
 ! command to draw, the stroke width and color, fill color, and points that define the path (or
@@ -7506,7 +7205,7 @@ pub unsafe extern "C" fn grect_centered_from_polar(
 #[repr(C)]
 #[derive(Debug)]
 pub struct GDrawCommand {
-    _unused: [u8; 0],
+	_unused: [u8; 0],
 }
 /**! Draw command frames contain a list of commands to draw for that frame and a duration,
 ! indicating the length of time for which the frame should be drawn in an animation sequence.
@@ -7515,20 +7214,20 @@ pub struct GDrawCommand {
 #[repr(C)]
 #[derive(Debug)]
 pub struct GDrawCommandFrame {
-    _unused: [u8; 0],
+	_unused: [u8; 0],
 }
 /**! Draw command images contain a list of commands that can be drawn. An image can be loaded from
 ! PDC file data.*/
 #[repr(C)]
 #[derive(Debug)]
 pub struct GDrawCommandImage {
-    _unused: [u8; 0],
+	_unused: [u8; 0],
 }
 ///! Draw command lists contain a list of commands that can be iterated over and drawn all at once
 #[repr(C)]
 #[derive(Debug)]
 pub struct GDrawCommandList {
-    _unused: [u8; 0],
+	_unused: [u8; 0],
 }
 /**! Callback for iterating over draw command list
 ! @param command current \ref GDrawCommand in iteration
@@ -7536,11 +7235,11 @@ pub struct GDrawCommandList {
 ! @param context context pointer for the iteration operation
 ! @return true if the iteration should continue after this command is processed*/
 pub type GDrawCommandListIteratorCb = ::core::option::Option<
-    unsafe extern "C" fn(
-        command: *mut GDrawCommand,
-        index: u32,
-        context: *mut ::core::ffi::c_void,
-    ) -> bool,
+	unsafe extern "C" fn(
+		command: *mut GDrawCommand,
+		index: u32,
+		context: *mut ::core::ffi::c_void,
+	) -> bool,
 >;
 /**! Draw command sequences allow the animation of frames over time. Each sequence has a list of
 ! frames that can be accessed by the elapsed duration of the animation (not maintained internally)
@@ -7548,7 +7247,7 @@ pub type GDrawCommandListIteratorCb = ::core::option::Option<
 #[repr(C)]
 #[derive(Debug)]
 pub struct GDrawCommandSequence {
-    _unused: [u8; 0],
+	_unused: [u8; 0],
 }
 ///!< Invalid draw command type
 pub const GDrawCommandType_GDrawCommandTypeInvalid: GDrawCommandType = 0;
@@ -7567,14 +7266,11 @@ pub type GDrawCommandType = ::core::ffi::c_uchar;
 gneiss: Vtable Slot 474, Offset 1896*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.gdraw_command_draw")]
-pub unsafe extern "C" fn gdraw_command_draw(
-    ctx: *mut GContext,
-    command: *mut GDrawCommand,
-) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1896", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+pub unsafe extern "C" fn gdraw_command_draw(ctx: *mut GContext, command: *mut GDrawCommand) {
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1896", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Get the command type
 ! @param command \ref GDrawCommand from which to get the type
@@ -7584,13 +7280,11 @@ pub unsafe extern "C" fn gdraw_command_draw(
 gneiss: Vtable Slot 486, Offset 1944*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.gdraw_command_get_type")]
-pub unsafe extern "C" fn gdraw_command_get_type(
-    command: *mut GDrawCommand,
-) -> GDrawCommandType {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1944", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+pub unsafe extern "C" fn gdraw_command_get_type(command: *mut GDrawCommand) -> GDrawCommandType {
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1944", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Set the fill color of a command
 ! @param command ref DrawCommand for which to set the fill color
@@ -7601,13 +7295,13 @@ gneiss: Vtable Slot 509, Offset 2036*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.gdraw_command_set_fill_color")]
 pub unsafe extern "C" fn gdraw_command_set_fill_color(
-    command: *mut GDrawCommand,
-    fill_color: GColor,
+	command: *mut GDrawCommand,
+	fill_color: GColor,
 ) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =2036", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =2036", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Get the fill color of a command
 ! @param command \ref GDrawCommand from which to get the fill color
@@ -7617,13 +7311,11 @@ pub unsafe extern "C" fn gdraw_command_set_fill_color(
 gneiss: Vtable Slot 478, Offset 1912*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.gdraw_command_get_fill_color")]
-pub unsafe extern "C" fn gdraw_command_get_fill_color(
-    command: *mut GDrawCommand,
-) -> GColor {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1912", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+pub unsafe extern "C" fn gdraw_command_get_fill_color(command: *mut GDrawCommand) -> GColor {
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1912", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Set the stroke color of a command
 ! @param command \ref GDrawCommand for which to set the stroke color
@@ -7634,13 +7326,13 @@ gneiss: Vtable Slot 514, Offset 2056*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.gdraw_command_set_stroke_color")]
 pub unsafe extern "C" fn gdraw_command_set_stroke_color(
-    command: *mut GDrawCommand,
-    stroke_color: GColor,
+	command: *mut GDrawCommand,
+	stroke_color: GColor,
 ) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =2056", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =2056", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Get the stroke color of a command
 ! @param command \ref GDrawCommand from which to get the stroke color
@@ -7650,13 +7342,11 @@ pub unsafe extern "C" fn gdraw_command_set_stroke_color(
 gneiss: Vtable Slot 484, Offset 1936*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.gdraw_command_get_stroke_color")]
-pub unsafe extern "C" fn gdraw_command_get_stroke_color(
-    command: *mut GDrawCommand,
-) -> GColor {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1936", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+pub unsafe extern "C" fn gdraw_command_get_stroke_color(command: *mut GDrawCommand) -> GColor {
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1936", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Set the stroke width of a command
 ! @param command \ref GDrawCommand for which to set the stroke width
@@ -7667,13 +7357,13 @@ gneiss: Vtable Slot 515, Offset 2060*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.gdraw_command_set_stroke_width")]
 pub unsafe extern "C" fn gdraw_command_set_stroke_width(
-    command: *mut GDrawCommand,
-    stroke_width: u8,
+	command: *mut GDrawCommand,
+	stroke_width: u8,
 ) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =2060", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =2060", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Get the stroke width of a command
 ! @param command \ref GDrawCommand from which to get the stroke width
@@ -7683,13 +7373,11 @@ pub unsafe extern "C" fn gdraw_command_set_stroke_width(
 gneiss: Vtable Slot 485, Offset 1940*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.gdraw_command_get_stroke_width")]
-pub unsafe extern "C" fn gdraw_command_get_stroke_width(
-    command: *mut GDrawCommand,
-) -> u8 {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1940", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+pub unsafe extern "C" fn gdraw_command_get_stroke_width(command: *mut GDrawCommand) -> u8 {
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1940", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 ///! Get the number of points in a command
 /** gdraw_command_get_num_points
@@ -7697,13 +7385,11 @@ pub unsafe extern "C" fn gdraw_command_get_stroke_width(
 gneiss: Vtable Slot 480, Offset 1920*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.gdraw_command_get_num_points")]
-pub unsafe extern "C" fn gdraw_command_get_num_points(
-    command: *mut GDrawCommand,
-) -> u16 {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1920", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+pub unsafe extern "C" fn gdraw_command_get_num_points(command: *mut GDrawCommand) -> u16 {
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1920", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Set the value of the point in a command at the specified index
 ! @param command \ref GDrawCommand for which to set the value of a point
@@ -7715,14 +7401,14 @@ gneiss: Vtable Slot 512, Offset 2048*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.gdraw_command_set_point")]
 pub unsafe extern "C" fn gdraw_command_set_point(
-    command: *mut GDrawCommand,
-    point_idx: u16,
-    point: GPoint,
+	command: *mut GDrawCommand,
+	point_idx: u16,
+	point: GPoint,
 ) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =2048", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =2048", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Get the value of a point in a command from the specified index
 ! @param command \ref GDrawCommand from which to get a point
@@ -7735,13 +7421,13 @@ gneiss: Vtable Slot 482, Offset 1928*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.gdraw_command_get_point")]
 pub unsafe extern "C" fn gdraw_command_get_point(
-    command: *mut GDrawCommand,
-    point_idx: u16,
+	command: *mut GDrawCommand,
+	point_idx: u16,
 ) -> GPoint {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1928", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1928", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Set the radius of a circle command
 ! @note This only works for commands of type \ref GDrawCommandTypeCircle
@@ -7752,14 +7438,11 @@ pub unsafe extern "C" fn gdraw_command_get_point(
 gneiss: Vtable Slot 513, Offset 2052*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.gdraw_command_set_radius")]
-pub unsafe extern "C" fn gdraw_command_set_radius(
-    command: *mut GDrawCommand,
-    radius: u16,
-) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =2052", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+pub unsafe extern "C" fn gdraw_command_set_radius(command: *mut GDrawCommand, radius: u16) {
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =2052", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Get the radius of a circle command.
 ! @note this only works for commands of type \ref GDrawCommandTypeCircle.
@@ -7771,10 +7454,10 @@ gneiss: Vtable Slot 483, Offset 1932*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.gdraw_command_get_radius")]
 pub unsafe extern "C" fn gdraw_command_get_radius(command: *mut GDrawCommand) -> u16 {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1932", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1932", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Set the path of a stroke command to be open
 ! @note This only works for commands of type \ref GDrawCommandTypePath and
@@ -7786,14 +7469,11 @@ pub unsafe extern "C" fn gdraw_command_get_radius(command: *mut GDrawCommand) ->
 gneiss: Vtable Slot 511, Offset 2044*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.gdraw_command_set_path_open")]
-pub unsafe extern "C" fn gdraw_command_set_path_open(
-    command: *mut GDrawCommand,
-    path_open: bool,
-) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =2044", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+pub unsafe extern "C" fn gdraw_command_set_path_open(command: *mut GDrawCommand, path_open: bool) {
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =2044", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Return whether a stroke command path is open
 ! @note This only works for commands of type \ref GDrawCommandTypePath and
@@ -7805,13 +7485,11 @@ pub unsafe extern "C" fn gdraw_command_set_path_open(
 gneiss: Vtable Slot 481, Offset 1924*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.gdraw_command_get_path_open")]
-pub unsafe extern "C" fn gdraw_command_get_path_open(
-    command: *mut GDrawCommand,
-) -> bool {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1924", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+pub unsafe extern "C" fn gdraw_command_get_path_open(command: *mut GDrawCommand) -> bool {
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1924", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Set a command as hidden. This command will not be drawn when \ref gdraw_command_draw is called
 ! with this command
@@ -7822,14 +7500,11 @@ pub unsafe extern "C" fn gdraw_command_get_path_open(
 gneiss: Vtable Slot 510, Offset 2040*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.gdraw_command_set_hidden")]
-pub unsafe extern "C" fn gdraw_command_set_hidden(
-    command: *mut GDrawCommand,
-    hidden: bool,
-) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =2040", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+pub unsafe extern "C" fn gdraw_command_set_hidden(command: *mut GDrawCommand, hidden: bool) {
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =2040", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Return whether a command is hidden
 ! @param command \ref GDrawCommand from which to get the hidden status
@@ -7840,10 +7515,10 @@ gneiss: Vtable Slot 479, Offset 1916*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.gdraw_command_get_hidden")]
 pub unsafe extern "C" fn gdraw_command_get_hidden(command: *mut GDrawCommand) -> bool {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1916", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1916", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Draw a frame
 ! @param ctx The destination graphics context in which to draw
@@ -7856,15 +7531,15 @@ gneiss: Vtable Slot 475, Offset 1900*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.gdraw_command_frame_draw")]
 pub unsafe extern "C" fn gdraw_command_frame_draw(
-    ctx: *mut GContext,
-    sequence: *mut GDrawCommandSequence,
-    frame: *mut GDrawCommandFrame,
-    offset: GPoint,
+	ctx: *mut GContext,
+	sequence: *mut GDrawCommandSequence,
+	frame: *mut GDrawCommandFrame,
+	offset: GPoint,
 ) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1900", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1900", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Set the duration of the frame
 ! @param frame \ref GDrawCommandFrame for which to set the duration
@@ -7875,13 +7550,13 @@ gneiss: Vtable Slot 477, Offset 1908*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.gdraw_command_frame_set_duration")]
 pub unsafe extern "C" fn gdraw_command_frame_set_duration(
-    frame: *mut GDrawCommandFrame,
-    duration: u32,
+	frame: *mut GDrawCommandFrame,
+	duration: u32,
 ) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1908", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1908", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Get the duration of the frame
 ! @param frame \ref GDrawCommandFrame from which to get the duration
@@ -7891,13 +7566,11 @@ pub unsafe extern "C" fn gdraw_command_frame_set_duration(
 gneiss: Vtable Slot 476, Offset 1904*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.gdraw_command_frame_get_duration")]
-pub unsafe extern "C" fn gdraw_command_frame_get_duration(
-    frame: *mut GDrawCommandFrame,
-) -> u32 {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1904", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+pub unsafe extern "C" fn gdraw_command_frame_get_duration(frame: *mut GDrawCommandFrame) -> u32 {
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1904", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Creates a GDrawCommandImage from the specified resource (PDC file)
 ! @param resource_id Resource containing data to load and create GDrawCommandImage from.
@@ -7908,12 +7581,12 @@ gneiss: Vtable Slot 488, Offset 1952*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.gdraw_command_image_create_with_resource")]
 pub unsafe extern "C" fn gdraw_command_image_create_with_resource(
-    resource_id: u32,
+	resource_id: u32,
 ) -> *mut GDrawCommandImage {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1952", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1952", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Creates a GDrawCommandImage as a copy from a given image
 ! @param image Image to copy.
@@ -7924,12 +7597,12 @@ gneiss: Vtable Slot 487, Offset 1948*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.gdraw_command_image_clone")]
 pub unsafe extern "C" fn gdraw_command_image_clone(
-    image: *mut GDrawCommandImage,
+	image: *mut GDrawCommandImage,
 ) -> *mut GDrawCommandImage {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1948", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1948", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Deletes the GDrawCommandImage structure and frees associated data
 ! @param image Pointer to the image to free (delete)*/
@@ -7939,10 +7612,10 @@ gneiss: Vtable Slot 489, Offset 1956*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.gdraw_command_image_destroy")]
 pub unsafe extern "C" fn gdraw_command_image_destroy(image: *mut GDrawCommandImage) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1956", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1956", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Draw an image
 ! @param ctx The destination graphics context in which to draw
@@ -7954,14 +7627,14 @@ gneiss: Vtable Slot 490, Offset 1960*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.gdraw_command_image_draw")]
 pub unsafe extern "C" fn gdraw_command_image_draw(
-    ctx: *mut GContext,
-    image: *mut GDrawCommandImage,
-    offset: GPoint,
+	ctx: *mut GContext,
+	image: *mut GDrawCommandImage,
+	offset: GPoint,
 ) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1960", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1960", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Get size of the bounding box surrounding all draw commands in the image. This bounding
 ! box can be used to set the graphics context or layer bounds when drawing the image.
@@ -7973,12 +7646,12 @@ gneiss: Vtable Slot 491, Offset 1964*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.gdraw_command_image_get_bounds_size")]
 pub unsafe extern "C" fn gdraw_command_image_get_bounds_size(
-    image: *mut GDrawCommandImage,
+	image: *mut GDrawCommandImage,
 ) -> GSize {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1964", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1964", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Set size of the bounding box surrounding all draw commands in the image. This bounding
 ! box can be used to set the graphics context or layer bounds when drawing the image.
@@ -7990,13 +7663,13 @@ gneiss: Vtable Slot 493, Offset 1972*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.gdraw_command_image_set_bounds_size")]
 pub unsafe extern "C" fn gdraw_command_image_set_bounds_size(
-    image: *mut GDrawCommandImage,
-    size: GSize,
+	image: *mut GDrawCommandImage,
+	size: GSize,
 ) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1972", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1972", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Get the command list of the image
 ! @param image \ref GDrawCommandImage from which to get the command list
@@ -8007,12 +7680,12 @@ gneiss: Vtable Slot 492, Offset 1968*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.gdraw_command_image_get_command_list")]
 pub unsafe extern "C" fn gdraw_command_image_get_command_list(
-    image: *mut GDrawCommandImage,
+	image: *mut GDrawCommandImage,
 ) -> *mut GDrawCommandList {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1968", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1968", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Iterate over all commands in a command list
 ! @param command_list \ref GDrawCommandList over which to iterate
@@ -8024,14 +7697,14 @@ gneiss: Vtable Slot 497, Offset 1988*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.gdraw_command_list_iterate")]
 pub unsafe extern "C" fn gdraw_command_list_iterate(
-    command_list: *mut GDrawCommandList,
-    handle_command: GDrawCommandListIteratorCb,
-    callback_context: *mut ::core::ffi::c_void,
+	command_list: *mut GDrawCommandList,
+	handle_command: GDrawCommandListIteratorCb,
+	callback_context: *mut ::core::ffi::c_void,
 ) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1988", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1988", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Draw all commands in a command list
 ! @param ctx The destination graphics context in which to draw
@@ -8042,13 +7715,13 @@ gneiss: Vtable Slot 494, Offset 1976*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.gdraw_command_list_draw")]
 pub unsafe extern "C" fn gdraw_command_list_draw(
-    ctx: *mut GContext,
-    command_list: *mut GDrawCommandList,
+	ctx: *mut GContext,
+	command_list: *mut GDrawCommandList,
 ) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1976", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1976", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Get the command at the specified index
 ! @note the specified index must be less than the number of commands in the list
@@ -8061,13 +7734,13 @@ gneiss: Vtable Slot 495, Offset 1980*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.gdraw_command_list_get_command")]
 pub unsafe extern "C" fn gdraw_command_list_get_command(
-    command_list: *mut GDrawCommandList,
-    command_idx: u16,
+	command_list: *mut GDrawCommandList,
+	command_idx: u16,
 ) -> *mut GDrawCommand {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1980", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1980", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Get the number of commands in the list
 ! @param command_list \ref GDrawCommandList from which to get the number of commands
@@ -8078,12 +7751,12 @@ gneiss: Vtable Slot 496, Offset 1984*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.gdraw_command_list_get_num_commands")]
 pub unsafe extern "C" fn gdraw_command_list_get_num_commands(
-    command_list: *mut GDrawCommandList,
+	command_list: *mut GDrawCommandList,
 ) -> u32 {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1984", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1984", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Creates a \ref GDrawCommandSequence from the specified resource (PDC file)
 ! @param resource_id Resource containing data to load and create GDrawCommandSequence from.
@@ -8094,12 +7767,12 @@ gneiss: Vtable Slot 499, Offset 1996*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.gdraw_command_sequence_create_with_resource")]
 pub unsafe extern "C" fn gdraw_command_sequence_create_with_resource(
-    resource_id: u32,
+	resource_id: u32,
 ) -> *mut GDrawCommandSequence {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1996", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1996", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Creates a \ref GDrawCommandSequence as a copy from a given sequence
 ! @param sequence Sequence to copy
@@ -8110,12 +7783,12 @@ gneiss: Vtable Slot 498, Offset 1992*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.gdraw_command_sequence_clone")]
 pub unsafe extern "C" fn gdraw_command_sequence_clone(
-    sequence: *mut GDrawCommandSequence,
+	sequence: *mut GDrawCommandSequence,
 ) -> *mut GDrawCommandSequence {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1992", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1992", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Deletes the \ref GDrawCommandSequence structure and frees associated data
 ! @param sequence Pointer to the sequence to destroy*/
@@ -8124,13 +7797,11 @@ pub unsafe extern "C" fn gdraw_command_sequence_clone(
 gneiss: Vtable Slot 500, Offset 2000*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.gdraw_command_sequence_destroy")]
-pub unsafe extern "C" fn gdraw_command_sequence_destroy(
-    sequence: *mut GDrawCommandSequence,
-) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =2000", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+pub unsafe extern "C" fn gdraw_command_sequence_destroy(sequence: *mut GDrawCommandSequence) {
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =2000", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Get the frame that should be shown after the specified amount of elapsed time
 ! The last frame will be returned if the elapsed time exceeds the total time
@@ -8143,13 +7814,13 @@ gneiss: Vtable Slot 502, Offset 2008*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.gdraw_command_sequence_get_frame_by_elapsed")]
 pub unsafe extern "C" fn gdraw_command_sequence_get_frame_by_elapsed(
-    sequence: *mut GDrawCommandSequence,
-    elapsed_ms: u32,
+	sequence: *mut GDrawCommandSequence,
+	elapsed_ms: u32,
 ) -> *mut GDrawCommandFrame {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =2008", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =2008", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Get the frame at the specified index
 ! @param sequence \ref GDrawCommandSequence from which to get the frame
@@ -8161,13 +7832,13 @@ gneiss: Vtable Slot 503, Offset 2012*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.gdraw_command_sequence_get_frame_by_index")]
 pub unsafe extern "C" fn gdraw_command_sequence_get_frame_by_index(
-    sequence: *mut GDrawCommandSequence,
-    index: u32,
+	sequence: *mut GDrawCommandSequence,
+	index: u32,
 ) -> *mut GDrawCommandFrame {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =2012", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =2012", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Get the size of the bounding box surrounding all draw commands in the sequence. This bounding
 ! box can be used to set the graphics context or layer bounds when drawing the frames in the
@@ -8180,12 +7851,12 @@ gneiss: Vtable Slot 501, Offset 2004*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.gdraw_command_sequence_get_bounds_size")]
 pub unsafe extern "C" fn gdraw_command_sequence_get_bounds_size(
-    sequence: *mut GDrawCommandSequence,
+	sequence: *mut GDrawCommandSequence,
 ) -> GSize {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =2004", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =2004", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Set size of the bounding box surrounding all draw commands in the sequence. This bounding
 ! box can be used to set the graphics context or layer bounds when drawing the frames in the
@@ -8198,13 +7869,13 @@ gneiss: Vtable Slot 507, Offset 2028*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.gdraw_command_sequence_set_bounds_size")]
 pub unsafe extern "C" fn gdraw_command_sequence_set_bounds_size(
-    sequence: *mut GDrawCommandSequence,
-    size: GSize,
+	sequence: *mut GDrawCommandSequence,
+	size: GSize,
 ) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =2028", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =2028", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Get the play count of the sequence
 ! @param sequence \ref GDrawCommandSequence from which to get the play count
@@ -8215,12 +7886,12 @@ gneiss: Vtable Slot 505, Offset 2020*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.gdraw_command_sequence_get_play_count")]
 pub unsafe extern "C" fn gdraw_command_sequence_get_play_count(
-    sequence: *mut GDrawCommandSequence,
+	sequence: *mut GDrawCommandSequence,
 ) -> u32 {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =2020", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =2020", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Set the play count of the sequence
 ! @param sequence \ref GDrawCommandSequence for which to set the play count
@@ -8231,13 +7902,13 @@ gneiss: Vtable Slot 508, Offset 2032*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.gdraw_command_sequence_set_play_count")]
 pub unsafe extern "C" fn gdraw_command_sequence_set_play_count(
-    sequence: *mut GDrawCommandSequence,
-    play_count: u32,
+	sequence: *mut GDrawCommandSequence,
+	play_count: u32,
 ) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =2032", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =2032", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Get the total duration of the sequence.
 ! @param sequence \ref GDrawCommandSequence from which to get the total duration
@@ -8248,12 +7919,12 @@ gneiss: Vtable Slot 506, Offset 2024*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.gdraw_command_sequence_get_total_duration")]
 pub unsafe extern "C" fn gdraw_command_sequence_get_total_duration(
-    sequence: *mut GDrawCommandSequence,
+	sequence: *mut GDrawCommandSequence,
 ) -> u32 {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =2024", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =2024", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Get the number of frames in the sequence
 ! @param sequence \ref GDrawCommandSequence from which to get the number of frames
@@ -8264,12 +7935,12 @@ gneiss: Vtable Slot 504, Offset 2016*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.gdraw_command_sequence_get_num_frames")]
 pub unsafe extern "C" fn gdraw_command_sequence_get_num_frames(
-    sequence: *mut GDrawCommandSequence,
+	sequence: *mut GDrawCommandSequence,
 ) -> u32 {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =2016", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =2016", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Get the command list of the frame
 ! @param frame \ref GDrawCommandFrame from which to get the command list
@@ -8280,12 +7951,12 @@ gneiss: Vtable Slot 612, Offset 2448*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.gdraw_command_frame_get_command_list")]
 pub unsafe extern "C" fn gdraw_command_frame_get_command_list(
-    frame: *mut GDrawCommandFrame,
+	frame: *mut GDrawCommandFrame,
 ) -> *mut GDrawCommandList {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =2448", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =2448", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Data structure describing a naked path
 ! @note Note that this data structure only refers to an array of points;
@@ -8295,50 +7966,43 @@ pub unsafe extern "C" fn gdraw_command_frame_get_command_list(
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct GPathInfo {
-    ///! The number of points in the `points` array
-    pub num_points: u32,
-    ///! Pointer to an array of points.
-    pub points: *mut GPoint,
+	///! The number of points in the `points` array
+	pub num_points: u32,
+	///! Pointer to an array of points.
+	pub points:     *mut GPoint,
 }
 #[allow(clippy::unnecessary_operation, clippy::identity_op)]
 const _: () = {
-    ["Size of GPathInfo"][::core::mem::size_of::<GPathInfo>() - 8usize];
-    ["Alignment of GPathInfo"][::core::mem::align_of::<GPathInfo>() - 4usize];
-    [
-        "Offset of field: GPathInfo::num_points",
-    ][::core::mem::offset_of!(GPathInfo, num_points) - 0usize];
-    [
-        "Offset of field: GPathInfo::points",
-    ][::core::mem::offset_of!(GPathInfo, points) - 4usize];
+	["Size of GPathInfo"][::core::mem::size_of::<GPathInfo>() - 8usize];
+	["Alignment of GPathInfo"][::core::mem::align_of::<GPathInfo>() - 4usize];
+	["Offset of field: GPathInfo::num_points"]
+		[::core::mem::offset_of!(GPathInfo, num_points) - 0usize];
+	["Offset of field: GPathInfo::points"][::core::mem::offset_of!(GPathInfo, points) - 4usize];
 };
 /**! Data structure describing a path, plus its rotation and translation.
 ! @note See the remark with \ref GPathInfo*/
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct GPath {
-    ///! The number of points in the `points` array
-    pub num_points: u32,
-    ///! Pointer to an array of points.
-    pub points: *mut GPoint,
-    /**! The rotation that will be used when drawing the path with
-! \ref gpath_draw_filled() or \ref gpath_draw_outline()*/
-    pub rotation: i32,
-    /**! The translation that will to be used when drawing the path with
-! \ref gpath_draw_filled() or \ref gpath_draw_outline()*/
-    pub offset: GPoint,
+	///! The number of points in the `points` array
+	pub num_points: u32,
+	///! Pointer to an array of points.
+	pub points:     *mut GPoint,
+	/**! The rotation that will be used when drawing the path with
+	! \ref gpath_draw_filled() or \ref gpath_draw_outline()*/
+	pub rotation:   i32,
+	/**! The translation that will to be used when drawing the path with
+	! \ref gpath_draw_filled() or \ref gpath_draw_outline()*/
+	pub offset:     GPoint,
 }
 #[allow(clippy::unnecessary_operation, clippy::identity_op)]
 const _: () = {
-    ["Size of GPath"][::core::mem::size_of::<GPath>() - 16usize];
-    ["Alignment of GPath"][::core::mem::align_of::<GPath>() - 4usize];
-    [
-        "Offset of field: GPath::num_points",
-    ][::core::mem::offset_of!(GPath, num_points) - 0usize];
-    ["Offset of field: GPath::points"][::core::mem::offset_of!(GPath, points) - 4usize];
-    [
-        "Offset of field: GPath::rotation",
-    ][::core::mem::offset_of!(GPath, rotation) - 8usize];
-    ["Offset of field: GPath::offset"][::core::mem::offset_of!(GPath, offset) - 12usize];
+	["Size of GPath"][::core::mem::size_of::<GPath>() - 16usize];
+	["Alignment of GPath"][::core::mem::align_of::<GPath>() - 4usize];
+	["Offset of field: GPath::num_points"][::core::mem::offset_of!(GPath, num_points) - 0usize];
+	["Offset of field: GPath::points"][::core::mem::offset_of!(GPath, points) - 4usize];
+	["Offset of field: GPath::rotation"][::core::mem::offset_of!(GPath, rotation) - 8usize];
+	["Offset of field: GPath::offset"][::core::mem::offset_of!(GPath, offset) - 12usize];
 };
 /**! Creates a new GPath on the heap based on a series of points described by a GPathInfo.
 !
@@ -8354,10 +8018,10 @@ gneiss: Vtable Slot 105, Offset 420*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.gpath_create")]
 pub unsafe extern "C" fn gpath_create(init: *const GPathInfo) -> *mut GPath {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =420", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =420", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 ///! Free a dynamically allocated gpath created with \ref gpath_create()
 /** gpath_destroy
@@ -8366,10 +8030,10 @@ gneiss: Vtable Slot 106, Offset 424*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.gpath_destroy")]
 pub unsafe extern "C" fn gpath_destroy(gpath: *mut GPath) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =424", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =424", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Draws the fill of a path into a graphics context, using the current fill color,
 ! relative to the drawing area as set up by the layering system.
@@ -8382,10 +8046,10 @@ gneiss: Vtable Slot 343, Offset 1372*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.gpath_draw_filled")]
 pub unsafe extern "C" fn gpath_draw_filled(ctx: *mut GContext, path: *mut GPath) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1372", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1372", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Draws the outline of a path into a graphics context, using the current stroke color and
 ! width, relative to the drawing area as set up by the layering system. The first and last points
@@ -8400,10 +8064,10 @@ gneiss: Vtable Slot 108, Offset 432*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.gpath_draw_outline")]
 pub unsafe extern "C" fn gpath_draw_outline(ctx: *mut GContext, path: *mut GPath) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =432", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =432", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Sets the absolute rotation of the path.
 ! The current rotation will be replaced by the specified angle.
@@ -8419,10 +8083,10 @@ gneiss: Vtable Slot 110, Offset 440*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.gpath_rotate_to")]
 pub unsafe extern "C" fn gpath_rotate_to(path: *mut GPath, angle: i32) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =440", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =440", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Sets the absolute offset of the path.
 ! The current translation will be replaced by the specified offset.
@@ -8437,10 +8101,10 @@ gneiss: Vtable Slot 109, Offset 436*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.gpath_move_to")]
 pub unsafe extern "C" fn gpath_move_to(path: *mut GPath, point: GPoint) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =436", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =436", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Draws an open outline of a path into a graphics context, using the current stroke color and
 ! width, relative to the drawing area as set up by the layering system. The first and last points
@@ -8455,10 +8119,10 @@ gneiss: Vtable Slot 518, Offset 2072*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.gpath_draw_outline_open")]
 pub unsafe extern "C" fn gpath_draw_outline_open(ctx: *mut GContext, path: *mut GPath) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =2072", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =2072", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! @addtogroup Fonts
 ! @see \ref TextLayer
@@ -8469,7 +8133,7 @@ pub unsafe extern "C" fn gpath_draw_outline_open(ctx: *mut GContext, path: *mut 
 #[repr(C)]
 #[derive(Debug)]
 pub struct FontInfo {
-    _unused: [u8; 0],
+	_unused: [u8; 0],
 }
 /**! Pointer to opaque font data structure.
 ! @see \ref fonts_load_custom_font()
@@ -8488,13 +8152,11 @@ pub type GFont = *mut FontInfo;
 gneiss: Vtable Slot 96, Offset 384*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.fonts_get_system_font")]
-pub unsafe extern "C" fn fonts_get_system_font(
-    font_key: *const ::core::ffi::c_char,
-) -> GFont {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =384", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+pub unsafe extern "C" fn fonts_get_system_font(font_key: *const ::core::ffi::c_char) -> GFont {
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =384", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Loads a custom font.
 ! @param handle The resource handle of the font to load. See resource_ids.auto.h
@@ -8510,10 +8172,10 @@ gneiss: Vtable Slot 97, Offset 388*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.fonts_load_custom_font")]
 pub unsafe extern "C" fn fonts_load_custom_font(handle: ResHandle) -> GFont {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =388", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =388", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Unloads the specified custom font and frees the memory that is occupied by
 ! it.
@@ -8526,10 +8188,10 @@ gneiss: Vtable Slot 98, Offset 392*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.fonts_unload_custom_font")]
 pub unsafe extern "C" fn fonts_unload_custom_font(font: GFont) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =392", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =392", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! On overflow, wrap words to a new line below the current one. Once vertical space is consumed,
 ! the last line may be clipped.*/
@@ -8559,7 +8221,7 @@ pub type GTextAlignment = ::core::ffi::c_uchar;
 #[repr(C)]
 #[derive(Debug)]
 pub struct GTextAttributes {
-    _unused: [u8; 0],
+	_unused: [u8; 0],
 }
 /**! Creates an instance of GTextAttributes for advanced control when rendering text.
 ! @return New instance of GTextAttributes
@@ -8570,10 +8232,10 @@ gneiss: Vtable Slot 585, Offset 2340*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.graphics_text_attributes_create")]
 pub unsafe extern "C" fn graphics_text_attributes_create() -> *mut GTextAttributes {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =2340", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =2340", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 ///! Destroys a previously created instance of GTextAttributes
 /** graphics_text_attributes_destroy
@@ -8581,13 +8243,11 @@ pub unsafe extern "C" fn graphics_text_attributes_create() -> *mut GTextAttribut
 gneiss: Vtable Slot 586, Offset 2344*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.graphics_text_attributes_destroy")]
-pub unsafe extern "C" fn graphics_text_attributes_destroy(
-    text_attributes: *mut GTextAttributes,
-) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =2344", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+pub unsafe extern "C" fn graphics_text_attributes_destroy(text_attributes: *mut GTextAttributes) {
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =2344", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Restores text flow to the rectangular default.
 ! @param text_attributes The attributes for which to disable text flow
@@ -8599,12 +8259,12 @@ gneiss: Vtable Slot 590, Offset 2360*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.graphics_text_attributes_restore_default_text_flow")]
 pub unsafe extern "C" fn graphics_text_attributes_restore_default_text_flow(
-    text_attributes: *mut GTextAttributes,
+	text_attributes: *mut GTextAttributes,
 ) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =2360", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =2360", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Enables text flow that follows the boundaries of the screen.
 ! @param text_attributes The attributes for which text flow should be enabled
@@ -8618,13 +8278,13 @@ gneiss: Vtable Slot 588, Offset 2352*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.graphics_text_attributes_enable_screen_text_flow")]
 pub unsafe extern "C" fn graphics_text_attributes_enable_screen_text_flow(
-    text_attributes: *mut GTextAttributes,
-    inset: u8,
+	text_attributes: *mut GTextAttributes,
+	inset: u8,
 ) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =2352", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =2352", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Restores paging and locked content origin to the defaults.
 ! @param text_attributes The attributes for which to restore paging and locked content origin
@@ -8636,12 +8296,12 @@ gneiss: Vtable Slot 589, Offset 2356*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.graphics_text_attributes_restore_default_paging")]
 pub unsafe extern "C" fn graphics_text_attributes_restore_default_paging(
-    text_attributes: *mut GTextAttributes,
+	text_attributes: *mut GTextAttributes,
 ) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =2356", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =2356", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Enables paging and locks the text flow calculation to a fixed point on the screen.
 ! @param text_attributes Attributes for which to enable paging and locked content origin
@@ -8660,14 +8320,14 @@ gneiss: Vtable Slot 587, Offset 2348*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.graphics_text_attributes_enable_paging")]
 pub unsafe extern "C" fn graphics_text_attributes_enable_paging(
-    text_attributes: *mut GTextAttributes,
-    content_origin_on_screen: GPoint,
-    paging_on_screen: GRect,
+	text_attributes: *mut GTextAttributes,
+	content_origin_on_screen: GPoint,
+	paging_on_screen: GRect,
 ) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =2348", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =2348", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Draw text into the current graphics context, using the context's current text color.
 ! The text will be drawn inside a box with the specified dimensions and
@@ -8687,18 +8347,18 @@ gneiss: Vtable Slot 309, Offset 1236*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.graphics_draw_text")]
 pub unsafe extern "C" fn graphics_draw_text(
-    ctx: *mut GContext,
-    text: *const ::core::ffi::c_char,
-    font: GFont,
-    box_: GRect,
-    overflow_mode: GTextOverflowMode,
-    alignment: GTextAlignment,
-    text_attributes: *mut GTextAttributes,
+	ctx: *mut GContext,
+	text: *const ::core::ffi::c_char,
+	font: GFont,
+	box_: GRect,
+	overflow_mode: GTextOverflowMode,
+	alignment: GTextAlignment,
+	text_attributes: *mut GTextAttributes,
 ) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1236", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1236", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Obtain the maximum size that a text with given font, overflow mode and alignment occupies
 ! within a given rectangular constraint.
@@ -8716,16 +8376,16 @@ gneiss: Vtable Slot 315, Offset 1260*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.graphics_text_layout_get_content_size")]
 pub unsafe extern "C" fn graphics_text_layout_get_content_size(
-    text: *const ::core::ffi::c_char,
-    font: GFont,
-    box_: GRect,
-    overflow_mode: GTextOverflowMode,
-    alignment: GTextAlignment,
+	text: *const ::core::ffi::c_char,
+	font: GFont,
+	box_: GRect,
+	overflow_mode: GTextOverflowMode,
+	alignment: GTextAlignment,
 ) -> GSize {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1260", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1260", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Obtain the maximum size that a text with given font, overflow mode and alignment occupies
 ! within a given rectangular constraint.
@@ -8744,17 +8404,17 @@ gneiss: Vtable Slot 591, Offset 2364*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.graphics_text_layout_get_content_size_with_attributes")]
 pub unsafe extern "C" fn graphics_text_layout_get_content_size_with_attributes(
-    text: *const ::core::ffi::c_char,
-    font: GFont,
-    box_: GRect,
-    overflow_mode: GTextOverflowMode,
-    alignment: GTextAlignment,
-    text_attributes: *mut GTextAttributes,
+	text: *const ::core::ffi::c_char,
+	font: GFont,
+	box_: GRect,
+	overflow_mode: GTextOverflowMode,
+	alignment: GTextAlignment,
+	text_attributes: *mut GTextAttributes,
 ) -> GSize {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =2364", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =2364", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 ///! No error occured.
 pub const SmartstrapResult_SmartstrapResultOk: SmartstrapResult = 0;
@@ -8782,13 +8442,13 @@ pub type SmartstrapAttributeId = u16;
 #[repr(C)]
 #[derive(Debug)]
 pub struct SmartstrapAttribute {
-    _unused: [u8; 0],
+	_unused: [u8; 0],
 }
 /**! The type of function which is called after the smartstrap connection status changes.
 ! @param service_id The ServiceId for which the availability changed.
 ! @param is_available Whether or not this service is now available.*/
 pub type SmartstrapServiceAvailabilityHandler = ::core::option::Option<
-    unsafe extern "C" fn(service_id: SmartstrapServiceId, is_available: bool),
+	unsafe extern "C" fn(service_id: SmartstrapServiceId, is_available: bool),
 >;
 /**! The type of function which can be called when a read request is completed.
 ! @note Any write request made to the same attribute within this function will fail with
@@ -8798,57 +8458,48 @@ pub type SmartstrapServiceAvailabilityHandler = ::core::option::Option<
 ! @param data The data read from the smartstrap or NULL if the read was not successful.
 ! @param length The length of the data or 0 if the read was not successful.*/
 pub type SmartstrapReadHandler = ::core::option::Option<
-    unsafe extern "C" fn(
-        attribute: *mut SmartstrapAttribute,
-        result: SmartstrapResult,
-        data: *const u8,
-        length: usize,
-    ),
+	unsafe extern "C" fn(
+		attribute: *mut SmartstrapAttribute,
+		result: SmartstrapResult,
+		data: *const u8,
+		length: usize,
+	),
 >;
 /**! The type of function which can be called when a write request is completed.
 ! @param attribute The attribute which was written.
 ! @param result The result of the write.*/
 pub type SmartstrapWriteHandler = ::core::option::Option<
-    unsafe extern "C" fn(attribute: *mut SmartstrapAttribute, result: SmartstrapResult),
+	unsafe extern "C" fn(attribute: *mut SmartstrapAttribute, result: SmartstrapResult),
 >;
 /**! The type of function which can be called when the smartstrap sends a notification to the watch
 ! @param attribute The attribute which the notification came from.*/
-pub type SmartstrapNotifyHandler = ::core::option::Option<
-    unsafe extern "C" fn(attribute: *mut SmartstrapAttribute),
->;
+pub type SmartstrapNotifyHandler =
+	::core::option::Option<unsafe extern "C" fn(attribute: *mut SmartstrapAttribute)>;
 ///! Handlers which are passed to smartstrap_subscribe.
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct SmartstrapHandlers {
-    ///! The connection handler is called after the connection state changes.
-    pub availability_did_change: SmartstrapServiceAvailabilityHandler,
-    ///! The read handler is called whenever a read is complete or the read times-out.
-    pub did_read: SmartstrapReadHandler,
-    ///! The did_write handler is called when a write has completed.
-    pub did_write: SmartstrapWriteHandler,
-    ///! The notified handler is called whenever a notification is received for an attribute.
-    pub notified: SmartstrapNotifyHandler,
+	///! The connection handler is called after the connection state changes.
+	pub availability_did_change: SmartstrapServiceAvailabilityHandler,
+	///! The read handler is called whenever a read is complete or the read times-out.
+	pub did_read:                SmartstrapReadHandler,
+	///! The did_write handler is called when a write has completed.
+	pub did_write:               SmartstrapWriteHandler,
+	///! The notified handler is called whenever a notification is received for an attribute.
+	pub notified:                SmartstrapNotifyHandler,
 }
 #[allow(clippy::unnecessary_operation, clippy::identity_op)]
 const _: () = {
-    [
-        "Size of SmartstrapHandlers",
-    ][::core::mem::size_of::<SmartstrapHandlers>() - 16usize];
-    [
-        "Alignment of SmartstrapHandlers",
-    ][::core::mem::align_of::<SmartstrapHandlers>() - 4usize];
-    [
-        "Offset of field: SmartstrapHandlers::availability_did_change",
-    ][::core::mem::offset_of!(SmartstrapHandlers, availability_did_change) - 0usize];
-    [
-        "Offset of field: SmartstrapHandlers::did_read",
-    ][::core::mem::offset_of!(SmartstrapHandlers, did_read) - 4usize];
-    [
-        "Offset of field: SmartstrapHandlers::did_write",
-    ][::core::mem::offset_of!(SmartstrapHandlers, did_write) - 8usize];
-    [
-        "Offset of field: SmartstrapHandlers::notified",
-    ][::core::mem::offset_of!(SmartstrapHandlers, notified) - 12usize];
+	["Size of SmartstrapHandlers"][::core::mem::size_of::<SmartstrapHandlers>() - 16usize];
+	["Alignment of SmartstrapHandlers"][::core::mem::align_of::<SmartstrapHandlers>() - 4usize];
+	["Offset of field: SmartstrapHandlers::availability_did_change"]
+		[::core::mem::offset_of!(SmartstrapHandlers, availability_did_change) - 0usize];
+	["Offset of field: SmartstrapHandlers::did_read"]
+		[::core::mem::offset_of!(SmartstrapHandlers, did_read) - 4usize];
+	["Offset of field: SmartstrapHandlers::did_write"]
+		[::core::mem::offset_of!(SmartstrapHandlers, did_write) - 8usize];
+	["Offset of field: SmartstrapHandlers::notified"]
+		[::core::mem::offset_of!(SmartstrapHandlers, notified) - 12usize];
 };
 /**! Subscribes handlers to be called after certain smartstrap events occur.
 ! @note Registering an availability_did_change handler will cause power to be applied to the
@@ -8861,13 +8512,11 @@ const _: () = {
 gneiss: Vtable Slot 564, Offset 2256*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.smartstrap_subscribe")]
-pub unsafe extern "C" fn smartstrap_subscribe(
-    handlers: SmartstrapHandlers,
-) -> SmartstrapResult {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =2256", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+pub unsafe extern "C" fn smartstrap_subscribe(handlers: SmartstrapHandlers) -> SmartstrapResult {
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =2256", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Unsubscribes the handlers. The handlers will no longer be called, but in-flight requests will
 ! otherwise be unaffected.
@@ -8880,10 +8529,10 @@ gneiss: Vtable Slot 565, Offset 2260*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.smartstrap_unsubscribe")]
 pub unsafe extern "C" fn smartstrap_unsubscribe() {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =2260", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =2260", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Changes the value of the timeout which is used for smartstrap requests. This timeout is started
 ! after the request is completely sent to the smartstrap and will be canceled only if the entire
@@ -8899,10 +8548,10 @@ gneiss: Vtable Slot 563, Offset 2252*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.smartstrap_set_timeout")]
 pub unsafe extern "C" fn smartstrap_set_timeout(timeout_ms: u16) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =2252", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =2252", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Creates and returns a SmartstrapAttribute for the specified service and attribute. This API
 ! will allocate an internal buffer of the requested length on the app's heap.
@@ -8920,14 +8569,14 @@ gneiss: Vtable Slot 556, Offset 2224*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.smartstrap_attribute_create")]
 pub unsafe extern "C" fn smartstrap_attribute_create(
-    service_id: SmartstrapServiceId,
-    attribute_id: SmartstrapAttributeId,
-    buffer_length: usize,
+	service_id: SmartstrapServiceId,
+	attribute_id: SmartstrapAttributeId,
+	buffer_length: usize,
 ) -> *mut SmartstrapAttribute {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =2224", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =2224", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Destroys a SmartstrapAttribute. No further handlers will be called for this attribute and it
 ! may not be used for any future requests.
@@ -8940,13 +8589,11 @@ pub unsafe extern "C" fn smartstrap_attribute_create(
 gneiss: Vtable Slot 557, Offset 2228*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.smartstrap_attribute_destroy")]
-pub unsafe extern "C" fn smartstrap_attribute_destroy(
-    attribute: *mut SmartstrapAttribute,
-) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =2228", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+pub unsafe extern "C" fn smartstrap_attribute_destroy(attribute: *mut SmartstrapAttribute) {
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =2228", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Checks whether or not the specified service is currently supported by a connected smartstrap.
 ! @param service_id The SmartstrapServiceId of the service to check for availability.
@@ -8956,13 +8603,11 @@ pub unsafe extern "C" fn smartstrap_attribute_destroy(
 gneiss: Vtable Slot 562, Offset 2248*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.smartstrap_service_is_available")]
-pub unsafe extern "C" fn smartstrap_service_is_available(
-    service_id: SmartstrapServiceId,
-) -> bool {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =2248", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+pub unsafe extern "C" fn smartstrap_service_is_available(service_id: SmartstrapServiceId) -> bool {
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =2248", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Returns the ServiceId which the attribute was created for (see @c
 ! smartstrap_attribute_create).
@@ -8974,12 +8619,12 @@ gneiss: Vtable Slot 560, Offset 2240*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.smartstrap_attribute_get_service_id")]
 pub unsafe extern "C" fn smartstrap_attribute_get_service_id(
-    attribute: *mut SmartstrapAttribute,
+	attribute: *mut SmartstrapAttribute,
 ) -> SmartstrapServiceId {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =2240", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =2240", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Gets the AttributeId which the attribute was created for (see @c smartstrap_attribute_create).
 ! @param attribute The SmartstrapAttribute for which to obtain the attribute ID.
@@ -8990,12 +8635,12 @@ gneiss: Vtable Slot 559, Offset 2236*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.smartstrap_attribute_get_attribute_id")]
 pub unsafe extern "C" fn smartstrap_attribute_get_attribute_id(
-    attribute: *mut SmartstrapAttribute,
+	attribute: *mut SmartstrapAttribute,
 ) -> SmartstrapAttributeId {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =2236", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =2236", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Performs a read request for the specified attribute. The `did_read` callback will be called when
 ! the response is received from the smartstrap or when an error occurs.
@@ -9008,12 +8653,12 @@ gneiss: Vtable Slot 561, Offset 2244*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.smartstrap_attribute_read")]
 pub unsafe extern "C" fn smartstrap_attribute_read(
-    attribute: *mut SmartstrapAttribute,
+	attribute: *mut SmartstrapAttribute,
 ) -> SmartstrapResult {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =2244", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =2244", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Begins a write request for the specified attribute and returns a buffer into which the app
 ! should write the data before calling smartstrap_attribute_end_write.
@@ -9029,14 +8674,14 @@ gneiss: Vtable Slot 555, Offset 2220*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.smartstrap_attribute_begin_write")]
 pub unsafe extern "C" fn smartstrap_attribute_begin_write(
-    attribute: *mut SmartstrapAttribute,
-    buffer: *mut *mut u8,
-    buffer_length: *mut usize,
+	attribute: *mut SmartstrapAttribute,
+	buffer: *mut *mut u8,
+	buffer_length: *mut usize,
 ) -> SmartstrapResult {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =2220", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =2220", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! This should be called by the app when it is done writing to the buffer provided by
 ! smartstrap_begin_write and the data is ready to be sent to the smartstrap.
@@ -9053,14 +8698,14 @@ gneiss: Vtable Slot 558, Offset 2232*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.smartstrap_attribute_end_write")]
 pub unsafe extern "C" fn smartstrap_attribute_end_write(
-    attribute: *mut SmartstrapAttribute,
-    write_length: usize,
-    request_read: bool,
+	attribute: *mut SmartstrapAttribute,
+	write_length: usize,
+	request_read: bool,
 ) -> SmartstrapResult {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =2232", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =2232", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Reference to opaque click recognizer
 ! When a \ref ClickHandler callback is called, the recognizer that fired the handler is passed in.
@@ -9075,10 +8720,7 @@ pub type ClickRecognizerRef = *mut ::core::ffi::c_void;
 ! \ref window_set_click_context()). This defaults to the window.
 ! @see \ref ClickConfigProvider*/
 pub type ClickHandler = ::core::option::Option<
-    unsafe extern "C" fn(
-        recognizer: ClickRecognizerRef,
-        context: *mut ::core::ffi::c_void,
-    ),
+	unsafe extern "C" fn(recognizer: ClickRecognizerRef, context: *mut ::core::ffi::c_void),
 >;
 /**! This callback is called every time the window becomes visible (and when you call \ref window_set_click_config_provider() if
 ! the window is already visible).
@@ -9091,9 +8733,8 @@ pub type ClickHandler = ::core::option::Option<
 !   \ref window_raw_click_subscribe()
 ! These subscriptions will get used by the click recognizers of each of the 4 buttons.
 ! @param context Pointer to application specific data (see \ref window_set_click_config_provider_with_context()).*/
-pub type ClickConfigProvider = ::core::option::Option<
-    unsafe extern "C" fn(context: *mut ::core::ffi::c_void),
->;
+pub type ClickConfigProvider =
+	::core::option::Option<unsafe extern "C" fn(context: *mut ::core::ffi::c_void)>;
 /**! Gets the click count.
 ! You can use this inside a click handler implementation to get the click count for multi_click
 ! and (repeated) click events.
@@ -9104,13 +8745,11 @@ pub type ClickConfigProvider = ::core::option::Option<
 gneiss: Vtable Slot 66, Offset 264*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.click_number_of_clicks_counted")]
-pub unsafe extern "C" fn click_number_of_clicks_counted(
-    recognizer: ClickRecognizerRef,
-) -> u8 {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =264", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+pub unsafe extern "C" fn click_number_of_clicks_counted(recognizer: ClickRecognizerRef) -> u8 {
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =264", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Gets the button identifier.
 ! You can use this inside a click handler implementation to get the button id for the click event.
@@ -9122,12 +8761,12 @@ gneiss: Vtable Slot 67, Offset 268*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.click_recognizer_get_button_id")]
 pub unsafe extern "C" fn click_recognizer_get_button_id(
-    recognizer: ClickRecognizerRef,
+	recognizer: ClickRecognizerRef,
 ) -> ButtonId {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =268", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =268", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Is this a repeating click.
 ! You can use this inside a click handler implementation to find out whether this is a repeating click or not.
@@ -9138,13 +8777,11 @@ pub unsafe extern "C" fn click_recognizer_get_button_id(
 gneiss: Vtable Slot 325, Offset 1300*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.click_recognizer_is_repeating")]
-pub unsafe extern "C" fn click_recognizer_is_repeating(
-    recognizer: ClickRecognizerRef,
-) -> bool {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1300", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+pub unsafe extern "C" fn click_recognizer_is_repeating(recognizer: ClickRecognizerRef) -> bool {
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1300", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! @addtogroup Layer Layers
 ! \brief User interface layers for displaying graphic components
@@ -9186,7 +8823,7 @@ pub unsafe extern "C" fn click_recognizer_is_repeating(
 #[repr(C)]
 #[derive(Debug)]
 pub struct Layer {
-    _unused: [u8; 0],
+	_unused: [u8; 0],
 }
 /**! Function signature for a Layer's render callback (the name of the type
 ! is derived from the words 'update procedure').
@@ -9196,9 +8833,8 @@ pub struct Layer {
 ! @param ctx The destination graphics context to draw into
 ! @see \ref Graphics
 ! @see \ref layer_set_update_proc()*/
-pub type LayerUpdateProc = ::core::option::Option<
-    unsafe extern "C" fn(layer: *mut Layer, ctx: *mut GContext),
->;
+pub type LayerUpdateProc =
+	::core::option::Option<unsafe extern "C" fn(layer: *mut Layer, ctx: *mut GContext)>;
 /**! Creates a layer on the heap and sets its frame and bounds.
 ! Default values:
 ! * `bounds` : origin (0, 0) and a size equal to the frame that is passed in.
@@ -9216,10 +8852,10 @@ gneiss: Vtable Slot 139, Offset 556*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.layer_create")]
 pub unsafe extern "C" fn layer_create(frame: GRect) -> *mut Layer {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =556", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =556", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Creates a layer on the heap with extra space for callback data, and set its frame andbounds.
 ! Default values:
@@ -9238,14 +8874,11 @@ pub unsafe extern "C" fn layer_create(frame: GRect) -> *mut Layer {
 gneiss: Vtable Slot 140, Offset 560*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.layer_create_with_data")]
-pub unsafe extern "C" fn layer_create_with_data(
-    frame: GRect,
-    data_size: usize,
-) -> *mut Layer {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =560", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+pub unsafe extern "C" fn layer_create_with_data(frame: GRect, data_size: usize) -> *mut Layer {
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =560", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 ///! Destroys a layer previously created by layer_create
 /** layer_destroy
@@ -9254,10 +8887,10 @@ gneiss: Vtable Slot 141, Offset 564*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.layer_destroy")]
 pub unsafe extern "C" fn layer_destroy(layer: *mut Layer) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =564", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =564", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Marks the complete layer as "dirty", awaiting to be asked by the system to redraw itself.
 ! Typically, this function is called whenever state has changed that affects what the layer
@@ -9274,10 +8907,10 @@ gneiss: Vtable Slot 150, Offset 600*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.layer_mark_dirty")]
 pub unsafe extern "C" fn layer_mark_dirty(layer: *mut Layer) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =600", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =600", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Sets the layer's render function.
 ! The system will call the `update_proc` automatically when the layer needs to redraw itself, see
@@ -9291,14 +8924,11 @@ pub unsafe extern "C" fn layer_mark_dirty(layer: *mut Layer) {
 gneiss: Vtable Slot 157, Offset 628*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.layer_set_update_proc")]
-pub unsafe extern "C" fn layer_set_update_proc(
-    layer: *mut Layer,
-    update_proc: LayerUpdateProc,
-) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =628", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+pub unsafe extern "C" fn layer_set_update_proc(layer: *mut Layer, update_proc: LayerUpdateProc) {
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =628", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Sets the frame of the layer, which is it's bounding box relative to the coordinate
 ! system of its parent layer.
@@ -9313,10 +8943,10 @@ gneiss: Vtable Slot 155, Offset 620*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.layer_set_frame")]
 pub unsafe extern "C" fn layer_set_frame(layer: *mut Layer, frame: GRect) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =620", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =620", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Gets the frame of the layer, which is it's bounding box relative to the coordinate
 ! system of its parent layer.
@@ -9330,10 +8960,10 @@ gneiss: Vtable Slot 145, Offset 580*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.layer_get_frame")]
 pub unsafe extern "C" fn layer_get_frame(layer: *const Layer) -> GRect {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =580", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =580", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Sets the bounds of the layer, which is it's bounding box relative to its frame.
 ! If the bounds has changed, \ref layer_mark_dirty() will be called automatically.
@@ -9346,10 +8976,10 @@ gneiss: Vtable Slot 153, Offset 612*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.layer_set_bounds")]
 pub unsafe extern "C" fn layer_set_bounds(layer: *mut Layer, bounds: GRect) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =612", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =612", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Gets the bounds of the layer
 ! @param layer The layer for which to get the bounds
@@ -9361,10 +8991,10 @@ gneiss: Vtable Slot 142, Offset 568*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.layer_get_bounds")]
 pub unsafe extern "C" fn layer_get_bounds(layer: *const Layer) -> GRect {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =568", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =568", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Get the largest unobstructed bounds rectangle of a layer.
 ! @param layer The layer for which to get the unobstructed bounds.
@@ -9376,10 +9006,10 @@ gneiss: Vtable Slot 622, Offset 2488*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.layer_get_unobstructed_bounds")]
 pub unsafe extern "C" fn layer_get_unobstructed_bounds(layer: *const Layer) -> GRect {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =2488", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =2488", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Converts a point from the layer's local coordinate system to screen coordinates.
 ! @note If the layer isn't part of the view hierarchy the result is undefined.
@@ -9392,13 +9022,13 @@ gneiss: Vtable Slot 592, Offset 2368*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.layer_convert_point_to_screen")]
 pub unsafe extern "C" fn layer_convert_point_to_screen(
-    layer: *const Layer,
-    point: GPoint,
+	layer: *const Layer,
+	point: GPoint,
 ) -> GPoint {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =2368", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =2368", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Converts a rectangle from the layer's local coordinate system to screen coordinates.
 ! @note If the layer isn't part of the view hierarchy the result is undefined.
@@ -9410,14 +9040,11 @@ pub unsafe extern "C" fn layer_convert_point_to_screen(
 gneiss: Vtable Slot 593, Offset 2372*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.layer_convert_rect_to_screen")]
-pub unsafe extern "C" fn layer_convert_rect_to_screen(
-    layer: *const Layer,
-    rect: GRect,
-) -> GRect {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =2372", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+pub unsafe extern "C" fn layer_convert_rect_to_screen(layer: *const Layer, rect: GRect) -> GRect {
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =2372", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! @addtogroup Window
 ! \brief The basic building block of the user interface
@@ -9446,7 +9073,7 @@ pub unsafe extern "C" fn layer_convert_rect_to_screen(
 #[repr(C)]
 #[derive(Debug)]
 pub struct Window {
-    _unused: [u8; 0],
+	_unused: [u8; 0],
 }
 /**! Gets the window that the layer is currently attached to.
 ! @param layer The layer for which to get the window
@@ -9460,10 +9087,10 @@ gneiss: Vtable Slot 147, Offset 588*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.layer_get_window")]
 pub unsafe extern "C" fn layer_get_window(layer: *const Layer) -> *mut Window {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =588", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =588", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Removes the layer from its current parent layer
 ! If removed successfully, the child's parent layer will be marked dirty
@@ -9475,10 +9102,10 @@ gneiss: Vtable Slot 152, Offset 608*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.layer_remove_from_parent")]
 pub unsafe extern "C" fn layer_remove_from_parent(child: *mut Layer) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =608", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =608", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Removes child layers from given layer
 ! If removed successfully, the child's parent layer will be marked dirty
@@ -9490,10 +9117,10 @@ gneiss: Vtable Slot 151, Offset 604*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.layer_remove_child_layers")]
 pub unsafe extern "C" fn layer_remove_child_layers(parent: *mut Layer) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =604", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =604", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Adds the child layer to a given parent layer, making it appear
 ! in front of its parent and in front of any existing child layers
@@ -9510,10 +9137,10 @@ gneiss: Vtable Slot 138, Offset 552*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.layer_add_child")]
 pub unsafe extern "C" fn layer_add_child(parent: *mut Layer, child: *mut Layer) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =552", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =552", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Inserts the layer as a sibling behind another layer. If the layer to insert was
 ! already part of a layer hierarchy, it will be removed from its old parent first.
@@ -9530,13 +9157,13 @@ gneiss: Vtable Slot 149, Offset 596*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.layer_insert_below_sibling")]
 pub unsafe extern "C" fn layer_insert_below_sibling(
-    layer_to_insert: *mut Layer,
-    below_sibling_layer: *mut Layer,
+	layer_to_insert: *mut Layer,
+	below_sibling_layer: *mut Layer,
 ) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =596", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =596", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Inserts the layer as a sibling in front of another layer.
 ! The above_layer has to be a child of a parent layer,
@@ -9552,13 +9179,13 @@ gneiss: Vtable Slot 148, Offset 592*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.layer_insert_above_sibling")]
 pub unsafe extern "C" fn layer_insert_above_sibling(
-    layer_to_insert: *mut Layer,
-    above_sibling_layer: *mut Layer,
+	layer_to_insert: *mut Layer,
+	above_sibling_layer: *mut Layer,
 ) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =592", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =592", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Sets the visibility of the layer.
 ! If the visibility has changed, \ref layer_mark_dirty() will be called automatically
@@ -9572,10 +9199,10 @@ gneiss: Vtable Slot 156, Offset 624*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.layer_set_hidden")]
 pub unsafe extern "C" fn layer_set_hidden(layer: *mut Layer, hidden: bool) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =624", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =624", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Gets the visibility of the layer.
 ! @param layer The layer for which to get the visibility
@@ -9586,10 +9213,10 @@ gneiss: Vtable Slot 146, Offset 584*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.layer_get_hidden")]
 pub unsafe extern "C" fn layer_get_hidden(layer: *const Layer) -> bool {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =584", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =584", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Sets whether clipping is enabled for the layer. If enabled, whatever the layer _and
 ! its children_ will draw using their `.update_proc` callbacks, will be clipped by the
@@ -9604,10 +9231,10 @@ gneiss: Vtable Slot 154, Offset 616*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.layer_set_clips")]
 pub unsafe extern "C" fn layer_set_clips(layer: *mut Layer, clips: bool) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =616", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =616", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Gets whether clipping is enabled for the layer.  If enabled, whatever the layer _and
 ! its children_ will draw using their `.update_proc` callbacks, will be clipped by the
@@ -9621,10 +9248,10 @@ gneiss: Vtable Slot 143, Offset 572*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.layer_get_clips")]
 pub unsafe extern "C" fn layer_get_clips(layer: *const Layer) -> bool {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =572", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =572", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Gets the data from a layer that has been created with an extra data region.
 ! @param layer The layer to get the data region from.
@@ -9634,13 +9261,11 @@ pub unsafe extern "C" fn layer_get_clips(layer: *const Layer) -> bool {
 gneiss: Vtable Slot 144, Offset 576*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.layer_get_data")]
-pub unsafe extern "C" fn layer_get_data(
-    layer: *const Layer,
-) -> *mut ::core::ffi::c_void {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =576", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+pub unsafe extern "C" fn layer_get_data(layer: *const Layer) -> *mut ::core::ffi::c_void {
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =576", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! @addtogroup Recognizer Gesture Recognizers
 ! \brief Low-level touch-gesture recognizers for building fully custom touch
@@ -9707,7 +9332,7 @@ pub unsafe extern "C" fn layer_get_data(
 #[repr(C)]
 #[derive(Debug)]
 pub struct Recognizer {
-    _unused: [u8; 0],
+	_unused: [u8; 0],
 }
 pub const RecognizerEventType_RecognizerEvent_Started: RecognizerEventType = 0;
 pub const RecognizerEventType_RecognizerEvent_Updated: RecognizerEventType = 1;
@@ -9720,7 +9345,7 @@ pub use self::RecognizerEventType as RecognizerEvent;
 ! @param recognizer recognizer affected by the event
 ! @param event_type event that occurred*/
 pub type RecognizerEventCb = ::core::option::Option<
-    unsafe extern "C" fn(recognizer: *const Recognizer, event_type: RecognizerEvent),
+	unsafe extern "C" fn(recognizer: *const Recognizer, event_type: RecognizerEvent),
 >;
 /**! This function is called to determine whether \a recognizer should be evaluated simultaneously
 ! with \a simultaneous_with
@@ -9729,10 +9354,10 @@ pub type RecognizerEventCb = ::core::option::Option<
 ! should this test pass
 ! @return true if recognizers should be evaluated simultaneously*/
 pub type RecognizerSimultaneousWithCb = ::core::option::Option<
-    unsafe extern "C" fn(
-        recognizer: *const Recognizer,
-        simultaneous_with: *const Recognizer,
-    ) -> bool,
+	unsafe extern "C" fn(
+		recognizer: *const Recognizer,
+		simultaneous_with: *const Recognizer,
+	) -> bool,
 >;
 pub const PanAxis_PanAxis_Horizontal: PanAxis = 0;
 pub const PanAxis_PanAxis_Vertical: PanAxis = 1;
@@ -9757,13 +9382,13 @@ gneiss: Vtable Slot 669, Offset 2676*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.tap_recognizer_create")]
 pub unsafe extern "C" fn tap_recognizer_create(
-    event_cb: RecognizerEventCb,
-    user_data: *mut ::core::ffi::c_void,
+	event_cb: RecognizerEventCb,
+	user_data: *mut ::core::ffi::c_void,
 ) -> *mut Recognizer {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =2676", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =2676", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Create a pan recognizer locked to a single axis. The recognizer stays in the
 ! Possible state until the finger moves unambiguously along \a axis and crosses
@@ -9779,14 +9404,14 @@ gneiss: Vtable Slot 658, Offset 2632*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.pan_recognizer_create")]
 pub unsafe extern "C" fn pan_recognizer_create(
-    event_cb: RecognizerEventCb,
-    user_data: *mut ::core::ffi::c_void,
-    axis: PanAxis,
+	event_cb: RecognizerEventCb,
+	user_data: *mut ::core::ffi::c_void,
+	axis: PanAxis,
 ) -> *mut Recognizer {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =2632", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =2632", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Create a swipe recognizer that accepts the directions set in \a direction_mask. The recognizer
 ! stays Possible while tracking the path and Completes on liftoff if the path is a fast, straight,
@@ -9801,14 +9426,14 @@ gneiss: Vtable Slot 666, Offset 2664*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.swipe_recognizer_create")]
 pub unsafe extern "C" fn swipe_recognizer_create(
-    event_cb: RecognizerEventCb,
-    user_data: *mut ::core::ffi::c_void,
-    direction_mask: u8,
+	event_cb: RecognizerEventCb,
+	user_data: *mut ::core::ffi::c_void,
+	direction_mask: u8,
 ) -> *mut Recognizer {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =2664", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =2664", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Get the coordinate of the recognized tap. The coordinate is taken from the last position update,
 ! not the liftoff. Valid once the recognizer has completed.
@@ -9819,13 +9444,11 @@ pub unsafe extern "C" fn swipe_recognizer_create(
 gneiss: Vtable Slot 670, Offset 2680*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.tap_recognizer_get_tap_point")]
-pub unsafe extern "C" fn tap_recognizer_get_tap_point(
-    recognizer: *const Recognizer,
-) -> GPoint {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =2680", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+pub unsafe extern "C" fn tap_recognizer_get_tap_point(recognizer: *const Recognizer) -> GPoint {
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =2680", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Get the total movement of the pan since the touchdown point. Component-wise.
 ! @param recognizer recognizer from which to get the delta
@@ -9835,13 +9458,11 @@ pub unsafe extern "C" fn tap_recognizer_get_tap_point(
 gneiss: Vtable Slot 661, Offset 2644*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.pan_recognizer_get_total_delta")]
-pub unsafe extern "C" fn pan_recognizer_get_total_delta(
-    recognizer: *const Recognizer,
-) -> GPoint {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =2644", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+pub unsafe extern "C" fn pan_recognizer_get_total_delta(recognizer: *const Recognizer) -> GPoint {
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =2644", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Get the movement of the pan since it Started (i.e. since the start threshold was crossed). This
 ! is exactly (0, 0) at the instant the recognizer transitions to Started, so live scroll that
@@ -9854,12 +9475,12 @@ gneiss: Vtable Slot 660, Offset 2640*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.pan_recognizer_get_delta_since_start")]
 pub unsafe extern "C" fn pan_recognizer_get_delta_since_start(
-    recognizer: *const Recognizer,
+	recognizer: *const Recognizer,
 ) -> GPoint {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =2640", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =2640", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Get the movement of the pan since the previous position update. Component-wise.
 ! @param recognizer recognizer from which to get the delta
@@ -9870,12 +9491,12 @@ gneiss: Vtable Slot 659, Offset 2636*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.pan_recognizer_get_delta_since_prev")]
 pub unsafe extern "C" fn pan_recognizer_get_delta_since_prev(
-    recognizer: *const Recognizer,
+	recognizer: *const Recognizer,
 ) -> GPoint {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =2636", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =2636", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Get the current velocity of the pan, in pixels per second, component-wise. Computed over the
 ! most-recent events within a short time window (see PAN_VELOCITY_WINDOW_MS). Zero when the
@@ -9887,13 +9508,11 @@ pub unsafe extern "C" fn pan_recognizer_get_delta_since_prev(
 gneiss: Vtable Slot 662, Offset 2648*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.pan_recognizer_get_velocity")]
-pub unsafe extern "C" fn pan_recognizer_get_velocity(
-    recognizer: *const Recognizer,
-) -> GPoint {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =2648", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+pub unsafe extern "C" fn pan_recognizer_get_velocity(recognizer: *const Recognizer) -> GPoint {
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =2648", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Get the recognized swipe direction. Valid once the recognizer has Completed; otherwise
 ! \ref SwipeDirection_None.
@@ -9905,12 +9524,12 @@ gneiss: Vtable Slot 667, Offset 2668*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.swipe_recognizer_get_direction")]
 pub unsafe extern "C" fn swipe_recognizer_get_direction(
-    recognizer: *const Recognizer,
+	recognizer: *const Recognizer,
 ) -> SwipeDirection {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =2668", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =2668", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Get the velocity of the swipe, in pixels per second, component-wise. Computed over the
 ! most-recent events within a short time window. Zero when the elapsed time is zero.
@@ -9921,13 +9540,11 @@ pub unsafe extern "C" fn swipe_recognizer_get_direction(
 gneiss: Vtable Slot 668, Offset 2672*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.swipe_recognizer_get_velocity")]
-pub unsafe extern "C" fn swipe_recognizer_get_velocity(
-    recognizer: *const Recognizer,
-) -> GPoint {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =2672", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+pub unsafe extern "C" fn swipe_recognizer_get_velocity(recognizer: *const Recognizer) -> GPoint {
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =2672", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Destroy an un-owned recognizer. If a recognizer is not owned, this will destroy the recognizer
 ! freeing it's data and calling the destructor (see \ref recognizer_set_on_destroy), if set. If it
@@ -9939,10 +9556,10 @@ gneiss: Vtable Slot 663, Offset 2652*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.recognizer_destroy")]
 pub unsafe extern "C" fn recognizer_destroy(recognizer: *mut Recognizer) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =2652", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =2652", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Specify a callback to determine whether a recognizer should be evaluated simultaneously with
 ! another recognizer
@@ -9955,13 +9572,13 @@ gneiss: Vtable Slot 665, Offset 2660*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.recognizer_set_simultaneous_with")]
 pub unsafe extern "C" fn recognizer_set_simultaneous_with(
-    recognizer: *mut Recognizer,
-    simultaneous_with_cb: RecognizerSimultaneousWithCb,
+	recognizer: *mut Recognizer,
+	simultaneous_with_cb: RecognizerSimultaneousWithCb,
 ) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =2660", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =2660", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Tell a recognizer to only evaluate after the another recognizer fails
 ! @param recognizer recognizer to modify
@@ -9972,20 +9589,18 @@ gneiss: Vtable Slot 664, Offset 2656*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.recognizer_set_fail_after")]
 pub unsafe extern "C" fn recognizer_set_fail_after(
-    recognizer: *mut Recognizer,
-    fail_after: *mut Recognizer,
+	recognizer: *mut Recognizer,
+	fail_after: *mut Recognizer,
 ) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =2656", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =2656", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Function signature for a handler that deals with transition events of a window.
 ! @see WindowHandlers
 ! @see \ref window_set_window_handlers()*/
-pub type WindowHandler = ::core::option::Option<
-    unsafe extern "C" fn(window: *mut Window),
->;
+pub type WindowHandler = ::core::option::Option<unsafe extern "C" fn(window: *mut Window)>;
 /**! WindowHandlers
 ! These handlers are called by the \ref WindowStack as windows get pushed on / popped.
 ! All these handlers use \ref WindowHandler as their function signature.
@@ -9994,38 +9609,34 @@ pub type WindowHandler = ::core::option::Option<
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct WindowHandlers {
-    /**! Called when the window is pushed to the screen when it's not loaded.
-! This is a good moment to do the layout of the window.*/
-    pub load: WindowHandler,
-    /**! Called when the window comes on the screen (again). E.g. when
-! second-top-most window gets revealed (again) after popping the top-most
-! window, but also when the window is pushed for the first time. This is a
-! good moment to start timers related to the window, or reset the UI, etc.*/
-    pub appear: WindowHandler,
-    /**! Called when the window leaves the screen, e.g. when another window
-! is pushed, or this window is popped. Good moment to stop timers related
-! to the window.*/
-    pub disappear: WindowHandler,
-    /**! Called when the window is deinited, but could be used in the future to
-! free resources bound to windows that are not on screen.*/
-    pub unload: WindowHandler,
+	/**! Called when the window is pushed to the screen when it's not loaded.
+	! This is a good moment to do the layout of the window.*/
+	pub load:      WindowHandler,
+	/**! Called when the window comes on the screen (again). E.g. when
+	! second-top-most window gets revealed (again) after popping the top-most
+	! window, but also when the window is pushed for the first time. This is a
+	! good moment to start timers related to the window, or reset the UI, etc.*/
+	pub appear:    WindowHandler,
+	/**! Called when the window leaves the screen, e.g. when another window
+	! is pushed, or this window is popped. Good moment to stop timers related
+	! to the window.*/
+	pub disappear: WindowHandler,
+	/**! Called when the window is deinited, but could be used in the future to
+	! free resources bound to windows that are not on screen.*/
+	pub unload:    WindowHandler,
 }
 #[allow(clippy::unnecessary_operation, clippy::identity_op)]
 const _: () = {
-    ["Size of WindowHandlers"][::core::mem::size_of::<WindowHandlers>() - 16usize];
-    ["Alignment of WindowHandlers"][::core::mem::align_of::<WindowHandlers>() - 4usize];
-    [
-        "Offset of field: WindowHandlers::load",
-    ][::core::mem::offset_of!(WindowHandlers, load) - 0usize];
-    [
-        "Offset of field: WindowHandlers::appear",
-    ][::core::mem::offset_of!(WindowHandlers, appear) - 4usize];
-    [
-        "Offset of field: WindowHandlers::disappear",
-    ][::core::mem::offset_of!(WindowHandlers, disappear) - 8usize];
-    [
-        "Offset of field: WindowHandlers::unload",
-    ][::core::mem::offset_of!(WindowHandlers, unload) - 12usize];
+	["Size of WindowHandlers"][::core::mem::size_of::<WindowHandlers>() - 16usize];
+	["Alignment of WindowHandlers"][::core::mem::align_of::<WindowHandlers>() - 4usize];
+	["Offset of field: WindowHandlers::load"]
+		[::core::mem::offset_of!(WindowHandlers, load) - 0usize];
+	["Offset of field: WindowHandlers::appear"]
+		[::core::mem::offset_of!(WindowHandlers, appear) - 4usize];
+	["Offset of field: WindowHandlers::disappear"]
+		[::core::mem::offset_of!(WindowHandlers, disappear) - 8usize];
+	["Offset of field: WindowHandlers::unload"]
+		[::core::mem::offset_of!(WindowHandlers, unload) - 12usize];
 };
 /**! Creates a new Window on the heap and initalizes it with the default values.
 !
@@ -10041,10 +9652,10 @@ gneiss: Vtable Slot 271, Offset 1084*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.window_create")]
 pub unsafe extern "C" fn window_create() -> *mut Window {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1084", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1084", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 ///! Destroys a Window previously created by window_create.
 /** window_destroy
@@ -10053,10 +9664,10 @@ gneiss: Vtable Slot 272, Offset 1088*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.window_destroy")]
 pub unsafe extern "C" fn window_destroy(window: *mut Window) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1088", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1088", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Sets the click configuration provider callback function on the window.
 ! This will automatically setup the input handlers of the window as well to use
@@ -10071,13 +9682,13 @@ gneiss: Vtable Slot 278, Offset 1112*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.window_set_click_config_provider")]
 pub unsafe extern "C" fn window_set_click_config_provider(
-    window: *mut Window,
-    click_config_provider: ClickConfigProvider,
+	window: *mut Window,
+	click_config_provider: ClickConfigProvider,
 ) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1112", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1112", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Same as window_set_click_config_provider(), but will assign a custom context pointer
 ! (instead of the window pointer) that will be passed into the ClickHandler click event handlers.
@@ -10092,14 +9703,14 @@ gneiss: Vtable Slot 279, Offset 1116*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.window_set_click_config_provider_with_context")]
 pub unsafe extern "C" fn window_set_click_config_provider_with_context(
-    window: *mut Window,
-    click_config_provider: ClickConfigProvider,
-    context: *mut ::core::ffi::c_void,
+	window: *mut Window,
+	click_config_provider: ClickConfigProvider,
+	context: *mut ::core::ffi::c_void,
 ) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1116", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1116", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Gets the current click configuration provider of the window.
 ! @param window The window for which to get the click config provider*/
@@ -10109,12 +9720,12 @@ gneiss: Vtable Slot 273, Offset 1092*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.window_get_click_config_provider")]
 pub unsafe extern "C" fn window_get_click_config_provider(
-    window: *const Window,
+	window: *const Window,
 ) -> ClickConfigProvider {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1092", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1092", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Gets the current click configuration provider context of the window.
 ! @param window The window for which to get the click config provider context*/
@@ -10124,12 +9735,12 @@ gneiss: Vtable Slot 321, Offset 1284*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.window_get_click_config_context")]
 pub unsafe extern "C" fn window_get_click_config_context(
-    window: *mut Window,
+	window: *mut Window,
 ) -> *mut ::core::ffi::c_void {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1284", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1284", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Attach a recognizer to the window
 ! @param window \ref Window to which to attach the \ref Recognizer
@@ -10140,13 +9751,13 @@ gneiss: Vtable Slot 671, Offset 2684*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.window_attach_recognizer")]
 pub unsafe extern "C" fn window_attach_recognizer(
-    window: *mut Window,
-    recognizer: *mut Recognizer,
+	window: *mut Window,
+	recognizer: *mut Recognizer,
 ) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =2684", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =2684", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Detach a recognizer from the window
 ! @param window \ref Window from which to detach the \ref Recognizer
@@ -10157,13 +9768,13 @@ gneiss: Vtable Slot 672, Offset 2688*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.window_detach_recognizer")]
 pub unsafe extern "C" fn window_detach_recognizer(
-    window: *mut Window,
-    recognizer: *mut Recognizer,
+	window: *mut Window,
+	recognizer: *mut Recognizer,
 ) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =2688", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =2688", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Disable the system touch-navigation bridge for a window. With the bridge disabled the system
 ! recognizer set fails on Touchdown for this window, handing every touch to the recognizers the
@@ -10175,14 +9786,11 @@ pub unsafe extern "C" fn window_detach_recognizer(
 gneiss: Vtable Slot 673, Offset 2692*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.window_set_touch_bridge_disabled")]
-pub unsafe extern "C" fn window_set_touch_bridge_disabled(
-    window: *mut Window,
-    disabled: bool,
-) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =2692", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+pub unsafe extern "C" fn window_set_touch_bridge_disabled(window: *mut Window, disabled: bool) {
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =2692", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Sets the window handlers of the window.
 ! These handlers get called e.g. when the user enters or leaves the window.
@@ -10194,14 +9802,11 @@ pub unsafe extern "C" fn window_set_touch_bridge_disabled(
 gneiss: Vtable Slot 282, Offset 1128*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.window_set_window_handlers")]
-pub unsafe extern "C" fn window_set_window_handlers(
-    window: *mut Window,
-    handlers: WindowHandlers,
-) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1128", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+pub unsafe extern "C" fn window_set_window_handlers(window: *mut Window, handlers: WindowHandlers) {
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1128", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Gets the root Layer of the window.
 ! The root layer is the layer at the bottom of the layer hierarchy for this window.
@@ -10215,10 +9820,10 @@ gneiss: Vtable Slot 275, Offset 1100*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.window_get_root_layer")]
 pub unsafe extern "C" fn window_get_root_layer(window: *const Window) -> *mut Layer {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1100", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1100", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Sets the background color of the window, which is drawn automatically by the
 ! root layer of the window.
@@ -10231,13 +9836,13 @@ gneiss: Vtable Slot 377, Offset 1508*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.window_set_background_color")]
 pub unsafe extern "C" fn window_set_background_color(
-    window: *mut Window,
-    background_color: GColor,
+	window: *mut Window,
+	background_color: GColor,
 ) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1508", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1508", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Gets whether the window has been loaded.
 ! If a window is loaded, its `.load` handler has been called (and the `.unload` handler
@@ -10251,10 +9856,10 @@ gneiss: Vtable Slot 276, Offset 1104*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.window_is_loaded")]
 pub unsafe extern "C" fn window_is_loaded(window: *mut Window) -> bool {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1104", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1104", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Sets a pointer to developer-supplied data that the window uses, to
 ! provide a means to access the data at later times in one of the window event handlers.
@@ -10266,14 +9871,11 @@ pub unsafe extern "C" fn window_is_loaded(window: *mut Window) -> bool {
 gneiss: Vtable Slot 292, Offset 1168*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.window_set_user_data")]
-pub unsafe extern "C" fn window_set_user_data(
-    window: *mut Window,
-    data: *mut ::core::ffi::c_void,
-) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1168", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+pub unsafe extern "C" fn window_set_user_data(window: *mut Window, data: *mut ::core::ffi::c_void) {
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1168", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Gets the pointer to developer-supplied data that was previously
 ! set using window_set_user_data().
@@ -10284,13 +9886,11 @@ pub unsafe extern "C" fn window_set_user_data(
 gneiss: Vtable Slot 291, Offset 1164*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.window_get_user_data")]
-pub unsafe extern "C" fn window_get_user_data(
-    window: *const Window,
-) -> *mut ::core::ffi::c_void {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1164", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+pub unsafe extern "C" fn window_get_user_data(window: *const Window) -> *mut ::core::ffi::c_void {
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1164", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Subscribe to single click events.
 ! @note Must be called from the \ref ClickConfigProvider.
@@ -10307,14 +9907,11 @@ pub unsafe extern "C" fn window_get_user_data(
 gneiss: Vtable Slot 307, Offset 1228*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.window_single_click_subscribe")]
-pub unsafe extern "C" fn window_single_click_subscribe(
-    button_id: ButtonId,
-    handler: ClickHandler,
-) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1228", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+pub unsafe extern "C" fn window_single_click_subscribe(button_id: ButtonId, handler: ClickHandler) {
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1228", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Subscribe to single click event, with a repeat interval. A single click is detected every time "repeat_interval_ms" has been reached.
 ! @note Must be called from the \ref ClickConfigProvider.
@@ -10332,14 +9929,14 @@ gneiss: Vtable Slot 308, Offset 1232*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.window_single_repeating_click_subscribe")]
 pub unsafe extern "C" fn window_single_repeating_click_subscribe(
-    button_id: ButtonId,
-    repeat_interval_ms: u16,
-    handler: ClickHandler,
+	button_id: ButtonId,
+	repeat_interval_ms: u16,
+	handler: ClickHandler,
 ) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1232", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1232", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Subscribe to multi click events.
 ! @note Must be called from the \ref ClickConfigProvider.
@@ -10355,17 +9952,17 @@ gneiss: Vtable Slot 304, Offset 1216*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.window_multi_click_subscribe")]
 pub unsafe extern "C" fn window_multi_click_subscribe(
-    button_id: ButtonId,
-    min_clicks: u8,
-    max_clicks: u8,
-    timeout: u16,
-    last_click_only: bool,
-    handler: ClickHandler,
+	button_id: ButtonId,
+	min_clicks: u8,
+	max_clicks: u8,
+	timeout: u16,
+	last_click_only: bool,
+	handler: ClickHandler,
 ) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1216", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1216", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Subscribe to long click events.
 ! @note Must be called from the \ref ClickConfigProvider.
@@ -10380,15 +9977,15 @@ gneiss: Vtable Slot 303, Offset 1212*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.window_long_click_subscribe")]
 pub unsafe extern "C" fn window_long_click_subscribe(
-    button_id: ButtonId,
-    delay_ms: u16,
-    down_handler: ClickHandler,
-    up_handler: ClickHandler,
+	button_id: ButtonId,
+	delay_ms: u16,
+	down_handler: ClickHandler,
+	up_handler: ClickHandler,
 ) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1212", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1212", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Subscribe to raw click events.
 ! @note Must be called from within the \ref ClickConfigProvider.
@@ -10403,15 +10000,15 @@ gneiss: Vtable Slot 305, Offset 1220*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.window_raw_click_subscribe")]
 pub unsafe extern "C" fn window_raw_click_subscribe(
-    button_id: ButtonId,
-    down_handler: ClickHandler,
-    up_handler: ClickHandler,
-    context: *mut ::core::ffi::c_void,
+	button_id: ButtonId,
+	down_handler: ClickHandler,
+	up_handler: ClickHandler,
+	context: *mut ::core::ffi::c_void,
 ) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1220", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1220", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Set the context that will be passed to handlers for the given button's events. By default the context passed to handlers
 ! is equal to the \ref ClickConfigProvider context (defaults to the window).
@@ -10424,13 +10021,13 @@ gneiss: Vtable Slot 306, Offset 1224*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.window_set_click_context")]
 pub unsafe extern "C" fn window_set_click_context(
-    button_id: ButtonId,
-    context: *mut ::core::ffi::c_void,
+	button_id: ButtonId,
+	context: *mut ::core::ffi::c_void,
 ) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1224", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1224", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Pushes the given window on the window navigation stack,
 ! on top of the current topmost window of the app.
@@ -10443,10 +10040,10 @@ gneiss: Vtable Slot 287, Offset 1148*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.window_stack_push")]
 pub unsafe extern "C" fn window_stack_push(window: *mut Window, animated: bool) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1148", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1148", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Pops the topmost window on the navigation stack
 ! @param animated See \ref window_stack_remove()
@@ -10457,10 +10054,10 @@ gneiss: Vtable Slot 285, Offset 1140*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.window_stack_pop")]
 pub unsafe extern "C" fn window_stack_pop(animated: bool) -> *mut Window {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1140", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1140", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Pops all windows.
 ! See \ref window_stack_remove() for a description of the `animated` parameter and notes.*/
@@ -10470,10 +10067,10 @@ gneiss: Vtable Slot 286, Offset 1144*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.window_stack_pop_all")]
 pub unsafe extern "C" fn window_stack_pop_all(animated: bool) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1144", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1144", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Removes a given window from the window stack
 ! that belongs to the app task.
@@ -10492,14 +10089,11 @@ pub unsafe extern "C" fn window_stack_pop_all(animated: bool) {
 gneiss: Vtable Slot 288, Offset 1152*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.window_stack_remove")]
-pub unsafe extern "C" fn window_stack_remove(
-    window: *mut Window,
-    animated: bool,
-) -> bool {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1152", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+pub unsafe extern "C" fn window_stack_remove(window: *mut Window, animated: bool) -> bool {
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1152", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Gets the topmost window on the stack that belongs to the app.
 ! @return The topmost window on the stack that belongs to the app or
@@ -10510,10 +10104,10 @@ gneiss: Vtable Slot 284, Offset 1136*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.window_stack_get_top_window")]
 pub unsafe extern "C" fn window_stack_get_top_window() -> *mut Window {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1136", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1136", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Checks if the window is on the window stack
 ! @param window The window to look for on the window stack
@@ -10524,10 +10118,10 @@ gneiss: Vtable Slot 283, Offset 1132*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.window_stack_contains_window")]
 pub unsafe extern "C" fn window_stack_contains_window(window: *mut Window) -> bool {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1132", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1132", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! @addtogroup Animation
 !   \brief Abstract framework to create arbitrary animations
@@ -10543,7 +10137,7 @@ pub unsafe extern "C" fn window_stack_contains_window(window: *mut Window) -> bo
 #[repr(C)]
 #[derive(Debug)]
 pub struct Animation {
-    _unused: [u8; 0],
+	_unused: [u8; 0],
 }
 /**! The type used to represent how far an animation has progressed. This is passed to the
 ! animation's update handler*/
@@ -10586,10 +10180,10 @@ gneiss: Vtable Slot 380, Offset 1520*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.animation_create")]
 pub unsafe extern "C" fn animation_create() -> *mut Animation {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1520", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1520", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Destroys an Animation previously created by animation_create.
 ! @return true if successful, false on failure*/
@@ -10599,10 +10193,10 @@ gneiss: Vtable Slot 381, Offset 1524*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.animation_destroy")]
 pub unsafe extern "C" fn animation_destroy(animation: *mut Animation) -> bool {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1524", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1524", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /** animation_clone
   -> Added in 36
@@ -10610,10 +10204,10 @@ gneiss: Vtable Slot 422, Offset 1688*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.animation_clone")]
 pub unsafe extern "C" fn animation_clone(from: *mut Animation) -> *mut Animation {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1688", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1688", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Create a new sequence animation from a list of 2 or more other animations. The returned
 ! animation owns the animations that were provided as arguments and no further write operations
@@ -10630,15 +10224,15 @@ gneiss: Vtable Slot 428, Offset 1712*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.animation_sequence_create")]
 pub unsafe extern "C" fn animation_sequence_create(
-    animation_a: *mut Animation,
-    animation_b: *mut Animation,
-    animation_c: *mut Animation,
-    args: ...
+	animation_a: *mut Animation,
+	animation_b: *mut Animation,
+	animation_c: *mut Animation,
+	args: ...
 ) -> *mut Animation {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1712", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1712", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! An alternate form of animation_sequence_create() that accepts an array of other animations.
 ! @note the maximum number of elements allowed in animation_array is 256
@@ -10651,13 +10245,13 @@ gneiss: Vtable Slot 429, Offset 1716*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.animation_sequence_create_from_array")]
 pub unsafe extern "C" fn animation_sequence_create_from_array(
-    animation_array: *mut *mut Animation,
-    array_len: u32,
+	animation_array: *mut *mut Animation,
+	array_len: u32,
 ) -> *mut Animation {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1716", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1716", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Create a new spawn animation from a list of 2 or more other animations. The returned
 ! animation owns the animations that were provided as arguments and no further write operations
@@ -10674,15 +10268,15 @@ gneiss: Vtable Slot 433, Offset 1732*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.animation_spawn_create")]
 pub unsafe extern "C" fn animation_spawn_create(
-    animation_a: *mut Animation,
-    animation_b: *mut Animation,
-    animation_c: *mut Animation,
-    args: ...
+	animation_a: *mut Animation,
+	animation_b: *mut Animation,
+	animation_c: *mut Animation,
+	args: ...
 ) -> *mut Animation {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1732", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1732", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! An alternate form of animation_spawn_create() that accepts an array of other animations.
 ! @note the maximum number of elements allowed in animation_array is 256
@@ -10695,13 +10289,13 @@ gneiss: Vtable Slot 434, Offset 1736*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.animation_spawn_create_from_array")]
 pub unsafe extern "C" fn animation_spawn_create_from_array(
-    animation_array: *mut *mut Animation,
-    array_len: u32,
+	animation_array: *mut *mut Animation,
+	array_len: u32,
 ) -> *mut Animation {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1736", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1736", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Seek to a specific location in the animation. Only forward seeking is allowed. Returns true
 ! if successful, false if the passed in seek location is invalid.
@@ -10713,14 +10307,11 @@ pub unsafe extern "C" fn animation_spawn_create_from_array(
 gneiss: Vtable Slot 431, Offset 1724*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.animation_set_elapsed")]
-pub unsafe extern "C" fn animation_set_elapsed(
-    animation: *mut Animation,
-    elapsed_ms: u32,
-) -> bool {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1724", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+pub unsafe extern "C" fn animation_set_elapsed(animation: *mut Animation, elapsed_ms: u32) -> bool {
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1724", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Get the current location in the animation.
 ! @note The animation must be scheduled to get the elapsed time. If it is not schedule,
@@ -10734,13 +10325,13 @@ gneiss: Vtable Slot 426, Offset 1704*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.animation_get_elapsed")]
 pub unsafe extern "C" fn animation_get_elapsed(
-    animation: *mut Animation,
-    elapsed_ms: *mut i32,
+	animation: *mut Animation,
+	elapsed_ms: *mut i32,
 ) -> bool {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1704", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1704", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Set an animation to run in reverse (or forward)
 ! @note Trying to set an attribute when an animation is immutable will return false (failure). An
@@ -10754,14 +10345,11 @@ pub unsafe extern "C" fn animation_get_elapsed(
 gneiss: Vtable Slot 432, Offset 1728*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.animation_set_reverse")]
-pub unsafe extern "C" fn animation_set_reverse(
-    animation: *mut Animation,
-    reverse: bool,
-) -> bool {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1728", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+pub unsafe extern "C" fn animation_set_reverse(animation: *mut Animation, reverse: bool) -> bool {
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1728", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Get the reverse setting of an animation
 ! @param animation The animation for which to get the setting
@@ -10772,10 +10360,10 @@ gneiss: Vtable Slot 427, Offset 1708*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.animation_get_reverse")]
 pub unsafe extern "C" fn animation_get_reverse(animation: *mut Animation) -> bool {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1708", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1708", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Set an animation to play N times. The default is 1.
 ! @note Trying to set an attribute when an animation is immutable will return false (failure). An
@@ -10791,13 +10379,13 @@ gneiss: Vtable Slot 430, Offset 1720*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.animation_set_play_count")]
 pub unsafe extern "C" fn animation_set_play_count(
-    animation: *mut Animation,
-    play_count: u32,
+	animation: *mut Animation,
+	play_count: u32,
 ) -> bool {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1720", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1720", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Get the play count of an animation
 ! @param animation The animation for which to get the setting
@@ -10808,10 +10396,10 @@ gneiss: Vtable Slot 425, Offset 1700*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.animation_get_play_count")]
 pub unsafe extern "C" fn animation_get_play_count(animation: *mut Animation) -> u32 {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1700", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1700", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Sets the time in milliseconds that an animation takes from start to finish.
 ! @note Trying to set an attribute when an animation is immutable will return false (failure). An
@@ -10827,13 +10415,13 @@ gneiss: Vtable Slot 388, Offset 1552*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.animation_set_duration")]
 pub unsafe extern "C" fn animation_set_duration(
-    animation: *mut Animation,
-    duration_ms: u32,
+	animation: *mut Animation,
+	duration_ms: u32,
 ) -> bool {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1552", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1552", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Get the static duration of an animation from start to end (ignoring how much has already
 ! played, if any).
@@ -10848,14 +10436,14 @@ gneiss: Vtable Slot 424, Offset 1696*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.animation_get_duration")]
 pub unsafe extern "C" fn animation_get_duration(
-    animation: *mut Animation,
-    include_delay: bool,
-    include_play_count: bool,
+	animation: *mut Animation,
+	include_delay: bool,
+	include_play_count: bool,
 ) -> u32 {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1696", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1696", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Sets an optional delay for the animation.
 ! @note Trying to set an attribute when an animation is immutable will return false (failure). An
@@ -10870,14 +10458,11 @@ pub unsafe extern "C" fn animation_get_duration(
 gneiss: Vtable Slot 387, Offset 1548*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.animation_set_delay")]
-pub unsafe extern "C" fn animation_set_delay(
-    animation: *mut Animation,
-    delay_ms: u32,
-) -> bool {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1548", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+pub unsafe extern "C" fn animation_set_delay(animation: *mut Animation, delay_ms: u32) -> bool {
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1548", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Get the delay of an animation in milliseconds
 ! @param animation The animation for which to get the setting
@@ -10888,10 +10473,10 @@ gneiss: Vtable Slot 423, Offset 1692*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.animation_get_delay")]
 pub unsafe extern "C" fn animation_get_delay(animation: *mut Animation) -> u32 {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1692", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1692", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Sets the animation curve for the animation.
 ! @note Trying to set an attribute when an animation is immutable will return false (failure). An
@@ -10907,13 +10492,13 @@ gneiss: Vtable Slot 385, Offset 1540*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.animation_set_curve")]
 pub unsafe extern "C" fn animation_set_curve(
-    animation: *mut Animation,
-    curve: AnimationCurve,
+	animation: *mut Animation,
+	curve: AnimationCurve,
 ) -> bool {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1540", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1540", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Gets the animation curve for the animation.
 ! @param animation The animation for which to get the curve.
@@ -10923,19 +10508,17 @@ pub unsafe extern "C" fn animation_set_curve(
 gneiss: Vtable Slot 435, Offset 1740*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.animation_get_curve")]
-pub unsafe extern "C" fn animation_get_curve(
-    animation: *mut Animation,
-) -> AnimationCurve {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1740", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+pub unsafe extern "C" fn animation_get_curve(animation: *mut Animation) -> AnimationCurve {
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1740", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! The function pointer type of a custom animation curve.
 ! @param linear_distance The linear normalized animation distance to be curved.
 ! @see animation_set_custom_curve*/
 pub type AnimationCurveFunction = ::core::option::Option<
-    unsafe extern "C" fn(linear_distance: AnimationProgress) -> AnimationProgress,
+	unsafe extern "C" fn(linear_distance: AnimationProgress) -> AnimationProgress,
 >;
 /**! Sets a custom animation curve function.
 ! @note Trying to set an attribute when an animation is immutable will return false (failure). An
@@ -10951,13 +10534,13 @@ gneiss: Vtable Slot 386, Offset 1544*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.animation_set_custom_curve")]
 pub unsafe extern "C" fn animation_set_custom_curve(
-    animation: *mut Animation,
-    curve_function: AnimationCurveFunction,
+	animation: *mut Animation,
+	curve_function: AnimationCurveFunction,
 ) -> bool {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1544", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1544", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Gets the custom animation curve function for the animation.
 ! @param animation The animation for which to get the curve.
@@ -10968,12 +10551,12 @@ gneiss: Vtable Slot 436, Offset 1744*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.animation_get_custom_curve")]
 pub unsafe extern "C" fn animation_get_custom_curve(
-    animation: *mut Animation,
+	animation: *mut Animation,
 ) -> AnimationCurveFunction {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1744", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1744", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! The function pointer type of the handler that will be called when an animation is started,
 ! just before updating the first frame of the animation.
@@ -10983,7 +10566,7 @@ pub unsafe extern "C" fn animation_get_custom_curve(
 ! @note This is called after any optional delay as set by \ref animation_set_delay() has expired.
 ! @see animation_set_handlers*/
 pub type AnimationStartedHandler = ::core::option::Option<
-    unsafe extern "C" fn(animation: *mut Animation, context: *mut ::core::ffi::c_void),
+	unsafe extern "C" fn(animation: *mut Animation, context: *mut ::core::ffi::c_void),
 >;
 /**! The function pointer type of the handler that will be called when the animation is stopped.
 ! @param animation The animation that was stopped.
@@ -10997,11 +10580,11 @@ pub type AnimationStartedHandler = ::core::option::Option<
 ! It is not recommended to unschedule or destroy a **different** Animation within this
 ! Animation's `stopped` handler.*/
 pub type AnimationStoppedHandler = ::core::option::Option<
-    unsafe extern "C" fn(
-        animation: *mut Animation,
-        finished: bool,
-        context: *mut ::core::ffi::c_void,
-    ),
+	unsafe extern "C" fn(
+		animation: *mut Animation,
+		finished: bool,
+		context: *mut ::core::ffi::c_void,
+	),
 >;
 /**! The handlers that will get called when an animation starts and stops.
 ! See documentation with the function pointer types for more information.
@@ -11009,23 +10592,19 @@ pub type AnimationStoppedHandler = ::core::option::Option<
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct AnimationHandlers {
-    ///! The handler that will be called when an animation is started.
-    pub started: AnimationStartedHandler,
-    ///! The handler that will be called when an animation is stopped.
-    pub stopped: AnimationStoppedHandler,
+	///! The handler that will be called when an animation is started.
+	pub started: AnimationStartedHandler,
+	///! The handler that will be called when an animation is stopped.
+	pub stopped: AnimationStoppedHandler,
 }
 #[allow(clippy::unnecessary_operation, clippy::identity_op)]
 const _: () = {
-    ["Size of AnimationHandlers"][::core::mem::size_of::<AnimationHandlers>() - 8usize];
-    [
-        "Alignment of AnimationHandlers",
-    ][::core::mem::align_of::<AnimationHandlers>() - 4usize];
-    [
-        "Offset of field: AnimationHandlers::started",
-    ][::core::mem::offset_of!(AnimationHandlers, started) - 0usize];
-    [
-        "Offset of field: AnimationHandlers::stopped",
-    ][::core::mem::offset_of!(AnimationHandlers, stopped) - 4usize];
+	["Size of AnimationHandlers"][::core::mem::size_of::<AnimationHandlers>() - 8usize];
+	["Alignment of AnimationHandlers"][::core::mem::align_of::<AnimationHandlers>() - 4usize];
+	["Offset of field: AnimationHandlers::started"]
+		[::core::mem::offset_of!(AnimationHandlers, started) - 0usize];
+	["Offset of field: AnimationHandlers::stopped"]
+		[::core::mem::offset_of!(AnimationHandlers, stopped) - 4usize];
 };
 /**! Sets the callbacks for the animation.
 ! Often an application needs to run code at the start or at the end of an animation.
@@ -11045,14 +10624,14 @@ gneiss: Vtable Slot 389, Offset 1556*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.animation_set_handlers")]
 pub unsafe extern "C" fn animation_set_handlers(
-    animation: *mut Animation,
-    callbacks: AnimationHandlers,
-    context: *mut ::core::ffi::c_void,
+	animation: *mut Animation,
+	callbacks: AnimationHandlers,
+	context: *mut ::core::ffi::c_void,
 ) -> bool {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1556", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1556", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Gets the application-specific callback context of the animation.
 ! This `void` pointer is passed as an argument when the animation system calls AnimationHandlers
@@ -11066,12 +10645,12 @@ gneiss: Vtable Slot 382, Offset 1528*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.animation_get_context")]
 pub unsafe extern "C" fn animation_get_context(
-    animation: *mut Animation,
+	animation: *mut Animation,
 ) -> *mut ::core::ffi::c_void {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1528", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1528", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Schedules the animation. Call this once after configuring an animation to get it to
 ! start running.
@@ -11092,10 +10671,10 @@ gneiss: Vtable Slot 384, Offset 1536*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.animation_schedule")]
 pub unsafe extern "C" fn animation_schedule(animation: *mut Animation) -> bool {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1536", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1536", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Unschedules the animation, which in effect stops the animation.
 ! @param animation The animation to unschedule.
@@ -11111,10 +10690,10 @@ gneiss: Vtable Slot 391, Offset 1564*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.animation_unschedule")]
 pub unsafe extern "C" fn animation_unschedule(animation: *mut Animation) -> bool {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1564", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1564", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Unschedules all animations of the application.
 ! @see animation_unschedule*/
@@ -11124,10 +10703,10 @@ gneiss: Vtable Slot 392, Offset 1568*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.animation_unschedule_all")]
 pub unsafe extern "C" fn animation_unschedule_all() {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1568", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1568", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! @return True if the animation was scheduled, or false if it was not.
 ! @note An animation will be scheduled when it is running and not finished yet.
@@ -11142,19 +10721,18 @@ gneiss: Vtable Slot 383, Offset 1532*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.animation_is_scheduled")]
 pub unsafe extern "C" fn animation_is_scheduled(animation: *mut Animation) -> bool {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1532", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1532", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Pointer to function that (optionally) prepares the animation for running.
 ! This callback is called when the animation is added to the scheduler.
 ! @param animation The animation that needs to be set up.
 ! @see animation_schedule
 ! @see AnimationTeardownImplementation*/
-pub type AnimationSetupImplementation = ::core::option::Option<
-    unsafe extern "C" fn(animation: *mut Animation),
->;
+pub type AnimationSetupImplementation =
+	::core::option::Option<unsafe extern "C" fn(animation: *mut Animation)>;
 /**! Pointer to function that updates the animation according to the given normalized progress.
 ! This callback will be called repeatedly by the animation scheduler whenever the animation needs
 ! to be updated.
@@ -11176,7 +10754,7 @@ pub type AnimationSetupImplementation = ::core::option::Option<
 ! Other system animation curve functions will result in a non-linear relation between
 ! distance_normalized and time.*/
 pub type AnimationUpdateImplementation = ::core::option::Option<
-    unsafe extern "C" fn(animation: *mut Animation, progress: AnimationProgress),
+	unsafe extern "C" fn(animation: *mut Animation, progress: AnimationProgress),
 >;
 /**! Pointer to function that (optionally) cleans up the animation.
 ! This callback is called when the animation is removed from the scheduler.
@@ -11185,9 +10763,8 @@ pub type AnimationUpdateImplementation = ::core::option::Option<
 ! @param animation The animation that needs to be teared down.
 ! @see animation_unschedule
 ! @see AnimationSetupImplementation*/
-pub type AnimationTeardownImplementation = ::core::option::Option<
-    unsafe extern "C" fn(animation: *mut Animation),
->;
+pub type AnimationTeardownImplementation =
+	::core::option::Option<unsafe extern "C" fn(animation: *mut Animation)>;
 /**! The 3 callbacks that implement a custom animation.
 ! Only the `.update` callback is mandatory, `.setup` and `.teardown` are optional.
 ! See the documentation with the function pointer typedefs for more information.
@@ -11206,33 +10783,28 @@ pub type AnimationTeardownImplementation = ::core::option::Option<
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct AnimationImplementation {
-    /**! Called by the animation system when an animation is scheduled, to prepare it for running.
-! This callback is optional and can be left `NULL` when not needed.*/
-    pub setup: AnimationSetupImplementation,
-    /**! Called by the animation system when the animation needs to calculate the next animation frame.
-! This callback is mandatory and should not be left `NULL`.*/
-    pub update: AnimationUpdateImplementation,
-    /**! Called by the animation system when an animation is unscheduled, to clean up after it has run.
-! This callback is optional and can be left `NULL` when not needed.*/
-    pub teardown: AnimationTeardownImplementation,
+	/**! Called by the animation system when an animation is scheduled, to prepare it for running.
+	! This callback is optional and can be left `NULL` when not needed.*/
+	pub setup:    AnimationSetupImplementation,
+	/**! Called by the animation system when the animation needs to calculate the next animation frame.
+	! This callback is mandatory and should not be left `NULL`.*/
+	pub update:   AnimationUpdateImplementation,
+	/**! Called by the animation system when an animation is unscheduled, to clean up after it has run.
+	! This callback is optional and can be left `NULL` when not needed.*/
+	pub teardown: AnimationTeardownImplementation,
 }
 #[allow(clippy::unnecessary_operation, clippy::identity_op)]
 const _: () = {
-    [
-        "Size of AnimationImplementation",
-    ][::core::mem::size_of::<AnimationImplementation>() - 12usize];
-    [
-        "Alignment of AnimationImplementation",
-    ][::core::mem::align_of::<AnimationImplementation>() - 4usize];
-    [
-        "Offset of field: AnimationImplementation::setup",
-    ][::core::mem::offset_of!(AnimationImplementation, setup) - 0usize];
-    [
-        "Offset of field: AnimationImplementation::update",
-    ][::core::mem::offset_of!(AnimationImplementation, update) - 4usize];
-    [
-        "Offset of field: AnimationImplementation::teardown",
-    ][::core::mem::offset_of!(AnimationImplementation, teardown) - 8usize];
+	["Size of AnimationImplementation"]
+		[::core::mem::size_of::<AnimationImplementation>() - 12usize];
+	["Alignment of AnimationImplementation"]
+		[::core::mem::align_of::<AnimationImplementation>() - 4usize];
+	["Offset of field: AnimationImplementation::setup"]
+		[::core::mem::offset_of!(AnimationImplementation, setup) - 0usize];
+	["Offset of field: AnimationImplementation::update"]
+		[::core::mem::offset_of!(AnimationImplementation, update) - 4usize];
+	["Offset of field: AnimationImplementation::teardown"]
+		[::core::mem::offset_of!(AnimationImplementation, teardown) - 8usize];
 };
 /**! Sets the implementation of the custom animation.
 ! When implementing custom animations, use this function to specify what functions need to be
@@ -11251,13 +10823,13 @@ gneiss: Vtable Slot 390, Offset 1560*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.animation_set_implementation")]
 pub unsafe extern "C" fn animation_set_implementation(
-    animation: *mut Animation,
-    implementation: *const AnimationImplementation,
+	animation: *mut Animation,
+	implementation: *const AnimationImplementation,
 ) -> bool {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1560", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1560", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Gets the implementation of the custom animation.
 ! @param animation The animation for which to get the implementation.
@@ -11269,17 +10841,17 @@ gneiss: Vtable Slot 437, Offset 1748*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.animation_get_implementation")]
 pub unsafe extern "C" fn animation_get_implementation(
-    animation: *mut Animation,
+	animation: *mut Animation,
 ) -> *const AnimationImplementation {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1748", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1748", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 #[repr(C)]
 #[derive(Debug)]
 pub struct PropertyAnimation {
-    _unused: [u8; 0],
+	_unused: [u8; 0],
 }
 /**! Convenience function to create and initialize a property animation that animates the frame of a
 ! Layer. It sets up the PropertyAnimation to use \ref layer_set_frame() and \ref layer_get_frame()
@@ -11298,14 +10870,14 @@ gneiss: Vtable Slot 397, Offset 1588*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.property_animation_create_layer_frame")]
 pub unsafe extern "C" fn property_animation_create_layer_frame(
-    layer: *mut Layer,
-    from_frame: *mut GRect,
-    to_frame: *mut GRect,
+	layer: *mut Layer,
+	from_frame: *mut GRect,
+	to_frame: *mut GRect,
 ) -> *mut PropertyAnimation {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1588", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1588", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Convenience function to create and initialize a property animation that animates the bound's
 ! origin of a Layer. It sets up the PropertyAnimation to use layer_set_bounds() and
@@ -11321,14 +10893,14 @@ gneiss: Vtable Slot 516, Offset 2064*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.property_animation_create_bounds_origin")]
 pub unsafe extern "C" fn property_animation_create_bounds_origin(
-    layer: *mut Layer,
-    from: *mut GPoint,
-    to: *mut GPoint,
+	layer: *mut Layer,
+	from: *mut GPoint,
+	to: *mut GPoint,
 ) -> *mut PropertyAnimation {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =2064", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =2064", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Creates a new PropertyAnimation on the heap and and initializes it with the specified values.
 ! The same defaults are used as with \ref animation_create().
@@ -11353,15 +10925,15 @@ gneiss: Vtable Slot 396, Offset 1584*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.property_animation_create")]
 pub unsafe extern "C" fn property_animation_create(
-    implementation: *const PropertyAnimationImplementation,
-    subject: *mut ::core::ffi::c_void,
-    from_value: *mut ::core::ffi::c_void,
-    to_value: *mut ::core::ffi::c_void,
+	implementation: *const PropertyAnimationImplementation,
+	subject: *mut ::core::ffi::c_void,
+	from_value: *mut ::core::ffi::c_void,
+	to_value: *mut ::core::ffi::c_void,
 ) -> *mut PropertyAnimation {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1584", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1584", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Destroy a property animation allocated by property_animation_create() or relatives.
 ! @param property_animation the return value from property_animation_create*/
@@ -11370,13 +10942,11 @@ pub unsafe extern "C" fn property_animation_create(
 gneiss: Vtable Slot 398, Offset 1592*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.property_animation_destroy")]
-pub unsafe extern "C" fn property_animation_destroy(
-    property_animation: *mut PropertyAnimation,
-) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1592", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+pub unsafe extern "C" fn property_animation_destroy(property_animation: *mut PropertyAnimation) {
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1592", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Default update callback for a property animations to update a property of type int16_t.
 ! Assign this function to the `.base.update` callback field of your
@@ -11395,13 +10965,13 @@ gneiss: Vtable Slot 405, Offset 1620*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.property_animation_update_int16")]
 pub unsafe extern "C" fn property_animation_update_int16(
-    property_animation: *mut PropertyAnimation,
-    distance_normalized: u32,
+	property_animation: *mut PropertyAnimation,
+	distance_normalized: u32,
 ) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1620", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1620", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Default update callback for a property animations to update a property of type uint32_t.
 ! Assign this function to the `.base.update` callback field of your
@@ -11420,13 +10990,13 @@ gneiss: Vtable Slot 517, Offset 2068*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.property_animation_update_uint32")]
 pub unsafe extern "C" fn property_animation_update_uint32(
-    property_animation: *mut PropertyAnimation,
-    distance_normalized: u32,
+	property_animation: *mut PropertyAnimation,
+	distance_normalized: u32,
 ) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =2068", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =2068", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Default update callback for a property animations to update a property of type GPoint.
 ! Assign this function to the `.base.update` callback field of your
@@ -11446,13 +11016,13 @@ gneiss: Vtable Slot 403, Offset 1612*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.property_animation_update_gpoint")]
 pub unsafe extern "C" fn property_animation_update_gpoint(
-    property_animation: *mut PropertyAnimation,
-    distance_normalized: u32,
+	property_animation: *mut PropertyAnimation,
+	distance_normalized: u32,
 ) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1612", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1612", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Default update callback for a property animations to update a property of type GRect.
 ! Assign this function to the `.base.update` callback field of your
@@ -11471,13 +11041,13 @@ gneiss: Vtable Slot 404, Offset 1616*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.property_animation_update_grect")]
 pub unsafe extern "C" fn property_animation_update_grect(
-    property_animation: *mut PropertyAnimation,
-    distance_normalized: u32,
+	property_animation: *mut PropertyAnimation,
+	distance_normalized: u32,
 ) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1616", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1616", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Default update callback for a property animations to update a property of type GColor8.
 ! Assign this function to the `.base.update` callback field of your
@@ -11496,13 +11066,13 @@ gneiss: Vtable Slot 534, Offset 2136*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.property_animation_update_gcolor8")]
 pub unsafe extern "C" fn property_animation_update_gcolor8(
-    property_animation: *mut PropertyAnimation,
-    distance_normalized: u32,
+	property_animation: *mut PropertyAnimation,
+	distance_normalized: u32,
 ) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =2136", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =2136", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Work-around for function pointer return type GPoint to avoid
 ! tripping the pre-processor to use the equally named GPoint define*/
@@ -11513,66 +11083,57 @@ pub type GRectReturn = GRect;
 /**! Function signature of a setter function to set a property of type int16_t onto the subject.
 ! @see \ref property_animation_update_int16()
 ! @see \ref PropertyAnimationAccessors*/
-pub type Int16Setter = ::core::option::Option<
-    unsafe extern "C" fn(subject: *mut ::core::ffi::c_void, int16: i16),
->;
+pub type Int16Setter =
+	::core::option::Option<unsafe extern "C" fn(subject: *mut ::core::ffi::c_void, int16: i16)>;
 /**! Function signature of a getter function to get the current property of type int16_t of the
 ! subject.
 ! @see \ref property_animation_create()
 ! @see \ref PropertyAnimationAccessors*/
-pub type Int16Getter = ::core::option::Option<
-    unsafe extern "C" fn(subject: *mut ::core::ffi::c_void) -> i16,
->;
+pub type Int16Getter =
+	::core::option::Option<unsafe extern "C" fn(subject: *mut ::core::ffi::c_void) -> i16>;
 /**! Function signature of a setter function to set a property of type uint32_t onto the subject.
 ! @see \ref property_animation_update_int16()
 ! @see \ref PropertyAnimationAccessors*/
-pub type UInt32Setter = ::core::option::Option<
-    unsafe extern "C" fn(subject: *mut ::core::ffi::c_void, uint32: u32),
->;
+pub type UInt32Setter =
+	::core::option::Option<unsafe extern "C" fn(subject: *mut ::core::ffi::c_void, uint32: u32)>;
 /**! Function signature of a getter function to get the current property of type uint32_t of the
 ! subject.
 ! @see \ref property_animation_create()
 ! @see \ref PropertyAnimationAccessors*/
-pub type UInt32Getter = ::core::option::Option<
-    unsafe extern "C" fn(subject: *mut ::core::ffi::c_void) -> u32,
->;
+pub type UInt32Getter =
+	::core::option::Option<unsafe extern "C" fn(subject: *mut ::core::ffi::c_void) -> u32>;
 /**! Function signature of a setter function to set a property of type GPoint onto the subject.
 ! @see \ref property_animation_update_gpoint()
 ! @see \ref PropertyAnimationAccessors*/
-pub type GPointSetter = ::core::option::Option<
-    unsafe extern "C" fn(subject: *mut ::core::ffi::c_void, gpoint: GPoint),
->;
+pub type GPointSetter =
+	::core::option::Option<unsafe extern "C" fn(subject: *mut ::core::ffi::c_void, gpoint: GPoint)>;
 /**! Function signature of a getter function to get the current property of type GPoint of the subject.
 ! @see \ref property_animation_create()
 ! @see \ref PropertyAnimationAccessors*/
-pub type GPointGetter = ::core::option::Option<
-    unsafe extern "C" fn(subject: *mut ::core::ffi::c_void) -> GPointReturn,
->;
+pub type GPointGetter =
+	::core::option::Option<unsafe extern "C" fn(subject: *mut ::core::ffi::c_void) -> GPointReturn>;
 /**! Function signature of a setter function to set a property of type GRect onto the subject.
 ! @see \ref property_animation_update_grect()
 ! @see \ref PropertyAnimationAccessors*/
-pub type GRectSetter = ::core::option::Option<
-    unsafe extern "C" fn(subject: *mut ::core::ffi::c_void, grect: GRect),
->;
+pub type GRectSetter =
+	::core::option::Option<unsafe extern "C" fn(subject: *mut ::core::ffi::c_void, grect: GRect)>;
 /**! Function signature of a getter function to get the current property of type GRect of the subject.
 ! @see \ref property_animation_create()
 ! @see \ref PropertyAnimationAccessors*/
-pub type GRectGetter = ::core::option::Option<
-    unsafe extern "C" fn(subject: *mut ::core::ffi::c_void) -> GRectReturn,
->;
+pub type GRectGetter =
+	::core::option::Option<unsafe extern "C" fn(subject: *mut ::core::ffi::c_void) -> GRectReturn>;
 /**! Function signature of a setter function to set a property of type GColor8 onto the subject.
 ! @see \ref property_animation_update_gcolor8()
 ! @see \ref PropertyAnimationAccessors*/
 pub type GColor8Setter = ::core::option::Option<
-    unsafe extern "C" fn(subject: *mut ::core::ffi::c_void, gcolor: GColor8),
+	unsafe extern "C" fn(subject: *mut ::core::ffi::c_void, gcolor: GColor8),
 >;
 /**! Function signature of a getter function to get the current property of type GColor8 of the
 ! subject.
 ! @see \ref property_animation_create()
 ! @see \ref PropertyAnimationAccessors*/
-pub type GColor8Getter = ::core::option::Option<
-    unsafe extern "C" fn(subject: *mut ::core::ffi::c_void) -> GColor8,
->;
+pub type GColor8Getter =
+	::core::option::Option<unsafe extern "C" fn(subject: *mut ::core::ffi::c_void) -> GColor8>;
 /**! @addtogroup PropertyAnimation
 ! \brief A ProperyAnimation animates the value of a "property" of a "subject" over time.
 !
@@ -11628,8 +11189,8 @@ pub type GColor8Getter = ::core::option::Option<
 #[repr(C)]
 #[derive(Copy, Clone)]
 pub struct PropertyAnimationAccessors {
-    pub setter: PropertyAnimationAccessors__bindgen_ty_1,
-    pub getter: PropertyAnimationAccessors__bindgen_ty_2,
+	pub setter: PropertyAnimationAccessors__bindgen_ty_1,
+	pub getter: PropertyAnimationAccessors__bindgen_ty_2,
 }
 /**! Function pointer to the implementation of the function that __sets__ the updated property
 ! value. This function will be called repeatedly for each animation frame.
@@ -11637,43 +11198,33 @@ pub struct PropertyAnimationAccessors {
 #[repr(C)]
 #[derive(Copy, Clone)]
 pub union PropertyAnimationAccessors__bindgen_ty_1 {
-    ///! Use if the property to animate is of int16_t type
-    pub int16: Int16Setter,
-    ///! Use if the property to animate is of GPoint type
-    pub gpoint: GPointSetter,
-    ///! Use if the property to animate is of GRect type
-    pub grect: GRectSetter,
-    ///! Use if the property to animate is of GColor8 type
-    pub gcolor8: GColor8Setter,
-    ///! Use if the property to animate is of uint32_t type
-    pub uint32: UInt32Setter,
+	///! Use if the property to animate is of int16_t type
+	pub int16:   Int16Setter,
+	///! Use if the property to animate is of GPoint type
+	pub gpoint:  GPointSetter,
+	///! Use if the property to animate is of GRect type
+	pub grect:   GRectSetter,
+	///! Use if the property to animate is of GColor8 type
+	pub gcolor8: GColor8Setter,
+	///! Use if the property to animate is of uint32_t type
+	pub uint32:  UInt32Setter,
 }
 #[allow(clippy::unnecessary_operation, clippy::identity_op)]
 const _: () = {
-    [
-        "Size of PropertyAnimationAccessors__bindgen_ty_1",
-    ][::core::mem::size_of::<PropertyAnimationAccessors__bindgen_ty_1>() - 4usize];
-    [
-        "Alignment of PropertyAnimationAccessors__bindgen_ty_1",
-    ][::core::mem::align_of::<PropertyAnimationAccessors__bindgen_ty_1>() - 4usize];
-    [
-        "Offset of field: PropertyAnimationAccessors__bindgen_ty_1::int16",
-    ][::core::mem::offset_of!(PropertyAnimationAccessors__bindgen_ty_1, int16) - 0usize];
-    [
-        "Offset of field: PropertyAnimationAccessors__bindgen_ty_1::gpoint",
-    ][::core::mem::offset_of!(PropertyAnimationAccessors__bindgen_ty_1, gpoint)
-        - 0usize];
-    [
-        "Offset of field: PropertyAnimationAccessors__bindgen_ty_1::grect",
-    ][::core::mem::offset_of!(PropertyAnimationAccessors__bindgen_ty_1, grect) - 0usize];
-    [
-        "Offset of field: PropertyAnimationAccessors__bindgen_ty_1::gcolor8",
-    ][::core::mem::offset_of!(PropertyAnimationAccessors__bindgen_ty_1, gcolor8)
-        - 0usize];
-    [
-        "Offset of field: PropertyAnimationAccessors__bindgen_ty_1::uint32",
-    ][::core::mem::offset_of!(PropertyAnimationAccessors__bindgen_ty_1, uint32)
-        - 0usize];
+	["Size of PropertyAnimationAccessors__bindgen_ty_1"]
+		[::core::mem::size_of::<PropertyAnimationAccessors__bindgen_ty_1>() - 4usize];
+	["Alignment of PropertyAnimationAccessors__bindgen_ty_1"]
+		[::core::mem::align_of::<PropertyAnimationAccessors__bindgen_ty_1>() - 4usize];
+	["Offset of field: PropertyAnimationAccessors__bindgen_ty_1::int16"]
+		[::core::mem::offset_of!(PropertyAnimationAccessors__bindgen_ty_1, int16) - 0usize];
+	["Offset of field: PropertyAnimationAccessors__bindgen_ty_1::gpoint"]
+		[::core::mem::offset_of!(PropertyAnimationAccessors__bindgen_ty_1, gpoint) - 0usize];
+	["Offset of field: PropertyAnimationAccessors__bindgen_ty_1::grect"]
+		[::core::mem::offset_of!(PropertyAnimationAccessors__bindgen_ty_1, grect) - 0usize];
+	["Offset of field: PropertyAnimationAccessors__bindgen_ty_1::gcolor8"]
+		[::core::mem::offset_of!(PropertyAnimationAccessors__bindgen_ty_1, gcolor8) - 0usize];
+	["Offset of field: PropertyAnimationAccessors__bindgen_ty_1::uint32"]
+		[::core::mem::offset_of!(PropertyAnimationAccessors__bindgen_ty_1, uint32) - 0usize];
 };
 /**! Function pointer to the implementation of the function that __gets__ the current property
 ! value. This function will be called during \ref property_animation_create(), to get the current
@@ -11682,58 +11233,44 @@ const _: () = {
 #[repr(C)]
 #[derive(Copy, Clone)]
 pub union PropertyAnimationAccessors__bindgen_ty_2 {
-    ///! Use if the property to animate is of int16_t type
-    pub int16: Int16Getter,
-    ///! Use if the property to animate is of GPoint type
-    pub gpoint: GPointGetter,
-    ///! Use if the property to animate is of GRect type
-    pub grect: GRectGetter,
-    ///! Use if the property to animate is of GColor8 type
-    pub gcolor8: GColor8Getter,
-    ///! Use if the property to animate is of uint32_t type
-    pub uint32: UInt32Getter,
+	///! Use if the property to animate is of int16_t type
+	pub int16:   Int16Getter,
+	///! Use if the property to animate is of GPoint type
+	pub gpoint:  GPointGetter,
+	///! Use if the property to animate is of GRect type
+	pub grect:   GRectGetter,
+	///! Use if the property to animate is of GColor8 type
+	pub gcolor8: GColor8Getter,
+	///! Use if the property to animate is of uint32_t type
+	pub uint32:  UInt32Getter,
 }
 #[allow(clippy::unnecessary_operation, clippy::identity_op)]
 const _: () = {
-    [
-        "Size of PropertyAnimationAccessors__bindgen_ty_2",
-    ][::core::mem::size_of::<PropertyAnimationAccessors__bindgen_ty_2>() - 4usize];
-    [
-        "Alignment of PropertyAnimationAccessors__bindgen_ty_2",
-    ][::core::mem::align_of::<PropertyAnimationAccessors__bindgen_ty_2>() - 4usize];
-    [
-        "Offset of field: PropertyAnimationAccessors__bindgen_ty_2::int16",
-    ][::core::mem::offset_of!(PropertyAnimationAccessors__bindgen_ty_2, int16) - 0usize];
-    [
-        "Offset of field: PropertyAnimationAccessors__bindgen_ty_2::gpoint",
-    ][::core::mem::offset_of!(PropertyAnimationAccessors__bindgen_ty_2, gpoint)
-        - 0usize];
-    [
-        "Offset of field: PropertyAnimationAccessors__bindgen_ty_2::grect",
-    ][::core::mem::offset_of!(PropertyAnimationAccessors__bindgen_ty_2, grect) - 0usize];
-    [
-        "Offset of field: PropertyAnimationAccessors__bindgen_ty_2::gcolor8",
-    ][::core::mem::offset_of!(PropertyAnimationAccessors__bindgen_ty_2, gcolor8)
-        - 0usize];
-    [
-        "Offset of field: PropertyAnimationAccessors__bindgen_ty_2::uint32",
-    ][::core::mem::offset_of!(PropertyAnimationAccessors__bindgen_ty_2, uint32)
-        - 0usize];
+	["Size of PropertyAnimationAccessors__bindgen_ty_2"]
+		[::core::mem::size_of::<PropertyAnimationAccessors__bindgen_ty_2>() - 4usize];
+	["Alignment of PropertyAnimationAccessors__bindgen_ty_2"]
+		[::core::mem::align_of::<PropertyAnimationAccessors__bindgen_ty_2>() - 4usize];
+	["Offset of field: PropertyAnimationAccessors__bindgen_ty_2::int16"]
+		[::core::mem::offset_of!(PropertyAnimationAccessors__bindgen_ty_2, int16) - 0usize];
+	["Offset of field: PropertyAnimationAccessors__bindgen_ty_2::gpoint"]
+		[::core::mem::offset_of!(PropertyAnimationAccessors__bindgen_ty_2, gpoint) - 0usize];
+	["Offset of field: PropertyAnimationAccessors__bindgen_ty_2::grect"]
+		[::core::mem::offset_of!(PropertyAnimationAccessors__bindgen_ty_2, grect) - 0usize];
+	["Offset of field: PropertyAnimationAccessors__bindgen_ty_2::gcolor8"]
+		[::core::mem::offset_of!(PropertyAnimationAccessors__bindgen_ty_2, gcolor8) - 0usize];
+	["Offset of field: PropertyAnimationAccessors__bindgen_ty_2::uint32"]
+		[::core::mem::offset_of!(PropertyAnimationAccessors__bindgen_ty_2, uint32) - 0usize];
 };
 #[allow(clippy::unnecessary_operation, clippy::identity_op)]
 const _: () = {
-    [
-        "Size of PropertyAnimationAccessors",
-    ][::core::mem::size_of::<PropertyAnimationAccessors>() - 8usize];
-    [
-        "Alignment of PropertyAnimationAccessors",
-    ][::core::mem::align_of::<PropertyAnimationAccessors>() - 4usize];
-    [
-        "Offset of field: PropertyAnimationAccessors::setter",
-    ][::core::mem::offset_of!(PropertyAnimationAccessors, setter) - 0usize];
-    [
-        "Offset of field: PropertyAnimationAccessors::getter",
-    ][::core::mem::offset_of!(PropertyAnimationAccessors, getter) - 4usize];
+	["Size of PropertyAnimationAccessors"]
+		[::core::mem::size_of::<PropertyAnimationAccessors>() - 8usize];
+	["Alignment of PropertyAnimationAccessors"]
+		[::core::mem::align_of::<PropertyAnimationAccessors>() - 4usize];
+	["Offset of field: PropertyAnimationAccessors::setter"]
+		[::core::mem::offset_of!(PropertyAnimationAccessors, setter) - 0usize];
+	["Offset of field: PropertyAnimationAccessors::getter"]
+		[::core::mem::offset_of!(PropertyAnimationAccessors, getter) - 4usize];
 };
 /**! Data structure containing a collection of function pointers that form the implementation of the
 ! property animation.
@@ -11741,25 +11278,21 @@ const _: () = {
 #[repr(C)]
 #[derive(Copy, Clone)]
 pub struct PropertyAnimationImplementation {
-    ///! The "inherited" fields from the Animation "base class".
-    pub base: AnimationImplementation,
-    ///! The accessors to set/get the property to be animated.
-    pub accessors: PropertyAnimationAccessors,
+	///! The "inherited" fields from the Animation "base class".
+	pub base:      AnimationImplementation,
+	///! The accessors to set/get the property to be animated.
+	pub accessors: PropertyAnimationAccessors,
 }
 #[allow(clippy::unnecessary_operation, clippy::identity_op)]
 const _: () = {
-    [
-        "Size of PropertyAnimationImplementation",
-    ][::core::mem::size_of::<PropertyAnimationImplementation>() - 20usize];
-    [
-        "Alignment of PropertyAnimationImplementation",
-    ][::core::mem::align_of::<PropertyAnimationImplementation>() - 4usize];
-    [
-        "Offset of field: PropertyAnimationImplementation::base",
-    ][::core::mem::offset_of!(PropertyAnimationImplementation, base) - 0usize];
-    [
-        "Offset of field: PropertyAnimationImplementation::accessors",
-    ][::core::mem::offset_of!(PropertyAnimationImplementation, accessors) - 12usize];
+	["Size of PropertyAnimationImplementation"]
+		[::core::mem::size_of::<PropertyAnimationImplementation>() - 20usize];
+	["Alignment of PropertyAnimationImplementation"]
+		[::core::mem::align_of::<PropertyAnimationImplementation>() - 4usize];
+	["Offset of field: PropertyAnimationImplementation::base"]
+		[::core::mem::offset_of!(PropertyAnimationImplementation, base) - 0usize];
+	["Offset of field: PropertyAnimationImplementation::accessors"]
+		[::core::mem::offset_of!(PropertyAnimationImplementation, accessors) - 12usize];
 };
 /**! Convenience function to retrieve an animation instance from a property animation instance
 ! @param property_animation The property animation
@@ -11770,12 +11303,12 @@ gneiss: Vtable Slot 400, Offset 1600*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.property_animation_get_animation")]
 pub unsafe extern "C" fn property_animation_get_animation(
-    property_animation: *mut PropertyAnimation,
+	property_animation: *mut PropertyAnimation,
 ) -> *mut Animation {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1600", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1600", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Helper function used by the property_animation_get|set_subject macros
 ! @param property_animation Handle to the property animation
@@ -11788,14 +11321,14 @@ gneiss: Vtable Slot 401, Offset 1604*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.property_animation_subject")]
 pub unsafe extern "C" fn property_animation_subject(
-    property_animation: *mut PropertyAnimation,
-    subject: *mut *mut ::core::ffi::c_void,
-    set: bool,
+	property_animation: *mut PropertyAnimation,
+	subject: *mut *mut ::core::ffi::c_void,
+	set: bool,
 ) -> bool {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1604", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1604", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Helper function used by the property_animation_get|set_from_.* macros
 ! @param property_animation Handle to the property animation
@@ -11809,15 +11342,15 @@ gneiss: Vtable Slot 399, Offset 1596*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.property_animation_from")]
 pub unsafe extern "C" fn property_animation_from(
-    property_animation: *mut PropertyAnimation,
-    from: *mut ::core::ffi::c_void,
-    size: usize,
-    set: bool,
+	property_animation: *mut PropertyAnimation,
+	from: *mut ::core::ffi::c_void,
+	size: usize,
+	set: bool,
 ) -> bool {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1596", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1596", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Helper function used by the property_animation_get|set_to_.* macros
 ! @param property_animation handle to the property animation
@@ -11831,64 +11364,55 @@ gneiss: Vtable Slot 402, Offset 1608*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.property_animation_to")]
 pub unsafe extern "C" fn property_animation_to(
-    property_animation: *mut PropertyAnimation,
-    to: *mut ::core::ffi::c_void,
-    size: usize,
-    set: bool,
+	property_animation: *mut PropertyAnimation,
+	to: *mut ::core::ffi::c_void,
+	size: usize,
+	set: bool,
 ) -> bool {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1608", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1608", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Handler that will be called just before the unobstructed area will begin changing
 ! @param final_unobstructed_screen_area The final unobstructed screen area after
 ! the unobstructed area has finished changing.
 ! @param context A user-provided context.*/
 pub type UnobstructedAreaWillChangeHandler = ::core::option::Option<
-    unsafe extern "C" fn(
-        final_unobstructed_screen_area: GRect,
-        context: *mut ::core::ffi::c_void,
-    ),
+	unsafe extern "C" fn(final_unobstructed_screen_area: GRect, context: *mut ::core::ffi::c_void),
 >;
 /**! Handler that will be called every time the unobstructed area changes
 ! @param progress The progress of the animation changing the unobstructed area.
 ! @param context A user-provided context.*/
 pub type UnobstructedAreaChangeHandler = ::core::option::Option<
-    unsafe extern "C" fn(progress: AnimationProgress, context: *mut ::core::ffi::c_void),
+	unsafe extern "C" fn(progress: AnimationProgress, context: *mut ::core::ffi::c_void),
 >;
 /**! Handler that will be called after the unobstructed area has finished changing
 ! @param context A user-provided context.*/
-pub type UnobstructedAreaDidChangeHandler = ::core::option::Option<
-    unsafe extern "C" fn(context: *mut ::core::ffi::c_void),
->;
+pub type UnobstructedAreaDidChangeHandler =
+	::core::option::Option<unsafe extern "C" fn(context: *mut ::core::ffi::c_void)>;
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct UnobstructedAreaHandlers {
-    ///! Handler that will be called just before the unobstructed area will begin changing.
-    pub will_change: UnobstructedAreaWillChangeHandler,
-    ///! Handler that will be called every time the unobstructed area changes.
-    pub change: UnobstructedAreaChangeHandler,
-    ///! Handler that will be called after the unobstructed area has finished changing.
-    pub did_change: UnobstructedAreaDidChangeHandler,
+	///! Handler that will be called just before the unobstructed area will begin changing.
+	pub will_change: UnobstructedAreaWillChangeHandler,
+	///! Handler that will be called every time the unobstructed area changes.
+	pub change:      UnobstructedAreaChangeHandler,
+	///! Handler that will be called after the unobstructed area has finished changing.
+	pub did_change:  UnobstructedAreaDidChangeHandler,
 }
 #[allow(clippy::unnecessary_operation, clippy::identity_op)]
 const _: () = {
-    [
-        "Size of UnobstructedAreaHandlers",
-    ][::core::mem::size_of::<UnobstructedAreaHandlers>() - 12usize];
-    [
-        "Alignment of UnobstructedAreaHandlers",
-    ][::core::mem::align_of::<UnobstructedAreaHandlers>() - 4usize];
-    [
-        "Offset of field: UnobstructedAreaHandlers::will_change",
-    ][::core::mem::offset_of!(UnobstructedAreaHandlers, will_change) - 0usize];
-    [
-        "Offset of field: UnobstructedAreaHandlers::change",
-    ][::core::mem::offset_of!(UnobstructedAreaHandlers, change) - 4usize];
-    [
-        "Offset of field: UnobstructedAreaHandlers::did_change",
-    ][::core::mem::offset_of!(UnobstructedAreaHandlers, did_change) - 8usize];
+	["Size of UnobstructedAreaHandlers"]
+		[::core::mem::size_of::<UnobstructedAreaHandlers>() - 12usize];
+	["Alignment of UnobstructedAreaHandlers"]
+		[::core::mem::align_of::<UnobstructedAreaHandlers>() - 4usize];
+	["Offset of field: UnobstructedAreaHandlers::will_change"]
+		[::core::mem::offset_of!(UnobstructedAreaHandlers, will_change) - 0usize];
+	["Offset of field: UnobstructedAreaHandlers::change"]
+		[::core::mem::offset_of!(UnobstructedAreaHandlers, change) - 4usize];
+	["Offset of field: UnobstructedAreaHandlers::did_change"]
+		[::core::mem::offset_of!(UnobstructedAreaHandlers, did_change) - 8usize];
 };
 /**! Subscribe to be notified when the app's unobstructed area changes. When an unobstructed area
 ! begins changing, the `will_change` handler will be called, and every `will_change` call is
@@ -11905,13 +11429,13 @@ gneiss: Vtable Slot 624, Offset 2496*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.unobstructed_area_service_subscribe")]
 pub unsafe extern "C" fn unobstructed_area_service_subscribe(
-    handlers: UnobstructedAreaHandlers,
-    context: *mut ::core::ffi::c_void,
+	handlers: UnobstructedAreaHandlers,
+	context: *mut ::core::ffi::c_void,
 ) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =2496", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =2496", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 ///! Unsubscribe from notifications about changes to the app's unobstructed area.
 /** unobstructed_area_service_unsubscribe
@@ -11920,10 +11444,10 @@ gneiss: Vtable Slot 625, Offset 2500*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.unobstructed_area_service_unsubscribe")]
 pub unsafe extern "C" fn unobstructed_area_service_unsubscribe() {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =2500", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =2500", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! @addtogroup TextLayer
 ! \brief Layer that displays and formats a text string.
@@ -11941,7 +11465,7 @@ pub unsafe extern "C" fn unobstructed_area_service_unsubscribe() {
 #[repr(C)]
 #[derive(Debug)]
 pub struct TextLayer {
-    _unused: [u8; 0],
+	_unused: [u8; 0],
 }
 /**! Creates a new TextLayer on the heap and initializes it with the default values.
 !
@@ -11963,10 +11487,10 @@ gneiss: Vtable Slot 462, Offset 1848*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.text_layer_create")]
 pub unsafe extern "C" fn text_layer_create(frame: GRect) -> *mut TextLayer {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1848", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1848", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 ///! Destroys a TextLayer previously created by text_layer_create.
 /** text_layer_destroy
@@ -11975,10 +11499,10 @@ gneiss: Vtable Slot 463, Offset 1852*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.text_layer_destroy")]
 pub unsafe extern "C" fn text_layer_destroy(text_layer: *mut TextLayer) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1852", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1852", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Gets the "root" Layer of the text layer, which is the parent for the sub-
 ! layers used for its implementation.
@@ -11990,10 +11514,10 @@ gneiss: Vtable Slot 465, Offset 1860*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.text_layer_get_layer")]
 pub unsafe extern "C" fn text_layer_get_layer(text_layer: *mut TextLayer) -> *mut Layer {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1860", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1860", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Sets the pointer to the string where the TextLayer is supposed to find the text
 ! at a later point in time, when it needs to draw itself.
@@ -12009,13 +11533,13 @@ gneiss: Vtable Slot 471, Offset 1884*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.text_layer_set_text")]
 pub unsafe extern "C" fn text_layer_set_text(
-    text_layer: *mut TextLayer,
-    text: *const ::core::ffi::c_char,
+	text_layer: *mut TextLayer,
+	text: *const ::core::ffi::c_char,
 ) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1884", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1884", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Gets the pointer to the string that the TextLayer is using.
 ! @param text_layer The TextLayer for which to get the text
@@ -12026,12 +11550,12 @@ gneiss: Vtable Slot 466, Offset 1864*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.text_layer_get_text")]
 pub unsafe extern "C" fn text_layer_get_text(
-    text_layer: *mut TextLayer,
+	text_layer: *mut TextLayer,
 ) -> *const ::core::ffi::c_char {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1864", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1864", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Sets the background color of the bounding box that will be drawn behind the text
 ! @param text_layer The TextLayer of which to set the background color
@@ -12043,13 +11567,13 @@ gneiss: Vtable Slot 467, Offset 1868*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.text_layer_set_background_color")]
 pub unsafe extern "C" fn text_layer_set_background_color(
-    text_layer: *mut TextLayer,
-    color: GColor,
+	text_layer: *mut TextLayer,
+	color: GColor,
 ) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1868", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1868", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Sets the color of text that will be drawn
 ! @param text_layer The TextLayer of which to set the text color
@@ -12060,14 +11584,11 @@ pub unsafe extern "C" fn text_layer_set_background_color(
 gneiss: Vtable Slot 473, Offset 1892*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.text_layer_set_text_color")]
-pub unsafe extern "C" fn text_layer_set_text_color(
-    text_layer: *mut TextLayer,
-    color: GColor,
-) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1892", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+pub unsafe extern "C" fn text_layer_set_text_color(text_layer: *mut TextLayer, color: GColor) {
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1892", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Sets the line break mode of the TextLayer
 ! @param text_layer The TextLayer of which to set the overflow mode
@@ -12078,13 +11599,13 @@ gneiss: Vtable Slot 469, Offset 1876*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.text_layer_set_overflow_mode")]
 pub unsafe extern "C" fn text_layer_set_overflow_mode(
-    text_layer: *mut TextLayer,
-    line_mode: GTextOverflowMode,
+	text_layer: *mut TextLayer,
+	line_mode: GTextOverflowMode,
 ) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1876", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1876", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Sets the font of the TextLayer
 ! @param text_layer The TextLayer of which to set the font
@@ -12097,10 +11618,10 @@ gneiss: Vtable Slot 468, Offset 1872*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.text_layer_set_font")]
 pub unsafe extern "C" fn text_layer_set_font(text_layer: *mut TextLayer, font: GFont) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1872", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1872", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Sets the alignment of the TextLayer
 ! @param text_layer The TextLayer of which to set the alignment
@@ -12112,13 +11633,13 @@ gneiss: Vtable Slot 472, Offset 1888*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.text_layer_set_text_alignment")]
 pub unsafe extern "C" fn text_layer_set_text_alignment(
-    text_layer: *mut TextLayer,
-    text_alignment: GTextAlignment,
+	text_layer: *mut TextLayer,
+	text_alignment: GTextAlignment,
 ) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1888", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1888", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Enables text flow following the boundaries of the screen and pagination that introduces
 ! extra line spacing at page breaks to avoid partially clipped lines for the TextLayer.
@@ -12137,13 +11658,13 @@ gneiss: Vtable Slot 596, Offset 2384*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.text_layer_enable_screen_text_flow_and_paging")]
 pub unsafe extern "C" fn text_layer_enable_screen_text_flow_and_paging(
-    text_layer: *mut TextLayer,
-    inset: u8,
+	text_layer: *mut TextLayer,
+	inset: u8,
 ) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =2384", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =2384", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Restores text flow and paging for the TextLayer to the rectangular defaults.
 ! @param text_layer The TextLayer for which to restore text flow and paging
@@ -12156,12 +11677,12 @@ gneiss: Vtable Slot 597, Offset 2388*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.text_layer_restore_default_text_flow_and_paging")]
 pub unsafe extern "C" fn text_layer_restore_default_text_flow_and_paging(
-    text_layer: *mut TextLayer,
+	text_layer: *mut TextLayer,
 ) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =2388", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =2388", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Calculates the size occupied by the current text of the TextLayer
 ! @param text_layer the TextLayer for which to calculate the text's size
@@ -12171,13 +11692,11 @@ pub unsafe extern "C" fn text_layer_restore_default_text_flow_and_paging(
 gneiss: Vtable Slot 464, Offset 1856*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.text_layer_get_content_size")]
-pub unsafe extern "C" fn text_layer_get_content_size(
-    text_layer: *mut TextLayer,
-) -> GSize {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1856", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+pub unsafe extern "C" fn text_layer_get_content_size(text_layer: *mut TextLayer) -> GSize {
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1856", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Update the size of the text layer
 ! This is a convenience function to update the frame of the TextLayer.
@@ -12188,14 +11707,11 @@ pub unsafe extern "C" fn text_layer_get_content_size(
 gneiss: Vtable Slot 470, Offset 1880*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.text_layer_set_size")]
-pub unsafe extern "C" fn text_layer_set_size(
-    text_layer: *mut TextLayer,
-    max_size: GSize,
-) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1880", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+pub unsafe extern "C" fn text_layer_set_size(text_layer: *mut TextLayer, max_size: GSize) {
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1880", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! @addtogroup ScrollLayer
 ! \brief Layer that scrolls its contents, animated.
@@ -12232,14 +11748,11 @@ pub unsafe extern "C" fn text_layer_set_size(
 #[repr(C)]
 #[derive(Debug)]
 pub struct ScrollLayer {
-    _unused: [u8; 0],
+	_unused: [u8; 0],
 }
 ///! Function signature for the `.content_offset_changed_handler` callback.
 pub type ScrollLayerCallback = ::core::option::Option<
-    unsafe extern "C" fn(
-        scroll_layer: *mut ScrollLayer,
-        context: *mut ::core::ffi::c_void,
-    ),
+	unsafe extern "C" fn(scroll_layer: *mut ScrollLayer, context: *mut ::core::ffi::c_void),
 >;
 /**! All the callbacks that the ScrollLayer exposes for use by applications.
 ! @note The context parameter can be set using scroll_layer_set_context() and
@@ -12247,30 +11760,23 @@ pub type ScrollLayerCallback = ::core::option::Option<
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct ScrollLayerCallbacks {
-    /**! Provider function to set up the SELECT button handlers. This will be
-! called after the scroll layer has configured the click configurations for
-! the up/down buttons, so it can also be used to modify the default up/down
-! scrolling behavior.*/
-    pub click_config_provider: ClickConfigProvider,
-    /**! Called every time the the content offset changes. During a scrolling
-! animation, it will be called for each intermediary offset as well*/
-    pub content_offset_changed_handler: ScrollLayerCallback,
+	/**! Provider function to set up the SELECT button handlers. This will be
+	! called after the scroll layer has configured the click configurations for
+	! the up/down buttons, so it can also be used to modify the default up/down
+	! scrolling behavior.*/
+	pub click_config_provider:          ClickConfigProvider,
+	/**! Called every time the the content offset changes. During a scrolling
+	! animation, it will be called for each intermediary offset as well*/
+	pub content_offset_changed_handler: ScrollLayerCallback,
 }
 #[allow(clippy::unnecessary_operation, clippy::identity_op)]
 const _: () = {
-    [
-        "Size of ScrollLayerCallbacks",
-    ][::core::mem::size_of::<ScrollLayerCallbacks>() - 8usize];
-    [
-        "Alignment of ScrollLayerCallbacks",
-    ][::core::mem::align_of::<ScrollLayerCallbacks>() - 4usize];
-    [
-        "Offset of field: ScrollLayerCallbacks::click_config_provider",
-    ][::core::mem::offset_of!(ScrollLayerCallbacks, click_config_provider) - 0usize];
-    [
-        "Offset of field: ScrollLayerCallbacks::content_offset_changed_handler",
-    ][::core::mem::offset_of!(ScrollLayerCallbacks, content_offset_changed_handler)
-        - 4usize];
+	["Size of ScrollLayerCallbacks"][::core::mem::size_of::<ScrollLayerCallbacks>() - 8usize];
+	["Alignment of ScrollLayerCallbacks"][::core::mem::align_of::<ScrollLayerCallbacks>() - 4usize];
+	["Offset of field: ScrollLayerCallbacks::click_config_provider"]
+		[::core::mem::offset_of!(ScrollLayerCallbacks, click_config_provider) - 0usize];
+	["Offset of field: ScrollLayerCallbacks::content_offset_changed_handler"]
+		[::core::mem::offset_of!(ScrollLayerCallbacks, content_offset_changed_handler) - 4usize];
 };
 /**! Creates a new ScrollLayer on the heap and initalizes it with the default values:
 ! * Clips: `true`
@@ -12287,10 +11793,10 @@ gneiss: Vtable Slot 218, Offset 872*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.scroll_layer_create")]
 pub unsafe extern "C" fn scroll_layer_create(frame: GRect) -> *mut ScrollLayer {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =872", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =872", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 ///! Destroys a ScrollLayer previously created by scroll_layer_create.
 /** scroll_layer_destroy
@@ -12299,10 +11805,10 @@ gneiss: Vtable Slot 219, Offset 876*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.scroll_layer_destroy")]
 pub unsafe extern "C" fn scroll_layer_destroy(scroll_layer: *mut ScrollLayer) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =876", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =876", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Gets the "root" Layer of the scroll layer, which is the parent for the sub-
 ! layers used for its implementation.
@@ -12313,13 +11819,11 @@ pub unsafe extern "C" fn scroll_layer_destroy(scroll_layer: *mut ScrollLayer) {
 gneiss: Vtable Slot 222, Offset 888*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.scroll_layer_get_layer")]
-pub unsafe extern "C" fn scroll_layer_get_layer(
-    scroll_layer: *const ScrollLayer,
-) -> *mut Layer {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =888", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+pub unsafe extern "C" fn scroll_layer_get_layer(scroll_layer: *const ScrollLayer) -> *mut Layer {
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =888", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Adds the child layer to the content sub-layer of the ScrollLayer.
 ! This will make the child layer part of the scrollable contents.
@@ -12334,14 +11838,11 @@ pub unsafe extern "C" fn scroll_layer_get_layer(
 gneiss: Vtable Slot 217, Offset 868*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.scroll_layer_add_child")]
-pub unsafe extern "C" fn scroll_layer_add_child(
-    scroll_layer: *mut ScrollLayer,
-    child: *mut Layer,
-) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =868", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+pub unsafe extern "C" fn scroll_layer_add_child(scroll_layer: *mut ScrollLayer, child: *mut Layer) {
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =868", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Convenience function to set the \ref ClickConfigProvider callback on the
 ! given window to scroll layer's internal click config provider. This internal
@@ -12371,13 +11872,13 @@ gneiss: Vtable Slot 227, Offset 908*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.scroll_layer_set_click_config_onto_window")]
 pub unsafe extern "C" fn scroll_layer_set_click_config_onto_window(
-    scroll_layer: *mut ScrollLayer,
-    window: *mut Window,
+	scroll_layer: *mut ScrollLayer,
+	window: *mut Window,
 ) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =908", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =908", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Sets the callbacks that the scroll layer exposes.
 ! The `context` as set by \ref scroll_layer_set_context() is passed into each
@@ -12392,13 +11893,13 @@ gneiss: Vtable Slot 226, Offset 904*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.scroll_layer_set_callbacks")]
 pub unsafe extern "C" fn scroll_layer_set_callbacks(
-    scroll_layer: *mut ScrollLayer,
-    callbacks: ScrollLayerCallbacks,
+	scroll_layer: *mut ScrollLayer,
+	callbacks: ScrollLayerCallbacks,
 ) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =904", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =904", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Sets a new callback context. This context is passed into the scroll layer's
 ! callbacks and also the \ref ClickHandler for the SELECT button.
@@ -12415,13 +11916,13 @@ gneiss: Vtable Slot 230, Offset 920*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.scroll_layer_set_context")]
 pub unsafe extern "C" fn scroll_layer_set_context(
-    scroll_layer: *mut ScrollLayer,
-    context: *mut ::core::ffi::c_void,
+	scroll_layer: *mut ScrollLayer,
+	context: *mut ::core::ffi::c_void,
 ) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =920", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =920", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Scrolls to the given offset, optionally animated.
 ! @note When scrolling down, the offset's `.y` decrements. When scrolling up,
@@ -12439,14 +11940,14 @@ gneiss: Vtable Slot 228, Offset 912*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.scroll_layer_set_content_offset")]
 pub unsafe extern "C" fn scroll_layer_set_content_offset(
-    scroll_layer: *mut ScrollLayer,
-    offset: GPoint,
-    animated: bool,
+	scroll_layer: *mut ScrollLayer,
+	offset: GPoint,
+	animated: bool,
 ) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =912", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =912", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Gets the point by which the contents are offset.
 ! @param scroll_layer The ScrollLayer for which to get the content offset
@@ -12456,13 +11957,11 @@ pub unsafe extern "C" fn scroll_layer_set_content_offset(
 gneiss: Vtable Slot 220, Offset 880*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.scroll_layer_get_content_offset")]
-pub unsafe extern "C" fn scroll_layer_get_content_offset(
-    scroll_layer: *mut ScrollLayer,
-) -> GPoint {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =880", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+pub unsafe extern "C" fn scroll_layer_get_content_offset(scroll_layer: *mut ScrollLayer) -> GPoint {
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =880", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Sets the size of the contents layer. This determines the area that is
 ! scrollable. At the moment, this needs to be set "manually" and is not
@@ -12476,13 +11975,13 @@ gneiss: Vtable Slot 229, Offset 916*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.scroll_layer_set_content_size")]
 pub unsafe extern "C" fn scroll_layer_set_content_size(
-    scroll_layer: *mut ScrollLayer,
-    size: GSize,
+	scroll_layer: *mut ScrollLayer,
+	size: GSize,
 ) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =916", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =916", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Gets the size of the contents layer.
 ! @param scroll_layer The ScrollLayer for which to get the content size
@@ -12492,13 +11991,11 @@ pub unsafe extern "C" fn scroll_layer_set_content_size(
 gneiss: Vtable Slot 221, Offset 884*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.scroll_layer_get_content_size")]
-pub unsafe extern "C" fn scroll_layer_get_content_size(
-    scroll_layer: *const ScrollLayer,
-) -> GSize {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =884", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+pub unsafe extern "C" fn scroll_layer_get_content_size(scroll_layer: *const ScrollLayer) -> GSize {
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =884", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Set the frame of the scroll layer and adjusts the internal layers' geometry
 ! accordingly. The scroll layer is marked dirty automatically.
@@ -12509,14 +12006,11 @@ pub unsafe extern "C" fn scroll_layer_get_content_size(
 gneiss: Vtable Slot 231, Offset 924*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.scroll_layer_set_frame")]
-pub unsafe extern "C" fn scroll_layer_set_frame(
-    scroll_layer: *mut ScrollLayer,
-    frame: GRect,
-) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =924", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+pub unsafe extern "C" fn scroll_layer_set_frame(scroll_layer: *mut ScrollLayer, frame: GRect) {
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =924", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! The click handlers for the UP button that the scroll layer will install as
 ! part of \ref scroll_layer_set_click_config_onto_window().
@@ -12530,13 +12024,13 @@ gneiss: Vtable Slot 225, Offset 900*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.scroll_layer_scroll_up_click_handler")]
 pub unsafe extern "C" fn scroll_layer_scroll_up_click_handler(
-    recognizer: ClickRecognizerRef,
-    context: *mut ::core::ffi::c_void,
+	recognizer: ClickRecognizerRef,
+	context: *mut ::core::ffi::c_void,
 ) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =900", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =900", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! The click handlers for the DOWN button that the scroll layer will install as
 ! part of \ref scroll_layer_set_click_config_onto_window().
@@ -12550,13 +12044,13 @@ gneiss: Vtable Slot 224, Offset 896*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.scroll_layer_scroll_down_click_handler")]
 pub unsafe extern "C" fn scroll_layer_scroll_down_click_handler(
-    recognizer: ClickRecognizerRef,
-    context: *mut ::core::ffi::c_void,
+	recognizer: ClickRecognizerRef,
+	context: *mut ::core::ffi::c_void,
 ) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =896", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =896", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Sets the visibility of the scroll layer shadow.
 ! If the visibility has changed, \ref layer_mark_dirty() will be called automatically
@@ -12570,13 +12064,13 @@ gneiss: Vtable Slot 232, Offset 928*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.scroll_layer_set_shadow_hidden")]
 pub unsafe extern "C" fn scroll_layer_set_shadow_hidden(
-    scroll_layer: *mut ScrollLayer,
-    hidden: bool,
+	scroll_layer: *mut ScrollLayer,
+	hidden: bool,
 ) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =928", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =928", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Gets the visibility of the scroll layer shadow.
 ! @param scroll_layer The scroll layer for which to get the visibility
@@ -12586,13 +12080,11 @@ pub unsafe extern "C" fn scroll_layer_set_shadow_hidden(
 gneiss: Vtable Slot 223, Offset 892*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.scroll_layer_get_shadow_hidden")]
-pub unsafe extern "C" fn scroll_layer_get_shadow_hidden(
-    scroll_layer: *const ScrollLayer,
-) -> bool {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =892", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+pub unsafe extern "C" fn scroll_layer_get_shadow_hidden(scroll_layer: *const ScrollLayer) -> bool {
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =892", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Enables or disables paging of the ScrollLayer (default: disabled). When enabled, every button
 ! press will change the scroll offset by the frame's height.
@@ -12604,13 +12096,13 @@ gneiss: Vtable Slot 595, Offset 2380*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.scroll_layer_set_paging")]
 pub unsafe extern "C" fn scroll_layer_set_paging(
-    scroll_layer: *mut ScrollLayer,
-    paging_enabled: bool,
+	scroll_layer: *mut ScrollLayer,
+	paging_enabled: bool,
 ) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =2380", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =2380", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Check whether or not the ScrollLayer uses paging when pressing buttons.
 ! @param scroll_layer The scroll layer for which to get the paging behavior.
@@ -12620,18 +12112,16 @@ pub unsafe extern "C" fn scroll_layer_set_paging(
 gneiss: Vtable Slot 594, Offset 2376*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.scroll_layer_get_paging")]
-pub unsafe extern "C" fn scroll_layer_get_paging(
-    scroll_layer: *mut ScrollLayer,
-) -> bool {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =2376", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+pub unsafe extern "C" fn scroll_layer_get_paging(scroll_layer: *mut ScrollLayer) -> bool {
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =2376", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 #[repr(C)]
 #[derive(Debug)]
 pub struct ContentIndicator {
-    _unused: [u8; 0],
+	_unused: [u8; 0],
 }
 /**! Gets the ContentIndicator for a ScrollLayer.
 ! @param scroll_layer The ScrollLayer for which to get the ContentIndicator
@@ -12642,12 +12132,12 @@ gneiss: Vtable Slot 577, Offset 2308*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.scroll_layer_get_content_indicator")]
 pub unsafe extern "C" fn scroll_layer_get_content_indicator(
-    scroll_layer: *mut ScrollLayer,
+	scroll_layer: *mut ScrollLayer,
 ) -> *mut ContentIndicator {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =2308", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =2308", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 ///!< The up direction.
 pub const ContentIndicatorDirection_ContentIndicatorDirectionUp: ContentIndicatorDirection = 0;
@@ -12664,59 +12154,46 @@ pub type ContentIndicatorDirection = ::core::ffi::c_uchar;
 #[repr(C)]
 #[derive(Copy, Clone)]
 pub struct ContentIndicatorConfig {
-    ///!< The layer where the arrow indicator will be rendered when content is available.
-    pub layer: *mut Layer,
-    ///!< Whether the display of the arrow indicator should timeout.
-    pub times_out: bool,
-    ///!< The alignment of the arrow within the provided layer.
-    pub alignment: GAlign,
-    pub colors: ContentIndicatorConfig__bindgen_ty_1,
+	///!< The layer where the arrow indicator will be rendered when content is available.
+	pub layer:     *mut Layer,
+	///!< Whether the display of the arrow indicator should timeout.
+	pub times_out: bool,
+	///!< The alignment of the arrow within the provided layer.
+	pub alignment: GAlign,
+	pub colors:    ContentIndicatorConfig__bindgen_ty_1,
 }
 #[repr(C)]
 #[derive(Copy, Clone)]
 pub struct ContentIndicatorConfig__bindgen_ty_1 {
-    ///!< The color of the arrow.
-    pub foreground: GColor,
-    ///!< The color of the layer behind the arrow.
-    pub background: GColor,
+	///!< The color of the arrow.
+	pub foreground: GColor,
+	///!< The color of the layer behind the arrow.
+	pub background: GColor,
 }
 #[allow(clippy::unnecessary_operation, clippy::identity_op)]
 const _: () = {
-    [
-        "Size of ContentIndicatorConfig__bindgen_ty_1",
-    ][::core::mem::size_of::<ContentIndicatorConfig__bindgen_ty_1>() - 2usize];
-    [
-        "Alignment of ContentIndicatorConfig__bindgen_ty_1",
-    ][::core::mem::align_of::<ContentIndicatorConfig__bindgen_ty_1>() - 1usize];
-    [
-        "Offset of field: ContentIndicatorConfig__bindgen_ty_1::foreground",
-    ][::core::mem::offset_of!(ContentIndicatorConfig__bindgen_ty_1, foreground)
-        - 0usize];
-    [
-        "Offset of field: ContentIndicatorConfig__bindgen_ty_1::background",
-    ][::core::mem::offset_of!(ContentIndicatorConfig__bindgen_ty_1, background)
-        - 1usize];
+	["Size of ContentIndicatorConfig__bindgen_ty_1"]
+		[::core::mem::size_of::<ContentIndicatorConfig__bindgen_ty_1>() - 2usize];
+	["Alignment of ContentIndicatorConfig__bindgen_ty_1"]
+		[::core::mem::align_of::<ContentIndicatorConfig__bindgen_ty_1>() - 1usize];
+	["Offset of field: ContentIndicatorConfig__bindgen_ty_1::foreground"]
+		[::core::mem::offset_of!(ContentIndicatorConfig__bindgen_ty_1, foreground) - 0usize];
+	["Offset of field: ContentIndicatorConfig__bindgen_ty_1::background"]
+		[::core::mem::offset_of!(ContentIndicatorConfig__bindgen_ty_1, background) - 1usize];
 };
 #[allow(clippy::unnecessary_operation, clippy::identity_op)]
 const _: () = {
-    [
-        "Size of ContentIndicatorConfig",
-    ][::core::mem::size_of::<ContentIndicatorConfig>() - 8usize];
-    [
-        "Alignment of ContentIndicatorConfig",
-    ][::core::mem::align_of::<ContentIndicatorConfig>() - 4usize];
-    [
-        "Offset of field: ContentIndicatorConfig::layer",
-    ][::core::mem::offset_of!(ContentIndicatorConfig, layer) - 0usize];
-    [
-        "Offset of field: ContentIndicatorConfig::times_out",
-    ][::core::mem::offset_of!(ContentIndicatorConfig, times_out) - 4usize];
-    [
-        "Offset of field: ContentIndicatorConfig::alignment",
-    ][::core::mem::offset_of!(ContentIndicatorConfig, alignment) - 5usize];
-    [
-        "Offset of field: ContentIndicatorConfig::colors",
-    ][::core::mem::offset_of!(ContentIndicatorConfig, colors) - 6usize];
+	["Size of ContentIndicatorConfig"][::core::mem::size_of::<ContentIndicatorConfig>() - 8usize];
+	["Alignment of ContentIndicatorConfig"]
+		[::core::mem::align_of::<ContentIndicatorConfig>() - 4usize];
+	["Offset of field: ContentIndicatorConfig::layer"]
+		[::core::mem::offset_of!(ContentIndicatorConfig, layer) - 0usize];
+	["Offset of field: ContentIndicatorConfig::times_out"]
+		[::core::mem::offset_of!(ContentIndicatorConfig, times_out) - 4usize];
+	["Offset of field: ContentIndicatorConfig::alignment"]
+		[::core::mem::offset_of!(ContentIndicatorConfig, alignment) - 5usize];
+	["Offset of field: ContentIndicatorConfig::colors"]
+		[::core::mem::offset_of!(ContentIndicatorConfig, colors) - 6usize];
 };
 /**! Creates a ContentIndicator on the heap.
 ! @return A pointer to the ContentIndicator. `NULL` if the ContentIndicator could not be created.*/
@@ -12726,10 +12203,10 @@ gneiss: Vtable Slot 573, Offset 2292*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.content_indicator_create")]
 pub unsafe extern "C" fn content_indicator_create() -> *mut ContentIndicator {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =2292", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =2292", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Destroys a ContentIndicator previously created using \ref content_indicator_create().
 ! @param content_indicator The ContentIndicator to destroy.*/
@@ -12738,13 +12215,11 @@ pub unsafe extern "C" fn content_indicator_create() -> *mut ContentIndicator {
 gneiss: Vtable Slot 574, Offset 2296*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.content_indicator_destroy")]
-pub unsafe extern "C" fn content_indicator_destroy(
-    content_indicator: *mut ContentIndicator,
-) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =2296", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+pub unsafe extern "C" fn content_indicator_destroy(content_indicator: *mut ContentIndicator) {
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =2296", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Configures a ContentIndicator for the given direction.
 ! @param content_indicator The ContentIndicator to configure.
@@ -12759,14 +12234,14 @@ gneiss: Vtable Slot 572, Offset 2288*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.content_indicator_configure_direction")]
 pub unsafe extern "C" fn content_indicator_configure_direction(
-    content_indicator: *mut ContentIndicator,
-    direction: ContentIndicatorDirection,
-    config: *const ContentIndicatorConfig,
+	content_indicator: *mut ContentIndicator,
+	direction: ContentIndicatorDirection,
+	config: *const ContentIndicatorConfig,
 ) -> bool {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =2288", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =2288", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Retrieves the availability status of content in the given direction.
 ! @param content_indicator The ContentIndicator for which to get the content availability.
@@ -12778,13 +12253,13 @@ gneiss: Vtable Slot 575, Offset 2300*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.content_indicator_get_content_available")]
 pub unsafe extern "C" fn content_indicator_get_content_available(
-    content_indicator: *mut ContentIndicator,
-    direction: ContentIndicatorDirection,
+	content_indicator: *mut ContentIndicator,
+	direction: ContentIndicatorDirection,
 ) -> bool {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =2300", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =2300", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Sets the availability status of content in the given direction.
 ! @param content_indicator The ContentIndicator for which to set the content availability.
@@ -12798,14 +12273,14 @@ gneiss: Vtable Slot 576, Offset 2304*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.content_indicator_set_content_available")]
 pub unsafe extern "C" fn content_indicator_set_content_available(
-    content_indicator: *mut ContentIndicator,
-    direction: ContentIndicatorDirection,
-    available: bool,
+	content_indicator: *mut ContentIndicator,
+	direction: ContentIndicatorDirection,
+	available: bool,
 ) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =2304", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =2304", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Section drawing function to draw a basic section cell with the title, subtitle, and icon of the
 ! section. Call this function inside the `.draw_row` callback implementation, see \ref
@@ -12827,16 +12302,16 @@ gneiss: Vtable Slot 165, Offset 660*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.menu_cell_basic_draw")]
 pub unsafe extern "C" fn menu_cell_basic_draw(
-    ctx: *mut GContext,
-    cell_layer: *const Layer,
-    title: *const ::core::ffi::c_char,
-    subtitle: *const ::core::ffi::c_char,
-    icon: *mut GBitmap,
+	ctx: *mut GContext,
+	cell_layer: *const Layer,
+	title: *const ::core::ffi::c_char,
+	subtitle: *const ::core::ffi::c_char,
+	icon: *mut GBitmap,
 ) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =660", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =660", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Cell drawing function to draw a basic menu cell layout with title, subtitle
 ! Cell drawing function to draw a menu cell layout with only one big title.
@@ -12852,14 +12327,14 @@ gneiss: Vtable Slot 167, Offset 668*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.menu_cell_title_draw")]
 pub unsafe extern "C" fn menu_cell_title_draw(
-    ctx: *mut GContext,
-    cell_layer: *const Layer,
-    title: *const ::core::ffi::c_char,
+	ctx: *mut GContext,
+	cell_layer: *const Layer,
+	title: *const ::core::ffi::c_char,
 ) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =668", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =668", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Section header drawing function to draw a basic section header cell layout
 ! with the title of the section.
@@ -12875,35 +12350,31 @@ gneiss: Vtable Slot 166, Offset 664*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.menu_cell_basic_header_draw")]
 pub unsafe extern "C" fn menu_cell_basic_header_draw(
-    ctx: *mut GContext,
-    cell_layer: *const Layer,
-    title: *const ::core::ffi::c_char,
+	ctx: *mut GContext,
+	cell_layer: *const Layer,
+	title: *const ::core::ffi::c_char,
 ) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =664", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =664", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Data structure to represent an menu item's position in a menu, by specifying
 ! the section index and the row index within that section.*/
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct MenuIndex {
-    ///! The index of the section
-    pub section: u16,
-    ///! The index of the row within the section with index `.section`
-    pub row: u16,
+	///! The index of the section
+	pub section: u16,
+	///! The index of the row within the section with index `.section`
+	pub row:     u16,
 }
 #[allow(clippy::unnecessary_operation, clippy::identity_op)]
 const _: () = {
-    ["Size of MenuIndex"][::core::mem::size_of::<MenuIndex>() - 4usize];
-    ["Alignment of MenuIndex"][::core::mem::align_of::<MenuIndex>() - 2usize];
-    [
-        "Offset of field: MenuIndex::section",
-    ][::core::mem::offset_of!(MenuIndex, section) - 0usize];
-    [
-        "Offset of field: MenuIndex::row",
-    ][::core::mem::offset_of!(MenuIndex, row) - 2usize];
+	["Size of MenuIndex"][::core::mem::size_of::<MenuIndex>() - 4usize];
+	["Alignment of MenuIndex"][::core::mem::align_of::<MenuIndex>() - 2usize];
+	["Offset of field: MenuIndex::section"][::core::mem::offset_of!(MenuIndex, section) - 0usize];
+	["Offset of field: MenuIndex::row"][::core::mem::offset_of!(MenuIndex, row) - 2usize];
 };
 /**! Comparator function to determine the order of two MenuIndex values.
 ! @param a Pointer to the menu index of the first item
@@ -12915,44 +12386,33 @@ const _: () = {
 gneiss: Vtable Slot 168, Offset 672*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.menu_index_compare")]
-pub unsafe extern "C" fn menu_index_compare(
-    a: *const MenuIndex,
-    b: *const MenuIndex,
-) -> i16 {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =672", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+pub unsafe extern "C" fn menu_index_compare(a: *const MenuIndex, b: *const MenuIndex) -> i16 {
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =672", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct MenuCellSpan {
-    pub y: i16,
-    pub h: i16,
-    pub sep: i16,
-    pub index: MenuIndex,
+	pub y:     i16,
+	pub h:     i16,
+	pub sep:   i16,
+	pub index: MenuIndex,
 }
 #[allow(clippy::unnecessary_operation, clippy::identity_op)]
 const _: () = {
-    ["Size of MenuCellSpan"][::core::mem::size_of::<MenuCellSpan>() - 10usize];
-    ["Alignment of MenuCellSpan"][::core::mem::align_of::<MenuCellSpan>() - 2usize];
-    [
-        "Offset of field: MenuCellSpan::y",
-    ][::core::mem::offset_of!(MenuCellSpan, y) - 0usize];
-    [
-        "Offset of field: MenuCellSpan::h",
-    ][::core::mem::offset_of!(MenuCellSpan, h) - 2usize];
-    [
-        "Offset of field: MenuCellSpan::sep",
-    ][::core::mem::offset_of!(MenuCellSpan, sep) - 4usize];
-    [
-        "Offset of field: MenuCellSpan::index",
-    ][::core::mem::offset_of!(MenuCellSpan, index) - 6usize];
+	["Size of MenuCellSpan"][::core::mem::size_of::<MenuCellSpan>() - 10usize];
+	["Alignment of MenuCellSpan"][::core::mem::align_of::<MenuCellSpan>() - 2usize];
+	["Offset of field: MenuCellSpan::y"][::core::mem::offset_of!(MenuCellSpan, y) - 0usize];
+	["Offset of field: MenuCellSpan::h"][::core::mem::offset_of!(MenuCellSpan, h) - 2usize];
+	["Offset of field: MenuCellSpan::sep"][::core::mem::offset_of!(MenuCellSpan, sep) - 4usize];
+	["Offset of field: MenuCellSpan::index"][::core::mem::offset_of!(MenuCellSpan, index) - 6usize];
 };
 #[repr(C)]
 #[derive(Debug)]
 pub struct MenuLayer {
-    _unused: [u8; 0],
+	_unused: [u8; 0],
 }
 /**! Function signature for the callback to get the number of sections in a menu.
 ! @param menu_layer The \ref MenuLayer for which the data is requested
@@ -12961,10 +12421,10 @@ pub struct MenuLayer {
 ! @see \ref menu_layer_set_callbacks()
 ! @see \ref MenuLayerCallbacks*/
 pub type MenuLayerGetNumberOfSectionsCallback = ::core::option::Option<
-    unsafe extern "C" fn(
-        menu_layer: *mut MenuLayer,
-        callback_context: *mut ::core::ffi::c_void,
-    ) -> u16,
+	unsafe extern "C" fn(
+		menu_layer: *mut MenuLayer,
+		callback_context: *mut ::core::ffi::c_void,
+	) -> u16,
 >;
 /**! Function signature for the callback to get the number of rows in a
 ! given section in a menu.
@@ -12976,11 +12436,11 @@ pub type MenuLayerGetNumberOfSectionsCallback = ::core::option::Option<
 ! @see \ref menu_layer_set_callbacks()
 ! @see \ref MenuLayerCallbacks*/
 pub type MenuLayerGetNumberOfRowsInSectionsCallback = ::core::option::Option<
-    unsafe extern "C" fn(
-        menu_layer: *mut MenuLayer,
-        section_index: u16,
-        callback_context: *mut ::core::ffi::c_void,
-    ) -> u16,
+	unsafe extern "C" fn(
+		menu_layer: *mut MenuLayer,
+		section_index: u16,
+		callback_context: *mut ::core::ffi::c_void,
+	) -> u16,
 >;
 /**! Function signature for the callback to get the height of the menu cell
 ! at a given index.
@@ -12991,11 +12451,11 @@ pub type MenuLayerGetNumberOfRowsInSectionsCallback = ::core::option::Option<
 ! @see \ref menu_layer_set_callbacks()
 ! @see \ref MenuLayerCallbacks*/
 pub type MenuLayerGetCellHeightCallback = ::core::option::Option<
-    unsafe extern "C" fn(
-        menu_layer: *mut MenuLayer,
-        cell_index: *mut MenuIndex,
-        callback_context: *mut ::core::ffi::c_void,
-    ) -> i16,
+	unsafe extern "C" fn(
+		menu_layer: *mut MenuLayer,
+		cell_index: *mut MenuIndex,
+		callback_context: *mut ::core::ffi::c_void,
+	) -> i16,
 >;
 /**! Function signature for the callback to get the height of the section header
 ! at a given section index.
@@ -13007,11 +12467,11 @@ pub type MenuLayerGetCellHeightCallback = ::core::option::Option<
 ! @see \ref menu_layer_set_callbacks()
 ! @see \ref MenuLayerCallbacks*/
 pub type MenuLayerGetHeaderHeightCallback = ::core::option::Option<
-    unsafe extern "C" fn(
-        menu_layer: *mut MenuLayer,
-        section_index: u16,
-        callback_context: *mut ::core::ffi::c_void,
-    ) -> i16,
+	unsafe extern "C" fn(
+		menu_layer: *mut MenuLayer,
+		section_index: u16,
+		callback_context: *mut ::core::ffi::c_void,
+	) -> i16,
 >;
 /**! Function signature for the callback to get the height of the separator
 ! at a given index.
@@ -13022,11 +12482,11 @@ pub type MenuLayerGetHeaderHeightCallback = ::core::option::Option<
 ! @see \ref menu_layer_set_callbacks()
 ! @see \ref MenuLayerCallbacks*/
 pub type MenuLayerGetSeparatorHeightCallback = ::core::option::Option<
-    unsafe extern "C" fn(
-        menu_layer: *mut MenuLayer,
-        cell_index: *mut MenuIndex,
-        callback_context: *mut ::core::ffi::c_void,
-    ) -> i16,
+	unsafe extern "C" fn(
+		menu_layer: *mut MenuLayer,
+		cell_index: *mut MenuIndex,
+		callback_context: *mut ::core::ffi::c_void,
+	) -> i16,
 >;
 /**! Function signature for the callback to render the menu cell at a given
 ! MenuIndex.
@@ -13041,12 +12501,12 @@ pub type MenuLayerGetSeparatorHeightCallback = ::core::option::Option<
 ! @see \ref menu_layer_set_callbacks()
 ! @see \ref MenuLayerCallbacks*/
 pub type MenuLayerDrawRowCallback = ::core::option::Option<
-    unsafe extern "C" fn(
-        ctx: *mut GContext,
-        cell_layer: *const Layer,
-        cell_index: *mut MenuIndex,
-        callback_context: *mut ::core::ffi::c_void,
-    ),
+	unsafe extern "C" fn(
+		ctx: *mut GContext,
+		cell_layer: *const Layer,
+		cell_index: *mut MenuIndex,
+		callback_context: *mut ::core::ffi::c_void,
+	),
 >;
 /**! Function signature for the callback to render the section header at a given
 ! section index.
@@ -13063,12 +12523,12 @@ pub type MenuLayerDrawRowCallback = ::core::option::Option<
 ! @see \ref menu_layer_set_callbacks()
 ! @see \ref MenuLayerCallbacks*/
 pub type MenuLayerDrawHeaderCallback = ::core::option::Option<
-    unsafe extern "C" fn(
-        ctx: *mut GContext,
-        cell_layer: *const Layer,
-        section_index: u16,
-        callback_context: *mut ::core::ffi::c_void,
-    ),
+	unsafe extern "C" fn(
+		ctx: *mut GContext,
+		cell_layer: *const Layer,
+		section_index: u16,
+		callback_context: *mut ::core::ffi::c_void,
+	),
 >;
 /**! Function signature for the callback to render the separator at a given
 ! MenuIndex.
@@ -13083,12 +12543,12 @@ pub type MenuLayerDrawHeaderCallback = ::core::option::Option<
 ! @see \ref menu_layer_set_callbacks()
 ! @see \ref MenuLayerCallbacks*/
 pub type MenuLayerDrawSeparatorCallback = ::core::option::Option<
-    unsafe extern "C" fn(
-        ctx: *mut GContext,
-        cell_layer: *const Layer,
-        cell_index: *mut MenuIndex,
-        callback_context: *mut ::core::ffi::c_void,
-    ),
+	unsafe extern "C" fn(
+		ctx: *mut GContext,
+		cell_layer: *const Layer,
+		cell_index: *mut MenuIndex,
+		callback_context: *mut ::core::ffi::c_void,
+	),
 >;
 /**! Function signature for the callback to handle the event that a user hits
 ! the SELECT button.
@@ -13098,11 +12558,11 @@ pub type MenuLayerDrawSeparatorCallback = ::core::option::Option<
 ! @see \ref menu_layer_set_callbacks()
 ! @see \ref MenuLayerCallbacks*/
 pub type MenuLayerSelectCallback = ::core::option::Option<
-    unsafe extern "C" fn(
-        menu_layer: *mut MenuLayer,
-        cell_index: *mut MenuIndex,
-        callback_context: *mut ::core::ffi::c_void,
-    ),
+	unsafe extern "C" fn(
+		menu_layer: *mut MenuLayer,
+		cell_index: *mut MenuIndex,
+		callback_context: *mut ::core::ffi::c_void,
+	),
 >;
 /**! Function signature for the callback to handle a change in the current
 ! selected item in the menu.
@@ -13113,12 +12573,12 @@ pub type MenuLayerSelectCallback = ::core::option::Option<
 ! @see \ref menu_layer_set_callbacks()
 ! @see \ref MenuLayerCallbacks*/
 pub type MenuLayerSelectionChangedCallback = ::core::option::Option<
-    unsafe extern "C" fn(
-        menu_layer: *mut MenuLayer,
-        new_index: MenuIndex,
-        old_index: MenuIndex,
-        callback_context: *mut ::core::ffi::c_void,
-    ),
+	unsafe extern "C" fn(
+		menu_layer: *mut MenuLayer,
+		new_index: MenuIndex,
+		old_index: MenuIndex,
+		callback_context: *mut ::core::ffi::c_void,
+	),
 >;
 /**! Function signature for the callback which allows or changes selection behavior of the menu.
 ! In order to change the cell that should be selected, modify the passed in new_index.
@@ -13130,12 +12590,12 @@ pub type MenuLayerSelectionChangedCallback = ::core::option::Option<
 ! @note \ref menu_layer_set_selected_index will not trigger this callback when
 ! the selection changes, but \ref menu_layer_set_selected_next will.*/
 pub type MenuLayerSelectionWillChangeCallback = ::core::option::Option<
-    unsafe extern "C" fn(
-        menu_layer: *mut MenuLayer,
-        new_index: *mut MenuIndex,
-        old_index: MenuIndex,
-        callback_context: *mut ::core::ffi::c_void,
-    ),
+	unsafe extern "C" fn(
+		menu_layer: *mut MenuLayer,
+		new_index: *mut MenuIndex,
+		old_index: MenuIndex,
+		callback_context: *mut ::core::ffi::c_void,
+	),
 >;
 /**! Function signature for the callback which draws the menu's background.
 ! The background is underneath the cells of the menu, and is visible in the
@@ -13145,129 +12605,112 @@ pub type MenuLayerSelectionWillChangeCallback = ::core::option::Option<
 ! @param highlight Whether this should be rendered as highlighted or not. Highlight style
 ! should match the highlight style of cells, since this color can be used for animating selection.*/
 pub type MenuLayerDrawBackgroundCallback = ::core::option::Option<
-    unsafe extern "C" fn(
-        ctx: *mut GContext,
-        bg_layer: *const Layer,
-        highlight: bool,
-        callback_context: *mut ::core::ffi::c_void,
-    ),
+	unsafe extern "C" fn(
+		ctx: *mut GContext,
+		bg_layer: *const Layer,
+		highlight: bool,
+		callback_context: *mut ::core::ffi::c_void,
+	),
 >;
 ///! Data structure containing all the callbacks of a \ref MenuLayer.
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct MenuLayerCallbacks {
-    /**! Callback that gets called to get the number of sections in the menu.
-! This can get called at various moments throughout the life of a menu.
-! @note When `NULL`, the number of sections defaults to 1.*/
-    pub get_num_sections: MenuLayerGetNumberOfSectionsCallback,
-    /**! Callback that gets called to get the number of rows in a section. This
-! can get called at various moments throughout the life of a menu.
-! @note Must be set to a valid callback; `NULL` causes undefined behavior.*/
-    pub get_num_rows: MenuLayerGetNumberOfRowsInSectionsCallback,
-    /**! Callback that gets called to get the height of a cell.
-! This can get called at various moments throughout the life of a menu.
-! @note When `NULL`, the default height of @c MENU_CELL_BASIC_CELL_HEIGHT pixels is used.
-! Developers may wish to use \ref MENU_CELL_ROUND_FOCUSED_SHORT_CELL_HEIGHT
-! and \ref MENU_CELL_ROUND_UNFOCUSED_SHORT_CELL_HEIGHT on a round display
-! to respect the system aesthetic.*/
-    pub get_cell_height: MenuLayerGetCellHeightCallback,
-    /**! Callback that gets called to get the height of a section header.
-! This can get called at various moments throughout the life of a menu.
-! @note When `NULL`, the default height of 0 pixels is used. This disables
-! section headers.*/
-    pub get_header_height: MenuLayerGetHeaderHeightCallback,
-    /**! Callback that gets called to render a menu item.
-! This gets called for each menu item, every time it needs to be
-! re-rendered.
-! @note Must be set to a valid callback; `NULL` causes undefined behavior.*/
-    pub draw_row: MenuLayerDrawRowCallback,
-    /**! Callback that gets called to render a section header.
-! This gets called for each section header, every time it needs to be
-! re-rendered.
-! @note Must be set to a valid callback, unless `.get_header_height` is
-! `NULL`. Causes undefined behavior otherwise.*/
-    pub draw_header: MenuLayerDrawHeaderCallback,
-    /**! Callback that gets called when the user triggers a click with the SELECT
-! button.
-! @note When `NULL`, click events for the SELECT button are ignored.*/
-    pub select_click: MenuLayerSelectCallback,
-    /**! Callback that gets called when the user triggers a long click with the
-! SELECT button.
-! @note When `NULL`, long click events for the SELECT button are ignored.*/
-    pub select_long_click: MenuLayerSelectCallback,
-    /**! Callback that gets called whenever the selection changes.
-! @note When `NULL`, selection change events are ignored.*/
-    pub selection_changed: MenuLayerSelectionChangedCallback,
-    /**! Callback that gets called to get the height of a separator
-! This can get called at various moments throughout the life of a menu.
-! @note When `NULL`, the default height of 0 is used.*/
-    pub get_separator_height: MenuLayerGetSeparatorHeightCallback,
-    /**! Callback that gets called to render a separator.
-! This gets called for each separator, every time it needs to be
-! re-rendered.
-! @note Must be set to a valid callback, unless `.get_separator_height` is
-! `NULL`. Causes undefined behavior otherwise.*/
-    pub draw_separator: MenuLayerDrawSeparatorCallback,
-    /**! Callback that gets called before the selected cell changes.
-! This gets called before the selected item in the MenuLayer is changed,
-! and will allow for the selected cell to be overridden.
-! This allows for skipping cells in the menu, locking selection onto a given item,*/
-    pub selection_will_change: MenuLayerSelectionWillChangeCallback,
-    /**! Callback that gets called before any cells are drawn.
-! This supports two states, either highlighted or not highlighted.
-! If highlighted is specified, it is expected to be colored in the same
-! style as the menu's cells are.
-! If this callback is not specified, it will default to the colors set with
-! \ref menu_layer_set_normal_colors and \ref menu_layer_set_highlight_colors.*/
-    pub draw_background: MenuLayerDrawBackgroundCallback,
+	/**! Callback that gets called to get the number of sections in the menu.
+	! This can get called at various moments throughout the life of a menu.
+	! @note When `NULL`, the number of sections defaults to 1.*/
+	pub get_num_sections:      MenuLayerGetNumberOfSectionsCallback,
+	/**! Callback that gets called to get the number of rows in a section. This
+	! can get called at various moments throughout the life of a menu.
+	! @note Must be set to a valid callback; `NULL` causes undefined behavior.*/
+	pub get_num_rows:          MenuLayerGetNumberOfRowsInSectionsCallback,
+	/**! Callback that gets called to get the height of a cell.
+	! This can get called at various moments throughout the life of a menu.
+	! @note When `NULL`, the default height of @c MENU_CELL_BASIC_CELL_HEIGHT pixels is used.
+	! Developers may wish to use \ref MENU_CELL_ROUND_FOCUSED_SHORT_CELL_HEIGHT
+	! and \ref MENU_CELL_ROUND_UNFOCUSED_SHORT_CELL_HEIGHT on a round display
+	! to respect the system aesthetic.*/
+	pub get_cell_height:       MenuLayerGetCellHeightCallback,
+	/**! Callback that gets called to get the height of a section header.
+	! This can get called at various moments throughout the life of a menu.
+	! @note When `NULL`, the default height of 0 pixels is used. This disables
+	! section headers.*/
+	pub get_header_height:     MenuLayerGetHeaderHeightCallback,
+	/**! Callback that gets called to render a menu item.
+	! This gets called for each menu item, every time it needs to be
+	! re-rendered.
+	! @note Must be set to a valid callback; `NULL` causes undefined behavior.*/
+	pub draw_row:              MenuLayerDrawRowCallback,
+	/**! Callback that gets called to render a section header.
+	! This gets called for each section header, every time it needs to be
+	! re-rendered.
+	! @note Must be set to a valid callback, unless `.get_header_height` is
+	! `NULL`. Causes undefined behavior otherwise.*/
+	pub draw_header:           MenuLayerDrawHeaderCallback,
+	/**! Callback that gets called when the user triggers a click with the SELECT
+	! button.
+	! @note When `NULL`, click events for the SELECT button are ignored.*/
+	pub select_click:          MenuLayerSelectCallback,
+	/**! Callback that gets called when the user triggers a long click with the
+	! SELECT button.
+	! @note When `NULL`, long click events for the SELECT button are ignored.*/
+	pub select_long_click:     MenuLayerSelectCallback,
+	/**! Callback that gets called whenever the selection changes.
+	! @note When `NULL`, selection change events are ignored.*/
+	pub selection_changed:     MenuLayerSelectionChangedCallback,
+	/**! Callback that gets called to get the height of a separator
+	! This can get called at various moments throughout the life of a menu.
+	! @note When `NULL`, the default height of 0 is used.*/
+	pub get_separator_height:  MenuLayerGetSeparatorHeightCallback,
+	/**! Callback that gets called to render a separator.
+	! This gets called for each separator, every time it needs to be
+	! re-rendered.
+	! @note Must be set to a valid callback, unless `.get_separator_height` is
+	! `NULL`. Causes undefined behavior otherwise.*/
+	pub draw_separator:        MenuLayerDrawSeparatorCallback,
+	/**! Callback that gets called before the selected cell changes.
+	! This gets called before the selected item in the MenuLayer is changed,
+	! and will allow for the selected cell to be overridden.
+	! This allows for skipping cells in the menu, locking selection onto a given item,*/
+	pub selection_will_change: MenuLayerSelectionWillChangeCallback,
+	/**! Callback that gets called before any cells are drawn.
+	! This supports two states, either highlighted or not highlighted.
+	! If highlighted is specified, it is expected to be colored in the same
+	! style as the menu's cells are.
+	! If this callback is not specified, it will default to the colors set with
+	! \ref menu_layer_set_normal_colors and \ref menu_layer_set_highlight_colors.*/
+	pub draw_background:       MenuLayerDrawBackgroundCallback,
 }
 #[allow(clippy::unnecessary_operation, clippy::identity_op)]
 const _: () = {
-    [
-        "Size of MenuLayerCallbacks",
-    ][::core::mem::size_of::<MenuLayerCallbacks>() - 52usize];
-    [
-        "Alignment of MenuLayerCallbacks",
-    ][::core::mem::align_of::<MenuLayerCallbacks>() - 4usize];
-    [
-        "Offset of field: MenuLayerCallbacks::get_num_sections",
-    ][::core::mem::offset_of!(MenuLayerCallbacks, get_num_sections) - 0usize];
-    [
-        "Offset of field: MenuLayerCallbacks::get_num_rows",
-    ][::core::mem::offset_of!(MenuLayerCallbacks, get_num_rows) - 4usize];
-    [
-        "Offset of field: MenuLayerCallbacks::get_cell_height",
-    ][::core::mem::offset_of!(MenuLayerCallbacks, get_cell_height) - 8usize];
-    [
-        "Offset of field: MenuLayerCallbacks::get_header_height",
-    ][::core::mem::offset_of!(MenuLayerCallbacks, get_header_height) - 12usize];
-    [
-        "Offset of field: MenuLayerCallbacks::draw_row",
-    ][::core::mem::offset_of!(MenuLayerCallbacks, draw_row) - 16usize];
-    [
-        "Offset of field: MenuLayerCallbacks::draw_header",
-    ][::core::mem::offset_of!(MenuLayerCallbacks, draw_header) - 20usize];
-    [
-        "Offset of field: MenuLayerCallbacks::select_click",
-    ][::core::mem::offset_of!(MenuLayerCallbacks, select_click) - 24usize];
-    [
-        "Offset of field: MenuLayerCallbacks::select_long_click",
-    ][::core::mem::offset_of!(MenuLayerCallbacks, select_long_click) - 28usize];
-    [
-        "Offset of field: MenuLayerCallbacks::selection_changed",
-    ][::core::mem::offset_of!(MenuLayerCallbacks, selection_changed) - 32usize];
-    [
-        "Offset of field: MenuLayerCallbacks::get_separator_height",
-    ][::core::mem::offset_of!(MenuLayerCallbacks, get_separator_height) - 36usize];
-    [
-        "Offset of field: MenuLayerCallbacks::draw_separator",
-    ][::core::mem::offset_of!(MenuLayerCallbacks, draw_separator) - 40usize];
-    [
-        "Offset of field: MenuLayerCallbacks::selection_will_change",
-    ][::core::mem::offset_of!(MenuLayerCallbacks, selection_will_change) - 44usize];
-    [
-        "Offset of field: MenuLayerCallbacks::draw_background",
-    ][::core::mem::offset_of!(MenuLayerCallbacks, draw_background) - 48usize];
+	["Size of MenuLayerCallbacks"][::core::mem::size_of::<MenuLayerCallbacks>() - 52usize];
+	["Alignment of MenuLayerCallbacks"][::core::mem::align_of::<MenuLayerCallbacks>() - 4usize];
+	["Offset of field: MenuLayerCallbacks::get_num_sections"]
+		[::core::mem::offset_of!(MenuLayerCallbacks, get_num_sections) - 0usize];
+	["Offset of field: MenuLayerCallbacks::get_num_rows"]
+		[::core::mem::offset_of!(MenuLayerCallbacks, get_num_rows) - 4usize];
+	["Offset of field: MenuLayerCallbacks::get_cell_height"]
+		[::core::mem::offset_of!(MenuLayerCallbacks, get_cell_height) - 8usize];
+	["Offset of field: MenuLayerCallbacks::get_header_height"]
+		[::core::mem::offset_of!(MenuLayerCallbacks, get_header_height) - 12usize];
+	["Offset of field: MenuLayerCallbacks::draw_row"]
+		[::core::mem::offset_of!(MenuLayerCallbacks, draw_row) - 16usize];
+	["Offset of field: MenuLayerCallbacks::draw_header"]
+		[::core::mem::offset_of!(MenuLayerCallbacks, draw_header) - 20usize];
+	["Offset of field: MenuLayerCallbacks::select_click"]
+		[::core::mem::offset_of!(MenuLayerCallbacks, select_click) - 24usize];
+	["Offset of field: MenuLayerCallbacks::select_long_click"]
+		[::core::mem::offset_of!(MenuLayerCallbacks, select_long_click) - 28usize];
+	["Offset of field: MenuLayerCallbacks::selection_changed"]
+		[::core::mem::offset_of!(MenuLayerCallbacks, selection_changed) - 32usize];
+	["Offset of field: MenuLayerCallbacks::get_separator_height"]
+		[::core::mem::offset_of!(MenuLayerCallbacks, get_separator_height) - 36usize];
+	["Offset of field: MenuLayerCallbacks::draw_separator"]
+		[::core::mem::offset_of!(MenuLayerCallbacks, draw_separator) - 40usize];
+	["Offset of field: MenuLayerCallbacks::selection_will_change"]
+		[::core::mem::offset_of!(MenuLayerCallbacks, selection_will_change) - 44usize];
+	["Offset of field: MenuLayerCallbacks::draw_background"]
+		[::core::mem::offset_of!(MenuLayerCallbacks, draw_background) - 48usize];
 };
 /**! Creates a new \ref MenuLayer on the heap and initalizes it with the default values.
 !
@@ -13287,10 +12730,10 @@ gneiss: Vtable Slot 439, Offset 1756*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.menu_layer_create")]
 pub unsafe extern "C" fn menu_layer_create(frame: GRect) -> *mut MenuLayer {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1756", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1756", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 ///! Destroys a \ref MenuLayer previously created by menu_layer_create.
 /** menu_layer_destroy
@@ -13299,10 +12742,10 @@ gneiss: Vtable Slot 170, Offset 680*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.menu_layer_destroy")]
 pub unsafe extern "C" fn menu_layer_destroy(menu_layer: *mut MenuLayer) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =680", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =680", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Gets the "root" Layer of the \ref MenuLayer, which is the parent for the sub-
 ! layers used for its implementation.
@@ -13313,13 +12756,11 @@ pub unsafe extern "C" fn menu_layer_destroy(menu_layer: *mut MenuLayer) {
 gneiss: Vtable Slot 171, Offset 684*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.menu_layer_get_layer")]
-pub unsafe extern "C" fn menu_layer_get_layer(
-    menu_layer: *const MenuLayer,
-) -> *mut Layer {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =684", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+pub unsafe extern "C" fn menu_layer_get_layer(menu_layer: *const MenuLayer) -> *mut Layer {
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =684", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Gets the ScrollLayer of the \ref MenuLayer, which is the layer responsible for
 ! the scrolling of the \ref MenuLayer.
@@ -13331,12 +12772,12 @@ gneiss: Vtable Slot 172, Offset 688*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.menu_layer_get_scroll_layer")]
 pub unsafe extern "C" fn menu_layer_get_scroll_layer(
-    menu_layer: *const MenuLayer,
+	menu_layer: *const MenuLayer,
 ) -> *mut ScrollLayer {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =688", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =688", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Sets the callbacks for the MenuLayer.
 ! @param menu_layer Pointer to the \ref MenuLayer for which to set the callbacks
@@ -13352,14 +12793,14 @@ gneiss: Vtable Slot 522, Offset 2088*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.menu_layer_set_callbacks")]
 pub unsafe extern "C" fn menu_layer_set_callbacks(
-    menu_layer: *mut MenuLayer,
-    callback_context: *mut ::core::ffi::c_void,
-    callbacks: MenuLayerCallbacks,
+	menu_layer: *mut MenuLayer,
+	callback_context: *mut ::core::ffi::c_void,
+	callbacks: MenuLayerCallbacks,
 ) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =2088", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =2088", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Convenience function to set the \ref ClickConfigProvider callback on the
 ! given window to the \ref MenuLayer internal click config provider. This internal
@@ -13382,13 +12823,13 @@ gneiss: Vtable Slot 176, Offset 704*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.menu_layer_set_click_config_onto_window")]
 pub unsafe extern "C" fn menu_layer_set_click_config_onto_window(
-    menu_layer: *mut MenuLayer,
-    window: *mut Window,
+	menu_layer: *mut MenuLayer,
+	window: *mut Window,
 ) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =704", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =704", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 ///! Don't align or update the scroll offset of the \ref MenuLayer.
 pub const MenuRowAlign_MenuRowAlignNone: MenuRowAlign = 0;
@@ -13418,15 +12859,15 @@ gneiss: Vtable Slot 178, Offset 712*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.menu_layer_set_selected_next")]
 pub unsafe extern "C" fn menu_layer_set_selected_next(
-    menu_layer: *mut MenuLayer,
-    up: bool,
-    scroll_align: MenuRowAlign,
-    animated: bool,
+	menu_layer: *mut MenuLayer,
+	up: bool,
+	scroll_align: MenuRowAlign,
+	animated: bool,
 ) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =712", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =712", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Selects the item with given \ref MenuIndex.
 ! @param menu_layer The \ref MenuLayer for which to change the selection
@@ -13443,15 +12884,15 @@ gneiss: Vtable Slot 177, Offset 708*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.menu_layer_set_selected_index")]
 pub unsafe extern "C" fn menu_layer_set_selected_index(
-    menu_layer: *mut MenuLayer,
-    index: MenuIndex,
-    scroll_align: MenuRowAlign,
-    animated: bool,
+	menu_layer: *mut MenuLayer,
+	index: MenuIndex,
+	scroll_align: MenuRowAlign,
+	animated: bool,
 ) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =708", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =708", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Gets the MenuIndex of the currently selected menu item.
 ! @param menu_layer The \ref MenuLayer for which to get the current selected index.
@@ -13464,13 +12905,11 @@ pub unsafe extern "C" fn menu_layer_set_selected_index(
 gneiss: Vtable Slot 173, Offset 692*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.menu_layer_get_selected_index")]
-pub unsafe extern "C" fn menu_layer_get_selected_index(
-    menu_layer: *const MenuLayer,
-) -> MenuIndex {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =692", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+pub unsafe extern "C" fn menu_layer_get_selected_index(menu_layer: *const MenuLayer) -> MenuIndex {
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =692", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Reloads the data of the menu. This causes the menu to re-request the menu
 ! item data, by calling the relevant callbacks.
@@ -13484,10 +12923,10 @@ gneiss: Vtable Slot 174, Offset 696*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.menu_layer_reload_data")]
 pub unsafe extern "C" fn menu_layer_reload_data(menu_layer: *mut MenuLayer) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =696", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =696", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Returns whether or not the given cell layer is highlighted.
 ! Using this for determining highlight behaviour is preferable to using
@@ -13501,13 +12940,11 @@ pub unsafe extern "C" fn menu_layer_reload_data(menu_layer: *mut MenuLayer) {
 gneiss: Vtable Slot 459, Offset 1836*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.menu_cell_layer_is_highlighted")]
-pub unsafe extern "C" fn menu_cell_layer_is_highlighted(
-    cell_layer: *const Layer,
-) -> bool {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1836", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+pub unsafe extern "C" fn menu_cell_layer_is_highlighted(cell_layer: *const Layer) -> bool {
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1836", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Set the default colors to be used for cells when it is in a normal state (not highlighted).
 ! The GContext's text and fill colors will be set appropriately prior to calling the `.draw_row`
@@ -13524,14 +12961,14 @@ gneiss: Vtable Slot 521, Offset 2084*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.menu_layer_set_normal_colors")]
 pub unsafe extern "C" fn menu_layer_set_normal_colors(
-    menu_layer: *mut MenuLayer,
-    background: GColor,
-    foreground: GColor,
+	menu_layer: *mut MenuLayer,
+	background: GColor,
+	foreground: GColor,
 ) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =2084", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =2084", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Set the default colors to be used for cells when it is in a highlighted state.
 ! The GContext's text and fill colors will be set appropriately prior to calling the `.draw_row`
@@ -13548,14 +12985,14 @@ gneiss: Vtable Slot 520, Offset 2080*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.menu_layer_set_highlight_colors")]
 pub unsafe extern "C" fn menu_layer_set_highlight_colors(
-    menu_layer: *mut MenuLayer,
-    background: GColor,
-    foreground: GColor,
+	menu_layer: *mut MenuLayer,
+	background: GColor,
+	foreground: GColor,
 ) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =2080", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =2080", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! This enables or disables padding at the bottom of the \ref MenuLayer.
 ! Padding at the bottom of the layer keeps the bottom item from being at the very bottom of the
@@ -13571,14 +13008,11 @@ pub unsafe extern "C" fn menu_layer_set_highlight_colors(
 gneiss: Vtable Slot 523, Offset 2092*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.menu_layer_pad_bottom_enable")]
-pub unsafe extern "C" fn menu_layer_pad_bottom_enable(
-    menu_layer: *mut MenuLayer,
-    enable: bool,
-) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =2092", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+pub unsafe extern "C" fn menu_layer_pad_bottom_enable(menu_layer: *mut MenuLayer, enable: bool) {
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =2092", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! True, if the \ref MenuLayer generally scrolls such that the selected row is in the center.
 ! @see \ref menu_layer_set_center_focused*/
@@ -13587,13 +13021,11 @@ pub unsafe extern "C" fn menu_layer_pad_bottom_enable(
 gneiss: Vtable Slot 578, Offset 2312*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.menu_layer_get_center_focused")]
-pub unsafe extern "C" fn menu_layer_get_center_focused(
-    menu_layer: *mut MenuLayer,
-) -> bool {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =2312", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+pub unsafe extern "C" fn menu_layer_get_center_focused(menu_layer: *mut MenuLayer) -> bool {
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =2312", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Controls if the \ref MenuLayer generally scrolls such that the selected row is in the center.
 ! For platforms with a round display (PBL_ROUND) the default is true,
@@ -13607,13 +13039,13 @@ gneiss: Vtable Slot 579, Offset 2316*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.menu_layer_set_center_focused")]
 pub unsafe extern "C" fn menu_layer_set_center_focused(
-    menu_layer: *mut MenuLayer,
-    center_focused: bool,
+	menu_layer: *mut MenuLayer,
+	center_focused: bool,
 ) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =2316", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =2316", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Returns whether or not the specified cell index is currently selected.
 ! @param menu_layer The \ref MenuLayer to use when determining if the index is selected.
@@ -13626,13 +13058,13 @@ gneiss: Vtable Slot 598, Offset 2392*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.menu_layer_is_index_selected")]
 pub unsafe extern "C" fn menu_layer_is_index_selected(
-    menu_layer: *const MenuLayer,
-    index: *mut MenuIndex,
+	menu_layer: *const MenuLayer,
+	index: *mut MenuIndex,
 ) -> bool {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =2392", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =2392", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! @addtogroup SimpleMenuLayer
 ! \brief Wrapper around \ref MenuLayer, that uses static data to display a
@@ -13643,72 +13075,63 @@ pub unsafe extern "C" fn menu_layer_is_index_selected(
 #[repr(C)]
 #[derive(Debug)]
 pub struct SimpleMenuLayer {
-    _unused: [u8; 0],
+	_unused: [u8; 0],
 }
 /**! Function signature for the callback to handle the event that a user hits
 ! the SELECT button.
 ! @param index The row index of the item
 ! @param context The callback context*/
 pub type SimpleMenuLayerSelectCallback = ::core::option::Option<
-    unsafe extern "C" fn(index: ::core::ffi::c_int, context: *mut ::core::ffi::c_void),
+	unsafe extern "C" fn(index: ::core::ffi::c_int, context: *mut ::core::ffi::c_void),
 >;
 ///! Data structure containing the information of a menu item.
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct SimpleMenuItem {
-    ///! The title of the menu item. Required.
-    pub title: *const ::core::ffi::c_char,
-    ///! The subtitle of the menu item. Optional, leave `NULL` if unused.
-    pub subtitle: *const ::core::ffi::c_char,
-    ///! The icon of the menu item. Optional, leave `NULL` if unused.
-    pub icon: *mut GBitmap,
-    /**! The callback that needs to be called upon a click on the SELECT button.
-! Optional, leave `NULL` if unused.*/
-    pub callback: SimpleMenuLayerSelectCallback,
+	///! The title of the menu item. Required.
+	pub title:    *const ::core::ffi::c_char,
+	///! The subtitle of the menu item. Optional, leave `NULL` if unused.
+	pub subtitle: *const ::core::ffi::c_char,
+	///! The icon of the menu item. Optional, leave `NULL` if unused.
+	pub icon:     *mut GBitmap,
+	/**! The callback that needs to be called upon a click on the SELECT button.
+	! Optional, leave `NULL` if unused.*/
+	pub callback: SimpleMenuLayerSelectCallback,
 }
 #[allow(clippy::unnecessary_operation, clippy::identity_op)]
 const _: () = {
-    ["Size of SimpleMenuItem"][::core::mem::size_of::<SimpleMenuItem>() - 16usize];
-    ["Alignment of SimpleMenuItem"][::core::mem::align_of::<SimpleMenuItem>() - 4usize];
-    [
-        "Offset of field: SimpleMenuItem::title",
-    ][::core::mem::offset_of!(SimpleMenuItem, title) - 0usize];
-    [
-        "Offset of field: SimpleMenuItem::subtitle",
-    ][::core::mem::offset_of!(SimpleMenuItem, subtitle) - 4usize];
-    [
-        "Offset of field: SimpleMenuItem::icon",
-    ][::core::mem::offset_of!(SimpleMenuItem, icon) - 8usize];
-    [
-        "Offset of field: SimpleMenuItem::callback",
-    ][::core::mem::offset_of!(SimpleMenuItem, callback) - 12usize];
+	["Size of SimpleMenuItem"][::core::mem::size_of::<SimpleMenuItem>() - 16usize];
+	["Alignment of SimpleMenuItem"][::core::mem::align_of::<SimpleMenuItem>() - 4usize];
+	["Offset of field: SimpleMenuItem::title"]
+		[::core::mem::offset_of!(SimpleMenuItem, title) - 0usize];
+	["Offset of field: SimpleMenuItem::subtitle"]
+		[::core::mem::offset_of!(SimpleMenuItem, subtitle) - 4usize];
+	["Offset of field: SimpleMenuItem::icon"]
+		[::core::mem::offset_of!(SimpleMenuItem, icon) - 8usize];
+	["Offset of field: SimpleMenuItem::callback"]
+		[::core::mem::offset_of!(SimpleMenuItem, callback) - 12usize];
 };
 ///! Data structure containing the information of a menu section.
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct SimpleMenuSection {
-    ///! Title of the section. Optional, leave `NULL` if unused.
-    pub title: *const ::core::ffi::c_char,
-    ///! Array of items in the section.
-    pub items: *const SimpleMenuItem,
-    ///! Number of items in the `.items` array.
-    pub num_items: u32,
+	///! Title of the section. Optional, leave `NULL` if unused.
+	pub title:     *const ::core::ffi::c_char,
+	///! Array of items in the section.
+	pub items:     *const SimpleMenuItem,
+	///! Number of items in the `.items` array.
+	pub num_items: u32,
 }
 #[allow(clippy::unnecessary_operation, clippy::identity_op)]
 const _: () = {
-    ["Size of SimpleMenuSection"][::core::mem::size_of::<SimpleMenuSection>() - 12usize];
-    [
-        "Alignment of SimpleMenuSection",
-    ][::core::mem::align_of::<SimpleMenuSection>() - 4usize];
-    [
-        "Offset of field: SimpleMenuSection::title",
-    ][::core::mem::offset_of!(SimpleMenuSection, title) - 0usize];
-    [
-        "Offset of field: SimpleMenuSection::items",
-    ][::core::mem::offset_of!(SimpleMenuSection, items) - 4usize];
-    [
-        "Offset of field: SimpleMenuSection::num_items",
-    ][::core::mem::offset_of!(SimpleMenuSection, num_items) - 8usize];
+	["Size of SimpleMenuSection"][::core::mem::size_of::<SimpleMenuSection>() - 12usize];
+	["Alignment of SimpleMenuSection"][::core::mem::align_of::<SimpleMenuSection>() - 4usize];
+	["Offset of field: SimpleMenuSection::title"]
+		[::core::mem::offset_of!(SimpleMenuSection, title) - 0usize];
+	["Offset of field: SimpleMenuSection::items"]
+		[::core::mem::offset_of!(SimpleMenuSection, items) - 4usize];
+	["Offset of field: SimpleMenuSection::num_items"]
+		[::core::mem::offset_of!(SimpleMenuSection, num_items) - 8usize];
 };
 /**! Creates a new SimpleMenuLayer on the heap and initializes it.
 ! It also sets the internal click configuration provider onto given window.
@@ -13729,16 +13152,16 @@ gneiss: Vtable Slot 233, Offset 932*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.simple_menu_layer_create")]
 pub unsafe extern "C" fn simple_menu_layer_create(
-    frame: GRect,
-    window: *mut Window,
-    sections: *const SimpleMenuSection,
-    num_sections: i32,
-    callback_context: *mut ::core::ffi::c_void,
+	frame: GRect,
+	window: *mut Window,
+	sections: *const SimpleMenuSection,
+	num_sections: i32,
+	callback_context: *mut ::core::ffi::c_void,
 ) -> *mut SimpleMenuLayer {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =932", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =932", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 ///! Destroys a SimpleMenuLayer previously created by simple_menu_layer_create.
 /** simple_menu_layer_destroy
@@ -13747,10 +13170,10 @@ gneiss: Vtable Slot 234, Offset 936*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.simple_menu_layer_destroy")]
 pub unsafe extern "C" fn simple_menu_layer_destroy(menu_layer: *mut SimpleMenuLayer) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =936", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =936", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Gets the "root" Layer of the simple menu layer, which is the parent for the
 ! sub-layers used for its implementation.
@@ -13763,12 +13186,12 @@ gneiss: Vtable Slot 235, Offset 940*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.simple_menu_layer_get_layer")]
 pub unsafe extern "C" fn simple_menu_layer_get_layer(
-    simple_menu: *const SimpleMenuLayer,
+	simple_menu: *const SimpleMenuLayer,
 ) -> *mut Layer {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =940", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =940", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Gets the row index of the currently selection menu item.
 ! @param simple_menu The SimpleMenuLayer for which to get the current
@@ -13779,12 +13202,12 @@ gneiss: Vtable Slot 236, Offset 944*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.simple_menu_layer_get_selected_index")]
 pub unsafe extern "C" fn simple_menu_layer_get_selected_index(
-    simple_menu: *const SimpleMenuLayer,
+	simple_menu: *const SimpleMenuLayer,
 ) -> ::core::ffi::c_int {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =944", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =944", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Selects the item in the first section at given row index.
 ! @param simple_menu The SimpleMenuLayer for which to change the selection
@@ -13797,14 +13220,14 @@ gneiss: Vtable Slot 237, Offset 948*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.simple_menu_layer_set_selected_index")]
 pub unsafe extern "C" fn simple_menu_layer_set_selected_index(
-    simple_menu: *mut SimpleMenuLayer,
-    index: i32,
-    animated: bool,
+	simple_menu: *mut SimpleMenuLayer,
+	index: i32,
+	animated: bool,
 ) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =948", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =948", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! @param simple_menu The \ref SimpleMenuLayer to get the \ref MenuLayer from.
 ! @return The \ref MenuLayer.*/
@@ -13814,23 +13237,28 @@ gneiss: Vtable Slot 316, Offset 1264*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.simple_menu_layer_get_menu_layer")]
 pub unsafe extern "C" fn simple_menu_layer_get_menu_layer(
-    simple_menu: *mut SimpleMenuLayer,
+	simple_menu: *mut SimpleMenuLayer,
 ) -> *mut MenuLayer {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1264", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1264", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
-pub const ActionBarLayerIconPressAnimation_ActionBarLayerIconPressAnimationNone: ActionBarLayerIconPressAnimation = 0;
-pub const ActionBarLayerIconPressAnimation_ActionBarLayerIconPressAnimationMoveLeft: ActionBarLayerIconPressAnimation = 1;
-pub const ActionBarLayerIconPressAnimation_ActionBarLayerIconPressAnimationMoveUp: ActionBarLayerIconPressAnimation = 2;
-pub const ActionBarLayerIconPressAnimation_ActionBarLayerIconPressAnimationMoveRight: ActionBarLayerIconPressAnimation = 3;
-pub const ActionBarLayerIconPressAnimation_ActionBarLayerIconPressAnimationMoveDown: ActionBarLayerIconPressAnimation = 4;
+pub const ActionBarLayerIconPressAnimation_ActionBarLayerIconPressAnimationNone:
+	ActionBarLayerIconPressAnimation = 0;
+pub const ActionBarLayerIconPressAnimation_ActionBarLayerIconPressAnimationMoveLeft:
+	ActionBarLayerIconPressAnimation = 1;
+pub const ActionBarLayerIconPressAnimation_ActionBarLayerIconPressAnimationMoveUp:
+	ActionBarLayerIconPressAnimation = 2;
+pub const ActionBarLayerIconPressAnimation_ActionBarLayerIconPressAnimationMoveRight:
+	ActionBarLayerIconPressAnimation = 3;
+pub const ActionBarLayerIconPressAnimation_ActionBarLayerIconPressAnimationMoveDown:
+	ActionBarLayerIconPressAnimation = 4;
 pub type ActionBarLayerIconPressAnimation = ::core::ffi::c_uchar;
 #[repr(C)]
 #[derive(Debug)]
 pub struct ActionBarLayer {
-    _unused: [u8; 0],
+	_unused: [u8; 0],
 }
 /**! Creates a new ActionBarLayer on the heap and initalizes it with the default values.
 ! * Background color: \ref GColorBlack
@@ -13845,10 +13273,10 @@ gneiss: Vtable Slot 448, Offset 1792*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.action_bar_layer_create")]
 pub unsafe extern "C" fn action_bar_layer_create() -> *mut ActionBarLayer {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1792", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1792", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 ///! Destroys a ActionBarLayer previously created by action_bar_layer_create
 /** action_bar_layer_destroy
@@ -13856,13 +13284,11 @@ pub unsafe extern "C" fn action_bar_layer_create() -> *mut ActionBarLayer {
 gneiss: Vtable Slot 449, Offset 1796*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.action_bar_layer_destroy")]
-pub unsafe extern "C" fn action_bar_layer_destroy(
-    action_bar_layer: *mut ActionBarLayer,
-) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1796", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+pub unsafe extern "C" fn action_bar_layer_destroy(action_bar_layer: *mut ActionBarLayer) {
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1796", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Gets the "root" Layer of the action bar layer, which is the parent for the sub-
 ! layers used for its implementation.
@@ -13874,12 +13300,12 @@ gneiss: Vtable Slot 450, Offset 1800*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.action_bar_layer_get_layer")]
 pub unsafe extern "C" fn action_bar_layer_get_layer(
-    action_bar_layer: *mut ActionBarLayer,
+	action_bar_layer: *mut ActionBarLayer,
 ) -> *mut Layer {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1800", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1800", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Sets the context parameter, which will be passed in to \ref ClickHandler
 ! callbacks and the \ref ClickConfigProvider callback of the action bar.
@@ -13895,13 +13321,13 @@ gneiss: Vtable Slot 454, Offset 1816*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.action_bar_layer_set_context")]
 pub unsafe extern "C" fn action_bar_layer_set_context(
-    action_bar: *mut ActionBarLayer,
-    context: *mut ::core::ffi::c_void,
+	action_bar: *mut ActionBarLayer,
+	context: *mut ::core::ffi::c_void,
 ) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1816", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1816", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Sets the click configuration provider callback of the action bar.
 ! In this callback your application can associate handlers to the different
@@ -13922,13 +13348,13 @@ gneiss: Vtable Slot 453, Offset 1812*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.action_bar_layer_set_click_config_provider")]
 pub unsafe extern "C" fn action_bar_layer_set_click_config_provider(
-    action_bar: *mut ActionBarLayer,
-    click_config_provider: ClickConfigProvider,
+	action_bar: *mut ActionBarLayer,
+	click_config_provider: ClickConfigProvider,
 ) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1812", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1812", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Sets an action bar icon onto one of the 3 slots as identified by `button_id`.
 ! Only \ref BUTTON_ID_UP, \ref BUTTON_ID_SELECT and \ref BUTTON_ID_DOWN can be
@@ -13948,14 +13374,14 @@ gneiss: Vtable Slot 455, Offset 1820*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.action_bar_layer_set_icon")]
 pub unsafe extern "C" fn action_bar_layer_set_icon(
-    action_bar: *mut ActionBarLayer,
-    button_id: ButtonId,
-    icon: *const GBitmap,
+	action_bar: *mut ActionBarLayer,
+	button_id: ButtonId,
+	icon: *const GBitmap,
 ) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1820", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1820", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Convenience function to clear out an existing icon.
 ! All it does is call `action_bar_layer_set_icon(action_bar, button_id, NULL)`
@@ -13968,13 +13394,13 @@ gneiss: Vtable Slot 447, Offset 1788*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.action_bar_layer_clear_icon")]
 pub unsafe extern "C" fn action_bar_layer_clear_icon(
-    action_bar: *mut ActionBarLayer,
-    button_id: ButtonId,
+	action_bar: *mut ActionBarLayer,
+	button_id: ButtonId,
 ) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1788", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1788", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Adds the action bar's layer on top of the window's root layer. It also
 ! adjusts the layout of the action bar to match the geometry of the window it
@@ -14003,13 +13429,13 @@ gneiss: Vtable Slot 446, Offset 1784*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.action_bar_layer_add_to_window")]
 pub unsafe extern "C" fn action_bar_layer_add_to_window(
-    action_bar: *mut ActionBarLayer,
-    window: *mut Window,
+	action_bar: *mut ActionBarLayer,
+	window: *mut Window,
 ) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1784", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1784", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Removes the action bar from the window and unconfigures the window's
 ! click configuration provider. `NULL` is set as the window's new click config
@@ -14021,13 +13447,11 @@ pub unsafe extern "C" fn action_bar_layer_add_to_window(
 gneiss: Vtable Slot 451, Offset 1804*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.action_bar_layer_remove_from_window")]
-pub unsafe extern "C" fn action_bar_layer_remove_from_window(
-    action_bar: *mut ActionBarLayer,
-) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1804", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+pub unsafe extern "C" fn action_bar_layer_remove_from_window(action_bar: *mut ActionBarLayer) {
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1804", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Sets the background color of the action bar. Defaults to \ref GColorBlack.
 ! The action bar's layer is automatically marked dirty.
@@ -14039,13 +13463,13 @@ gneiss: Vtable Slot 452, Offset 1808*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.action_bar_layer_set_background_color")]
 pub unsafe extern "C" fn action_bar_layer_set_background_color(
-    action_bar: *mut ActionBarLayer,
-    background_color: GColor,
+	action_bar: *mut ActionBarLayer,
+	background_color: GColor,
 ) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1808", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1808", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Sets an action bar icon onto one of the 3 slots as identified by `button_id`.
 ! Only \ref BUTTON_ID_UP, \ref BUTTON_ID_SELECT and \ref BUTTON_ID_DOWN can be
@@ -14065,15 +13489,15 @@ gneiss: Vtable Slot 456, Offset 1824*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.action_bar_layer_set_icon_animated")]
 pub unsafe extern "C" fn action_bar_layer_set_icon_animated(
-    action_bar: *mut ActionBarLayer,
-    button_id: ButtonId,
-    icon: *const GBitmap,
-    animated: bool,
+	action_bar: *mut ActionBarLayer,
+	button_id: ButtonId,
+	icon: *const GBitmap,
+	animated: bool,
 ) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1824", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1824", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Sets the animation to use while a button is pressed on an ActionBarLayer.
 ! By default we use ActionBarLayerIconPressAnimationMoveLeft
@@ -14088,14 +13512,14 @@ gneiss: Vtable Slot 461, Offset 1844*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.action_bar_layer_set_icon_press_animation")]
 pub unsafe extern "C" fn action_bar_layer_set_icon_press_animation(
-    action_bar: *mut ActionBarLayer,
-    button_id: ButtonId,
-    animation: ActionBarLayerIconPressAnimation,
+	action_bar: *mut ActionBarLayer,
+	button_id: ButtonId,
+	animation: ActionBarLayerIconPressAnimation,
 ) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1844", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1844", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! @addtogroup StatusBarLayer
 ! \brief Layer that serves as a configurable status bar.
@@ -14103,12 +13527,14 @@ pub unsafe extern "C" fn action_bar_layer_set_icon_press_animation(
 #[repr(C)]
 #[derive(Debug)]
 pub struct StatusBarLayer {
-    _unused: [u8; 0],
+	_unused: [u8; 0],
 }
 ///! The default mode. No separator will be shown.
-pub const StatusBarLayerSeparatorMode_StatusBarLayerSeparatorModeNone: StatusBarLayerSeparatorMode = 0;
+pub const StatusBarLayerSeparatorMode_StatusBarLayerSeparatorModeNone: StatusBarLayerSeparatorMode =
+	0;
 ///! A dotted separator at the bottom of the status bar.
-pub const StatusBarLayerSeparatorMode_StatusBarLayerSeparatorModeDotted: StatusBarLayerSeparatorMode = 1;
+pub const StatusBarLayerSeparatorMode_StatusBarLayerSeparatorModeDotted:
+	StatusBarLayerSeparatorMode = 1;
 ///! Values that are used to indicate the different status bar separator modes.
 pub type StatusBarLayerSeparatorMode = ::core::ffi::c_uchar;
 /**! Creates a new StatusBarLayer on the heap and initializes it with the default values.
@@ -14134,10 +13560,10 @@ gneiss: Vtable Slot 524, Offset 2096*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.status_bar_layer_create")]
 pub unsafe extern "C" fn status_bar_layer_create() -> *mut StatusBarLayer {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =2096", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =2096", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Destroys a StatusBarLayer previously created by status_bar_layer_create.
 ! @param status_bar_layer The StatusBarLayer to destroy*/
@@ -14146,13 +13572,11 @@ pub unsafe extern "C" fn status_bar_layer_create() -> *mut StatusBarLayer {
 gneiss: Vtable Slot 525, Offset 2100*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.status_bar_layer_destroy")]
-pub unsafe extern "C" fn status_bar_layer_destroy(
-    status_bar_layer: *mut StatusBarLayer,
-) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =2100", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+pub unsafe extern "C" fn status_bar_layer_destroy(status_bar_layer: *mut StatusBarLayer) {
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =2100", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Gets the "root" Layer of the status bar, which is the parent for the sub-
 ! layers used for its implementation.
@@ -14165,12 +13589,12 @@ gneiss: Vtable Slot 528, Offset 2112*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.status_bar_layer_get_layer")]
 pub unsafe extern "C" fn status_bar_layer_get_layer(
-    status_bar_layer: *mut StatusBarLayer,
+	status_bar_layer: *mut StatusBarLayer,
 ) -> *mut Layer {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =2112", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =2112", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Gets background color of StatusBarLayer
 ! @param status_bar_layer The StatusBarLayer of which to get the color
@@ -14181,12 +13605,12 @@ gneiss: Vtable Slot 526, Offset 2104*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.status_bar_layer_get_background_color")]
 pub unsafe extern "C" fn status_bar_layer_get_background_color(
-    status_bar_layer: *const StatusBarLayer,
+	status_bar_layer: *const StatusBarLayer,
 ) -> GColor {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =2104", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =2104", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Gets foreground color of StatusBarLayer
 ! @param status_bar_layer The StatusBarLayer of which to get the color
@@ -14197,12 +13621,12 @@ gneiss: Vtable Slot 527, Offset 2108*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.status_bar_layer_get_foreground_color")]
 pub unsafe extern "C" fn status_bar_layer_get_foreground_color(
-    status_bar_layer: *const StatusBarLayer,
+	status_bar_layer: *const StatusBarLayer,
 ) -> GColor {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =2108", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =2108", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Sets the background and foreground colors of StatusBarLayer
 ! @param status_bar_layer The StatusBarLayer of which to set the colors
@@ -14214,14 +13638,14 @@ gneiss: Vtable Slot 529, Offset 2116*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.status_bar_layer_set_colors")]
 pub unsafe extern "C" fn status_bar_layer_set_colors(
-    status_bar_layer: *mut StatusBarLayer,
-    background: GColor,
-    foreground: GColor,
+	status_bar_layer: *mut StatusBarLayer,
+	background: GColor,
+	foreground: GColor,
 ) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =2116", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =2116", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Sets the mode of the StatusBarLayer separator, to help divide it from content
 ! @param status_bar_layer The StatusBarLayer of which to set the separator mode
@@ -14232,13 +13656,13 @@ gneiss: Vtable Slot 530, Offset 2120*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.status_bar_layer_set_separator_mode")]
 pub unsafe extern "C" fn status_bar_layer_set_separator_mode(
-    status_bar_layer: *mut StatusBarLayer,
-    mode: StatusBarLayerSeparatorMode,
+	status_bar_layer: *mut StatusBarLayer,
+	mode: StatusBarLayerSeparatorMode,
 ) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =2120", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =2120", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! @addtogroup BitmapLayer
 ! \brief Layer that displays a bitmap image.
@@ -14262,7 +13686,7 @@ pub unsafe extern "C" fn status_bar_layer_set_separator_mode(
 #[repr(C)]
 #[derive(Debug)]
 pub struct BitmapLayer {
-    _unused: [u8; 0],
+	_unused: [u8; 0],
 }
 /**! Creates a new bitmap layer on the heap and initalizes it the default values.
 !
@@ -14278,10 +13702,10 @@ gneiss: Vtable Slot 56, Offset 224*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.bitmap_layer_create")]
 pub unsafe extern "C" fn bitmap_layer_create(frame: GRect) -> *mut BitmapLayer {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =224", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =224", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 ///! Destroys a window previously created by bitmap_layer_create
 /** bitmap_layer_destroy
@@ -14290,10 +13714,10 @@ gneiss: Vtable Slot 57, Offset 228*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.bitmap_layer_destroy")]
 pub unsafe extern "C" fn bitmap_layer_destroy(bitmap_layer: *mut BitmapLayer) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =228", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =228", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Gets the "root" Layer of the bitmap layer, which is the parent for the sub-
 ! layers used for its implementation.
@@ -14304,13 +13728,11 @@ pub unsafe extern "C" fn bitmap_layer_destroy(bitmap_layer: *mut BitmapLayer) {
 gneiss: Vtable Slot 58, Offset 232*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.bitmap_layer_get_layer")]
-pub unsafe extern "C" fn bitmap_layer_get_layer(
-    bitmap_layer: *const BitmapLayer,
-) -> *mut Layer {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =232", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+pub unsafe extern "C" fn bitmap_layer_get_layer(bitmap_layer: *const BitmapLayer) -> *mut Layer {
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =232", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Gets the pointer to the bitmap image that the BitmapLayer is using.
 !
@@ -14321,13 +13743,11 @@ pub unsafe extern "C" fn bitmap_layer_get_layer(
 gneiss: Vtable Slot 319, Offset 1276*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.bitmap_layer_get_bitmap")]
-pub unsafe extern "C" fn bitmap_layer_get_bitmap(
-    bitmap_layer: *mut BitmapLayer,
-) -> *const GBitmap {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1276", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+pub unsafe extern "C" fn bitmap_layer_get_bitmap(bitmap_layer: *mut BitmapLayer) -> *const GBitmap {
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1276", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Sets the bitmap onto the BitmapLayer. The bitmap is set by reference (no deep
 ! copy), thus the caller of this function has to make sure the bitmap is kept
@@ -14342,13 +13762,13 @@ gneiss: Vtable Slot 61, Offset 244*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.bitmap_layer_set_bitmap")]
 pub unsafe extern "C" fn bitmap_layer_set_bitmap(
-    bitmap_layer: *mut BitmapLayer,
-    bitmap: *const GBitmap,
+	bitmap_layer: *mut BitmapLayer,
+	bitmap: *const GBitmap,
 ) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =244", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =244", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Sets the alignment of the image to draw with in frame of the BitmapLayer.
 ! The aligment parameter specifies which edges of the bitmap should overlap
@@ -14365,13 +13785,13 @@ gneiss: Vtable Slot 59, Offset 236*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.bitmap_layer_set_alignment")]
 pub unsafe extern "C" fn bitmap_layer_set_alignment(
-    bitmap_layer: *mut BitmapLayer,
-    alignment: GAlign,
+	bitmap_layer: *mut BitmapLayer,
+	alignment: GAlign,
 ) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =236", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =236", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Sets the background color of bounding box that will be drawn behind the image
 ! of the BitmapLayer.
@@ -14386,13 +13806,13 @@ gneiss: Vtable Slot 370, Offset 1480*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.bitmap_layer_set_background_color")]
 pub unsafe extern "C" fn bitmap_layer_set_background_color(
-    bitmap_layer: *mut BitmapLayer,
-    color: GColor,
+	bitmap_layer: *mut BitmapLayer,
+	color: GColor,
 ) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1480", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1480", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Sets the compositing mode of how the bitmap image is composited onto the
 ! BitmapLayer's background plane, or how it is composited onto what has been
@@ -14417,13 +13837,13 @@ gneiss: Vtable Slot 62, Offset 248*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.bitmap_layer_set_compositing_mode")]
 pub unsafe extern "C" fn bitmap_layer_set_compositing_mode(
-    bitmap_layer: *mut BitmapLayer,
-    mode: GCompOp,
+	bitmap_layer: *mut BitmapLayer,
+	mode: GCompOp,
 ) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =248", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =248", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! @addtogroup RotBitmapLayer
 ! \brief Layer that displays a rotated bitmap image.
@@ -14447,7 +13867,7 @@ pub unsafe extern "C" fn bitmap_layer_set_compositing_mode(
 #[repr(C)]
 #[derive(Debug)]
 pub struct RotBitmapLayer {
-    _unused: [u8; 0],
+	_unused: [u8; 0],
 }
 /**! Creates a new RotBitmapLayer on the heap and initializes it with the default values:
 !  * Angle: 0
@@ -14462,13 +13882,11 @@ pub struct RotBitmapLayer {
 gneiss: Vtable Slot 210, Offset 840*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.rot_bitmap_layer_create")]
-pub unsafe extern "C" fn rot_bitmap_layer_create(
-    bitmap: *mut GBitmap,
-) -> *mut RotBitmapLayer {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =840", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+pub unsafe extern "C" fn rot_bitmap_layer_create(bitmap: *mut GBitmap) -> *mut RotBitmapLayer {
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =840", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Destroys a RotBitmapLayer and frees all associated memory.
 ! @note It is the developer responsibility to free the \ref GBitmap.
@@ -14479,10 +13897,10 @@ gneiss: Vtable Slot 211, Offset 844*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.rot_bitmap_layer_destroy")]
 pub unsafe extern "C" fn rot_bitmap_layer_destroy(bitmap: *mut RotBitmapLayer) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =844", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =844", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Gets the "root" Layer of the RotBitmapLayer, which is the parent for the sub-
 ! layers used for its implementation.
@@ -14494,12 +13912,12 @@ gneiss: Vtable Slot 633, Offset 2532*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.rot_bitmap_layer_get_layer")]
 pub unsafe extern "C" fn rot_bitmap_layer_get_layer(
-    rot_bitmap_layer: *const RotBitmapLayer,
+	rot_bitmap_layer: *const RotBitmapLayer,
 ) -> *mut Layer {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =2532", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =2532", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Defines what color to use in areas that are not covered by the source bitmap.
 ! By default this is \ref GColorClear.
@@ -14511,13 +13929,13 @@ gneiss: Vtable Slot 374, Offset 1496*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.rot_bitmap_layer_set_corner_clip_color")]
 pub unsafe extern "C" fn rot_bitmap_layer_set_corner_clip_color(
-    bitmap: *mut RotBitmapLayer,
-    color: GColor,
+	bitmap: *mut RotBitmapLayer,
+	color: GColor,
 ) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1496", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1496", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Sets the rotation angle of this RotBitmapLayer
 ! @param bitmap The RotBitmapLayer on which to change the rotation
@@ -14527,14 +13945,11 @@ pub unsafe extern "C" fn rot_bitmap_layer_set_corner_clip_color(
 gneiss: Vtable Slot 213, Offset 852*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.rot_bitmap_layer_set_angle")]
-pub unsafe extern "C" fn rot_bitmap_layer_set_angle(
-    bitmap: *mut RotBitmapLayer,
-    angle: i32,
-) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =852", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+pub unsafe extern "C" fn rot_bitmap_layer_set_angle(bitmap: *mut RotBitmapLayer, angle: i32) {
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =852", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Change the rotation angle of this RotBitmapLayer
 ! @param bitmap The RotBitmapLayer on which to change the rotation
@@ -14545,13 +13960,13 @@ gneiss: Vtable Slot 212, Offset 848*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.rot_bitmap_layer_increment_angle")]
 pub unsafe extern "C" fn rot_bitmap_layer_increment_angle(
-    bitmap: *mut RotBitmapLayer,
-    angle_change: i32,
+	bitmap: *mut RotBitmapLayer,
+	angle_change: i32,
 ) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =848", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =848", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Defines the only point that will not be affected by the rotation in the source bitmap.
 !
@@ -14569,10 +13984,10 @@ gneiss: Vtable Slot 216, Offset 864*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.rot_bitmap_set_src_ic")]
 pub unsafe extern "C" fn rot_bitmap_set_src_ic(bitmap: *mut RotBitmapLayer, ic: GPoint) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =864", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =864", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Sets the compositing mode of how the bitmap image is composited onto what has been drawn beneath the
 ! RotBitmapLayer.
@@ -14587,13 +14002,13 @@ gneiss: Vtable Slot 215, Offset 860*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.rot_bitmap_set_compositing_mode")]
 pub unsafe extern "C" fn rot_bitmap_set_compositing_mode(
-    bitmap: *mut RotBitmapLayer,
-    mode: GCompOp,
+	bitmap: *mut RotBitmapLayer,
+	mode: GCompOp,
 ) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =860", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =860", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! @addtogroup NumberWindow
 ! \brief A ready-made Window prompting the user to pick a number
@@ -14603,47 +14018,38 @@ pub unsafe extern "C" fn rot_bitmap_set_compositing_mode(
 #[repr(C)]
 #[derive(Debug)]
 pub struct NumberWindow {
-    _unused: [u8; 0],
+	_unused: [u8; 0],
 }
 ///! Function signature for NumberWindow callbacks.
 pub type NumberWindowCallback = ::core::option::Option<
-    unsafe extern "C" fn(
-        number_window: *mut NumberWindow,
-        context: *mut ::core::ffi::c_void,
-    ),
+	unsafe extern "C" fn(number_window: *mut NumberWindow, context: *mut ::core::ffi::c_void),
 >;
 ///! Data structure containing all the callbacks for a NumberWindow.
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct NumberWindowCallbacks {
-    /**! Callback that gets called as the value is incremented.
-! Optional, leave `NULL` if unused.*/
-    pub incremented: NumberWindowCallback,
-    /**! Callback that gets called as the value is decremented.
-! Optional, leave `NULL` if unused.*/
-    pub decremented: NumberWindowCallback,
-    /**! Callback that gets called as the value is confirmed, in other words the
-! SELECT button is clicked.
-! Optional, leave `NULL` if unused.*/
-    pub selected: NumberWindowCallback,
+	/**! Callback that gets called as the value is incremented.
+	! Optional, leave `NULL` if unused.*/
+	pub incremented: NumberWindowCallback,
+	/**! Callback that gets called as the value is decremented.
+	! Optional, leave `NULL` if unused.*/
+	pub decremented: NumberWindowCallback,
+	/**! Callback that gets called as the value is confirmed, in other words the
+	! SELECT button is clicked.
+	! Optional, leave `NULL` if unused.*/
+	pub selected:    NumberWindowCallback,
 }
 #[allow(clippy::unnecessary_operation, clippy::identity_op)]
 const _: () = {
-    [
-        "Size of NumberWindowCallbacks",
-    ][::core::mem::size_of::<NumberWindowCallbacks>() - 12usize];
-    [
-        "Alignment of NumberWindowCallbacks",
-    ][::core::mem::align_of::<NumberWindowCallbacks>() - 4usize];
-    [
-        "Offset of field: NumberWindowCallbacks::incremented",
-    ][::core::mem::offset_of!(NumberWindowCallbacks, incremented) - 0usize];
-    [
-        "Offset of field: NumberWindowCallbacks::decremented",
-    ][::core::mem::offset_of!(NumberWindowCallbacks, decremented) - 4usize];
-    [
-        "Offset of field: NumberWindowCallbacks::selected",
-    ][::core::mem::offset_of!(NumberWindowCallbacks, selected) - 8usize];
+	["Size of NumberWindowCallbacks"][::core::mem::size_of::<NumberWindowCallbacks>() - 12usize];
+	["Alignment of NumberWindowCallbacks"]
+		[::core::mem::align_of::<NumberWindowCallbacks>() - 4usize];
+	["Offset of field: NumberWindowCallbacks::incremented"]
+		[::core::mem::offset_of!(NumberWindowCallbacks, incremented) - 0usize];
+	["Offset of field: NumberWindowCallbacks::decremented"]
+		[::core::mem::offset_of!(NumberWindowCallbacks, decremented) - 4usize];
+	["Offset of field: NumberWindowCallbacks::selected"]
+		[::core::mem::offset_of!(NumberWindowCallbacks, selected) - 8usize];
 };
 /**! Creates a new NumberWindow on the heap and initalizes it with the default values.
 !
@@ -14659,14 +14065,14 @@ gneiss: Vtable Slot 179, Offset 716*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.number_window_create")]
 pub unsafe extern "C" fn number_window_create(
-    label: *const ::core::ffi::c_char,
-    callbacks: NumberWindowCallbacks,
-    callback_context: *mut ::core::ffi::c_void,
+	label: *const ::core::ffi::c_char,
+	callbacks: NumberWindowCallbacks,
+	callback_context: *mut ::core::ffi::c_void,
 ) -> *mut NumberWindow {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =716", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =716", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 ///! Destroys a NumberWindow previously created by number_window_create.
 /** number_window_destroy
@@ -14675,10 +14081,10 @@ gneiss: Vtable Slot 180, Offset 720*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.number_window_destroy")]
 pub unsafe extern "C" fn number_window_destroy(number_window: *mut NumberWindow) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =720", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =720", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Sets the text of the title or prompt label.
 ! @param numberwindow Pointer to the NumberWindow for which to set the label
@@ -14691,13 +14097,13 @@ gneiss: Vtable Slot 182, Offset 728*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.number_window_set_label")]
 pub unsafe extern "C" fn number_window_set_label(
-    numberwindow: *mut NumberWindow,
-    label: *const ::core::ffi::c_char,
+	numberwindow: *mut NumberWindow,
+	label: *const ::core::ffi::c_char,
 ) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =728", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =728", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Sets the maximum value this field can hold
 ! @param numberwindow Pointer to the NumberWindow for which to set the maximum
@@ -14708,14 +14114,11 @@ pub unsafe extern "C" fn number_window_set_label(
 gneiss: Vtable Slot 183, Offset 732*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.number_window_set_max")]
-pub unsafe extern "C" fn number_window_set_max(
-    numberwindow: *mut NumberWindow,
-    max: i32,
-) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =732", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+pub unsafe extern "C" fn number_window_set_max(numberwindow: *mut NumberWindow, max: i32) {
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =732", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Sets the minimum value this field can hold
 ! @param numberwindow Pointer to the NumberWindow for which to set the minimum
@@ -14726,14 +14129,11 @@ pub unsafe extern "C" fn number_window_set_max(
 gneiss: Vtable Slot 184, Offset 736*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.number_window_set_min")]
-pub unsafe extern "C" fn number_window_set_min(
-    numberwindow: *mut NumberWindow,
-    min: i32,
-) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =736", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+pub unsafe extern "C" fn number_window_set_min(numberwindow: *mut NumberWindow, min: i32) {
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =736", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Sets the current value of the field
 ! @param numberwindow Pointer to the NumberWindow for which to set the current
@@ -14744,14 +14144,11 @@ pub unsafe extern "C" fn number_window_set_min(
 gneiss: Vtable Slot 186, Offset 744*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.number_window_set_value")]
-pub unsafe extern "C" fn number_window_set_value(
-    numberwindow: *mut NumberWindow,
-    value: i32,
-) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =744", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+pub unsafe extern "C" fn number_window_set_value(numberwindow: *mut NumberWindow, value: i32) {
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =744", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Sets the amount by which to increment/decrement by on a button click
 ! @param numberwindow Pointer to the NumberWindow for which to set the step
@@ -14762,14 +14159,11 @@ pub unsafe extern "C" fn number_window_set_value(
 gneiss: Vtable Slot 185, Offset 740*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.number_window_set_step_size")]
-pub unsafe extern "C" fn number_window_set_step_size(
-    numberwindow: *mut NumberWindow,
-    step: i32,
-) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =740", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+pub unsafe extern "C" fn number_window_set_step_size(numberwindow: *mut NumberWindow, step: i32) {
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =740", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Gets the current value
 ! @param numberwindow Pointer to the NumberWindow for which to get the current
@@ -14780,13 +14174,11 @@ pub unsafe extern "C" fn number_window_set_step_size(
 gneiss: Vtable Slot 181, Offset 724*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.number_window_get_value")]
-pub unsafe extern "C" fn number_window_get_value(
-    numberwindow: *const NumberWindow,
-) -> i32 {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =724", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+pub unsafe extern "C" fn number_window_get_value(numberwindow: *const NumberWindow) -> i32 {
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =724", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Gets the "root" Window of the number window
 ! @param numberwindow Pointer to the NumberWindow for which to get the "root" Window
@@ -14796,25 +14188,23 @@ pub unsafe extern "C" fn number_window_get_value(
 gneiss: Vtable Slot 322, Offset 1288*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.number_window_get_window")]
-pub unsafe extern "C" fn number_window_get_window(
-    numberwindow: *mut NumberWindow,
-) -> *mut Window {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1288", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+pub unsafe extern "C" fn number_window_get_window(numberwindow: *mut NumberWindow) -> *mut Window {
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1288", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! @addtogroup ActionMenu
 ! @{*/
 #[repr(C)]
 #[derive(Debug)]
 pub struct ActionMenuItem {
-    _unused: [u8; 0],
+	_unused: [u8; 0],
 }
 #[repr(C)]
 #[derive(Debug)]
 pub struct ActionMenuLevel {
-    _unused: [u8; 0],
+	_unused: [u8; 0],
 }
 pub const ActionMenuAlign_ActionMenuAlignTop: ActionMenuAlign = 0;
 pub const ActionMenuAlign_ActionMenuAlignCenter: ActionMenuAlign = 1;
@@ -14822,7 +14212,7 @@ pub type ActionMenuAlign = ::core::ffi::c_uchar;
 #[repr(C)]
 #[derive(Debug)]
 pub struct ActionMenu {
-    _unused: [u8; 0],
+	_unused: [u8; 0],
 }
 /**! Callback executed after the ActionMenu has closed, so memory may be freed.
 ! @param menu the ActionMenu
@@ -14830,11 +14220,11 @@ pub struct ActionMenu {
 ! NULL if the ActionMenu is closing without an action being selected by the user
 ! @param context the context passed to the ActionMenu*/
 pub type ActionMenuDidCloseCb = ::core::option::Option<
-    unsafe extern "C" fn(
-        menu: *mut ActionMenu,
-        performed_action: *const ActionMenuItem,
-        context: *mut ::core::ffi::c_void,
-    ),
+	unsafe extern "C" fn(
+		menu: *mut ActionMenu,
+		performed_action: *const ActionMenuItem,
+		context: *mut ::core::ffi::c_void,
+	),
 >;
 ///!< Each item gets its own row
 pub const ActionMenuLevelDisplayMode_ActionMenuLevelDisplayModeWide: ActionMenuLevelDisplayMode = 0;
@@ -14850,80 +14240,68 @@ pub type ActionMenuLevelDisplayMode = ::core::ffi::c_uchar;
 ! @note the action menu is closed immediately after an action is performed,
 ! unless it is frozen in the ActionMenuPerformActionCb*/
 pub type ActionMenuPerformActionCb = ::core::option::Option<
-    unsafe extern "C" fn(
-        action_menu: *mut ActionMenu,
-        action: *const ActionMenuItem,
-        context: *mut ::core::ffi::c_void,
-    ),
+	unsafe extern "C" fn(
+		action_menu: *mut ActionMenu,
+		action: *const ActionMenuItem,
+		context: *mut ::core::ffi::c_void,
+	),
 >;
 /**! Callback invoked for each item in an action menu hierarchy.
 ! @param item the current action menu item
 ! @param context a caller-provided callback context*/
 pub type ActionMenuEachItemCb = ::core::option::Option<
-    unsafe extern "C" fn(item: *const ActionMenuItem, context: *mut ::core::ffi::c_void),
+	unsafe extern "C" fn(item: *const ActionMenuItem, context: *mut ::core::ffi::c_void),
 >;
 ///! Configuration struct for the ActionMenu
 #[repr(C)]
 #[derive(Copy, Clone)]
 pub struct ActionMenuConfig {
-    ///!< the root level of the ActionMenu
-    pub root_level: *const ActionMenuLevel,
-    ///!< a context pointer which will be accessbile when actions are performed
-    pub context: *mut ::core::ffi::c_void,
-    pub colors: ActionMenuConfig__bindgen_ty_1,
-    ///!< Called immediately before the ActionMenu closes
-    pub will_close: ActionMenuDidCloseCb,
-    ///!< a callback used to cleanup memory after the menu has closed
-    pub did_close: ActionMenuDidCloseCb,
-    pub align: ActionMenuAlign,
+	///!< the root level of the ActionMenu
+	pub root_level: *const ActionMenuLevel,
+	///!< a context pointer which will be accessbile when actions are performed
+	pub context:    *mut ::core::ffi::c_void,
+	pub colors:     ActionMenuConfig__bindgen_ty_1,
+	///!< Called immediately before the ActionMenu closes
+	pub will_close: ActionMenuDidCloseCb,
+	///!< a callback used to cleanup memory after the menu has closed
+	pub did_close:  ActionMenuDidCloseCb,
+	pub align:      ActionMenuAlign,
 }
 #[repr(C)]
 #[derive(Copy, Clone)]
 pub struct ActionMenuConfig__bindgen_ty_1 {
-    ///!< the color of the left column of the ActionMenu
-    pub background: GColor,
-    ///!< the color of the individual "crumbs" that indicate menu depth
-    pub foreground: GColor,
+	///!< the color of the left column of the ActionMenu
+	pub background: GColor,
+	///!< the color of the individual "crumbs" that indicate menu depth
+	pub foreground: GColor,
 }
 #[allow(clippy::unnecessary_operation, clippy::identity_op)]
 const _: () = {
-    [
-        "Size of ActionMenuConfig__bindgen_ty_1",
-    ][::core::mem::size_of::<ActionMenuConfig__bindgen_ty_1>() - 2usize];
-    [
-        "Alignment of ActionMenuConfig__bindgen_ty_1",
-    ][::core::mem::align_of::<ActionMenuConfig__bindgen_ty_1>() - 1usize];
-    [
-        "Offset of field: ActionMenuConfig__bindgen_ty_1::background",
-    ][::core::mem::offset_of!(ActionMenuConfig__bindgen_ty_1, background) - 0usize];
-    [
-        "Offset of field: ActionMenuConfig__bindgen_ty_1::foreground",
-    ][::core::mem::offset_of!(ActionMenuConfig__bindgen_ty_1, foreground) - 1usize];
+	["Size of ActionMenuConfig__bindgen_ty_1"]
+		[::core::mem::size_of::<ActionMenuConfig__bindgen_ty_1>() - 2usize];
+	["Alignment of ActionMenuConfig__bindgen_ty_1"]
+		[::core::mem::align_of::<ActionMenuConfig__bindgen_ty_1>() - 1usize];
+	["Offset of field: ActionMenuConfig__bindgen_ty_1::background"]
+		[::core::mem::offset_of!(ActionMenuConfig__bindgen_ty_1, background) - 0usize];
+	["Offset of field: ActionMenuConfig__bindgen_ty_1::foreground"]
+		[::core::mem::offset_of!(ActionMenuConfig__bindgen_ty_1, foreground) - 1usize];
 };
 #[allow(clippy::unnecessary_operation, clippy::identity_op)]
 const _: () = {
-    ["Size of ActionMenuConfig"][::core::mem::size_of::<ActionMenuConfig>() - 24usize];
-    [
-        "Alignment of ActionMenuConfig",
-    ][::core::mem::align_of::<ActionMenuConfig>() - 4usize];
-    [
-        "Offset of field: ActionMenuConfig::root_level",
-    ][::core::mem::offset_of!(ActionMenuConfig, root_level) - 0usize];
-    [
-        "Offset of field: ActionMenuConfig::context",
-    ][::core::mem::offset_of!(ActionMenuConfig, context) - 4usize];
-    [
-        "Offset of field: ActionMenuConfig::colors",
-    ][::core::mem::offset_of!(ActionMenuConfig, colors) - 8usize];
-    [
-        "Offset of field: ActionMenuConfig::will_close",
-    ][::core::mem::offset_of!(ActionMenuConfig, will_close) - 12usize];
-    [
-        "Offset of field: ActionMenuConfig::did_close",
-    ][::core::mem::offset_of!(ActionMenuConfig, did_close) - 16usize];
-    [
-        "Offset of field: ActionMenuConfig::align",
-    ][::core::mem::offset_of!(ActionMenuConfig, align) - 20usize];
+	["Size of ActionMenuConfig"][::core::mem::size_of::<ActionMenuConfig>() - 24usize];
+	["Alignment of ActionMenuConfig"][::core::mem::align_of::<ActionMenuConfig>() - 4usize];
+	["Offset of field: ActionMenuConfig::root_level"]
+		[::core::mem::offset_of!(ActionMenuConfig, root_level) - 0usize];
+	["Offset of field: ActionMenuConfig::context"]
+		[::core::mem::offset_of!(ActionMenuConfig, context) - 4usize];
+	["Offset of field: ActionMenuConfig::colors"]
+		[::core::mem::offset_of!(ActionMenuConfig, colors) - 8usize];
+	["Offset of field: ActionMenuConfig::will_close"]
+		[::core::mem::offset_of!(ActionMenuConfig, will_close) - 12usize];
+	["Offset of field: ActionMenuConfig::did_close"]
+		[::core::mem::offset_of!(ActionMenuConfig, did_close) - 16usize];
+	["Offset of field: ActionMenuConfig::align"]
+		[::core::mem::offset_of!(ActionMenuConfig, align) - 20usize];
 };
 /**! Getter for the label of a given \ref ActionMenuItem
 ! @param item the \ref ActionMenuItem of interest
@@ -14934,12 +14312,12 @@ gneiss: Vtable Slot 542, Offset 2168*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.action_menu_item_get_label")]
 pub unsafe extern "C" fn action_menu_item_get_label(
-    item: *const ActionMenuItem,
+	item: *const ActionMenuItem,
 ) -> *mut ::core::ffi::c_char {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =2168", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =2168", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Getter for the action_data pointer of a given \ref ActionMenuItem.
 ! @see action_menu_level_add_action
@@ -14951,12 +14329,12 @@ gneiss: Vtable Slot 541, Offset 2164*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.action_menu_item_get_action_data")]
 pub unsafe extern "C" fn action_menu_item_get_action_data(
-    item: *const ActionMenuItem,
+	item: *const ActionMenuItem,
 ) -> *mut ::core::ffi::c_void {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =2164", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =2164", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Create a new action menu level with storage allocated for a given number of items
 ! @param max_items the max number of items that will be displayed at that level
@@ -14969,13 +14347,11 @@ pub unsafe extern "C" fn action_menu_item_get_action_data(
 gneiss: Vtable Slot 545, Offset 2180*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.action_menu_level_create")]
-pub unsafe extern "C" fn action_menu_level_create(
-    max_items: u16,
-) -> *mut ActionMenuLevel {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =2180", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+pub unsafe extern "C" fn action_menu_level_create(max_items: u16) -> *mut ActionMenuLevel {
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =2180", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Set the action menu display mode
 ! @param level The ActionMenuLevel whose display mode you want to change
@@ -14986,13 +14362,13 @@ gneiss: Vtable Slot 546, Offset 2184*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.action_menu_level_set_display_mode")]
 pub unsafe extern "C" fn action_menu_level_set_display_mode(
-    level: *mut ActionMenuLevel,
-    display_mode: ActionMenuLevelDisplayMode,
+	level: *mut ActionMenuLevel,
+	display_mode: ActionMenuLevelDisplayMode,
 ) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =2184", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =2184", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Add an action to an ActionLevel
 ! @param level the level to add the action to
@@ -15006,15 +14382,15 @@ gneiss: Vtable Slot 543, Offset 2172*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.action_menu_level_add_action")]
 pub unsafe extern "C" fn action_menu_level_add_action(
-    level: *mut ActionMenuLevel,
-    label: *const ::core::ffi::c_char,
-    cb: ActionMenuPerformActionCb,
-    action_data: *mut ::core::ffi::c_void,
+	level: *mut ActionMenuLevel,
+	label: *const ::core::ffi::c_char,
+	cb: ActionMenuPerformActionCb,
+	action_data: *mut ::core::ffi::c_void,
 ) -> *mut ActionMenuItem {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =2172", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =2172", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Add a child to this ActionMenuLevel
 ! @param level the parent level
@@ -15027,14 +14403,14 @@ gneiss: Vtable Slot 544, Offset 2176*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.action_menu_level_add_child")]
 pub unsafe extern "C" fn action_menu_level_add_child(
-    level: *mut ActionMenuLevel,
-    child: *mut ActionMenuLevel,
-    label: *const ::core::ffi::c_char,
+	level: *mut ActionMenuLevel,
+	child: *mut ActionMenuLevel,
+	label: *const ::core::ffi::c_char,
 ) -> *mut ActionMenuItem {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =2176", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =2176", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Destroy a hierarchy of ActionMenuLevels
 ! @param root the root level in the hierarchy
@@ -15050,14 +14426,14 @@ gneiss: Vtable Slot 540, Offset 2160*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.action_menu_hierarchy_destroy")]
 pub unsafe extern "C" fn action_menu_hierarchy_destroy(
-    root: *const ActionMenuLevel,
-    each_cb: ActionMenuEachItemCb,
-    context: *mut ::core::ffi::c_void,
+	root: *const ActionMenuLevel,
+	each_cb: ActionMenuEachItemCb,
+	context: *mut ::core::ffi::c_void,
 ) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =2160", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =2160", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Get the context pointer this ActionMenu was created with
 ! @param action_menu A pointer to an ActionMenu
@@ -15069,12 +14445,12 @@ gneiss: Vtable Slot 538, Offset 2152*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.action_menu_get_context")]
 pub unsafe extern "C" fn action_menu_get_context(
-    action_menu: *mut ActionMenu,
+	action_menu: *mut ActionMenu,
 ) -> *mut ::core::ffi::c_void {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =2152", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =2152", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Get the root level of an ActionMenu
 ! @param action_menu the ActionMenu you want to know about
@@ -15085,12 +14461,12 @@ gneiss: Vtable Slot 539, Offset 2156*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.action_menu_get_root_level")]
 pub unsafe extern "C" fn action_menu_get_root_level(
-    action_menu: *mut ActionMenu,
+	action_menu: *mut ActionMenu,
 ) -> *mut ActionMenuLevel {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =2156", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =2156", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Open a new ActionMenu.
 ! The ActionMenu acts much like a window. It fills the whole screen and handles clicks.
@@ -15101,13 +14477,11 @@ pub unsafe extern "C" fn action_menu_get_root_level(
 gneiss: Vtable Slot 547, Offset 2188*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.action_menu_open")]
-pub unsafe extern "C" fn action_menu_open(
-    config: *mut ActionMenuConfig,
-) -> *mut ActionMenu {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =2188", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+pub unsafe extern "C" fn action_menu_open(config: *mut ActionMenuConfig) -> *mut ActionMenu {
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =2188", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Freeze the ActionMenu. The ActionMenu will no longer respond to user input.
 ! @note this API should be used when waiting for asynchronous operation.
@@ -15118,10 +14492,10 @@ gneiss: Vtable Slot 537, Offset 2148*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.action_menu_freeze")]
 pub unsafe extern "C" fn action_menu_freeze(action_menu: *mut ActionMenu) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =2148", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =2148", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Unfreeze the ActionMenu previously frozen with \ref action_menu_freeze
 ! @param action_menu the ActionMenu to unfreeze*/
@@ -15131,10 +14505,10 @@ gneiss: Vtable Slot 549, Offset 2196*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.action_menu_unfreeze")]
 pub unsafe extern "C" fn action_menu_unfreeze(action_menu: *mut ActionMenu) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =2196", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =2196", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Set the result window for an ActionMenu. The result window will be
 ! shown when the ActionMenu closes
@@ -15148,13 +14522,13 @@ gneiss: Vtable Slot 548, Offset 2192*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.action_menu_set_result_window")]
 pub unsafe extern "C" fn action_menu_set_result_window(
-    action_menu: *mut ActionMenu,
-    result_window: *mut Window,
+	action_menu: *mut ActionMenu,
+	result_window: *mut Window,
 ) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =2192", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =2192", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Close the ActionMenu, whether it is frozen or not.
 ! @note this API can be used on a frozen ActionMenu once the data required to
@@ -15166,14 +14540,11 @@ pub unsafe extern "C" fn action_menu_set_result_window(
 gneiss: Vtable Slot 536, Offset 2144*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.action_menu_close")]
-pub unsafe extern "C" fn action_menu_close(
-    action_menu: *mut ActionMenu,
-    animated: bool,
-) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =2144", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+pub unsafe extern "C" fn action_menu_close(action_menu: *mut ActionMenu, animated: bool) {
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =2144", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /** Data structure describing a vibration pattern.
 A pattern consists of at least 1 vibe-on duration, optionally followed by
@@ -15193,22 +14564,20 @@ vibes_enqueue_custom_pattern(pat);
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct VibePattern {
-    /**Pointer to an array of segment durations, measured in milli-seconds.
-The maximum allowed duration is 10000ms.*/
-    pub durations: *const u32,
-    ///The length of the array of durations.
-    pub num_segments: u32,
+	/**Pointer to an array of segment durations, measured in milli-seconds.
+	The maximum allowed duration is 10000ms.*/
+	pub durations:    *const u32,
+	///The length of the array of durations.
+	pub num_segments: u32,
 }
 #[allow(clippy::unnecessary_operation, clippy::identity_op)]
 const _: () = {
-    ["Size of VibePattern"][::core::mem::size_of::<VibePattern>() - 8usize];
-    ["Alignment of VibePattern"][::core::mem::align_of::<VibePattern>() - 4usize];
-    [
-        "Offset of field: VibePattern::durations",
-    ][::core::mem::offset_of!(VibePattern, durations) - 0usize];
-    [
-        "Offset of field: VibePattern::num_segments",
-    ][::core::mem::offset_of!(VibePattern, num_segments) - 4usize];
+	["Size of VibePattern"][::core::mem::size_of::<VibePattern>() - 8usize];
+	["Alignment of VibePattern"][::core::mem::align_of::<VibePattern>() - 4usize];
+	["Offset of field: VibePattern::durations"]
+		[::core::mem::offset_of!(VibePattern, durations) - 0usize];
+	["Offset of field: VibePattern::num_segments"]
+		[::core::mem::offset_of!(VibePattern, num_segments) - 4usize];
 };
 /**! Cancel any in-flight vibe patterns; this is a no-op if there is no
 ! on-going vibe.*/
@@ -15218,10 +14587,10 @@ gneiss: Vtable Slot 266, Offset 1064*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.vibes_cancel")]
 pub unsafe extern "C" fn vibes_cancel() {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1064", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1064", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 ///! Makes the watch emit one short vibration.
 /** vibes_short_pulse
@@ -15230,10 +14599,10 @@ gneiss: Vtable Slot 270, Offset 1080*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.vibes_short_pulse")]
 pub unsafe extern "C" fn vibes_short_pulse() {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1080", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1080", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 ///! Makes the watch emit one long vibration.
 /** vibes_long_pulse
@@ -15242,10 +14611,10 @@ gneiss: Vtable Slot 269, Offset 1076*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.vibes_long_pulse")]
 pub unsafe extern "C" fn vibes_long_pulse() {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1076", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1076", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Makes the watch emit two brief vibrations.
 !*/
@@ -15255,10 +14624,10 @@ gneiss: Vtable Slot 267, Offset 1068*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.vibes_double_pulse")]
 pub unsafe extern "C" fn vibes_double_pulse() {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1068", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1068", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Makes the watch emit a 'custom' vibration pattern.
 ! @param pattern An arbitrary vibration pattern
@@ -15269,10 +14638,10 @@ gneiss: Vtable Slot 268, Offset 1072*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.vibes_enqueue_custom_pattern")]
 pub unsafe extern "C" fn vibes_enqueue_custom_pattern(pattern: VibePattern) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1072", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1072", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 pub const SpeakerWaveform_SpeakerWaveformSine: SpeakerWaveform = 0;
 pub const SpeakerWaveform_SpeakerWaveformSquare: SpeakerWaveform = 1;
@@ -15299,31 +14668,21 @@ pub type SpeakerWaveform = ::core::ffi::c_uchar;
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct PACKED {
-    pub midi_note: u8,
-    pub waveform: u8,
-    pub duration_ms: u16,
-    pub velocity: u8,
-    pub reserved: u8,
+	pub midi_note:   u8,
+	pub waveform:    u8,
+	pub duration_ms: u16,
+	pub velocity:    u8,
+	pub reserved:    u8,
 }
 #[allow(clippy::unnecessary_operation, clippy::identity_op)]
 const _: () = {
-    ["Size of PACKED"][::core::mem::size_of::<PACKED>() - 6usize];
-    ["Alignment of PACKED"][::core::mem::align_of::<PACKED>() - 2usize];
-    [
-        "Offset of field: PACKED::midi_note",
-    ][::core::mem::offset_of!(PACKED, midi_note) - 0usize];
-    [
-        "Offset of field: PACKED::waveform",
-    ][::core::mem::offset_of!(PACKED, waveform) - 1usize];
-    [
-        "Offset of field: PACKED::duration_ms",
-    ][::core::mem::offset_of!(PACKED, duration_ms) - 2usize];
-    [
-        "Offset of field: PACKED::velocity",
-    ][::core::mem::offset_of!(PACKED, velocity) - 4usize];
-    [
-        "Offset of field: PACKED::reserved",
-    ][::core::mem::offset_of!(PACKED, reserved) - 5usize];
+	["Size of PACKED"][::core::mem::size_of::<PACKED>() - 6usize];
+	["Alignment of PACKED"][::core::mem::align_of::<PACKED>() - 2usize];
+	["Offset of field: PACKED::midi_note"][::core::mem::offset_of!(PACKED, midi_note) - 0usize];
+	["Offset of field: PACKED::waveform"][::core::mem::offset_of!(PACKED, waveform) - 1usize];
+	["Offset of field: PACKED::duration_ms"][::core::mem::offset_of!(PACKED, duration_ms) - 2usize];
+	["Offset of field: PACKED::velocity"][::core::mem::offset_of!(PACKED, velocity) - 4usize];
+	["Offset of field: PACKED::reserved"][::core::mem::offset_of!(PACKED, reserved) - 5usize];
 };
 /**! A single note in a sequence.
 ! midi_note: MIDI note number (0-127, 60=C4). 0 = rest (silence).
@@ -15363,7 +14722,7 @@ pub type SpeakerFinishReason = ::core::ffi::c_uchar;
 ! @param reason Why playback ended
 ! @param ctx User context*/
 pub type SpeakerFinishedCallback = ::core::option::Option<
-    unsafe extern "C" fn(reason: SpeakerFinishReason, ctx: *mut ::core::ffi::c_void),
+	unsafe extern "C" fn(reason: SpeakerFinishReason, ctx: *mut ::core::ffi::c_void),
 >;
 /**! A raw PCM sample that can be pitch-shifted when played by a track.
 ! data: mono signed PCM in the given format.
@@ -15376,31 +14735,25 @@ pub type SpeakerFinishedCallback = ::core::option::Option<
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct SpeakerSample {
-    pub data: *const ::core::ffi::c_void,
-    pub num_bytes: u32,
-    pub format: SpeakerPcmFormat,
-    pub base_midi_note: u8,
-    pub loop_: bool,
+	pub data:           *const ::core::ffi::c_void,
+	pub num_bytes:      u32,
+	pub format:         SpeakerPcmFormat,
+	pub base_midi_note: u8,
+	pub loop_:          bool,
 }
 #[allow(clippy::unnecessary_operation, clippy::identity_op)]
 const _: () = {
-    ["Size of SpeakerSample"][::core::mem::size_of::<SpeakerSample>() - 12usize];
-    ["Alignment of SpeakerSample"][::core::mem::align_of::<SpeakerSample>() - 4usize];
-    [
-        "Offset of field: SpeakerSample::data",
-    ][::core::mem::offset_of!(SpeakerSample, data) - 0usize];
-    [
-        "Offset of field: SpeakerSample::num_bytes",
-    ][::core::mem::offset_of!(SpeakerSample, num_bytes) - 4usize];
-    [
-        "Offset of field: SpeakerSample::format",
-    ][::core::mem::offset_of!(SpeakerSample, format) - 8usize];
-    [
-        "Offset of field: SpeakerSample::base_midi_note",
-    ][::core::mem::offset_of!(SpeakerSample, base_midi_note) - 9usize];
-    [
-        "Offset of field: SpeakerSample::loop_",
-    ][::core::mem::offset_of!(SpeakerSample, loop_) - 10usize];
+	["Size of SpeakerSample"][::core::mem::size_of::<SpeakerSample>() - 12usize];
+	["Alignment of SpeakerSample"][::core::mem::align_of::<SpeakerSample>() - 4usize];
+	["Offset of field: SpeakerSample::data"][::core::mem::offset_of!(SpeakerSample, data) - 0usize];
+	["Offset of field: SpeakerSample::num_bytes"]
+		[::core::mem::offset_of!(SpeakerSample, num_bytes) - 4usize];
+	["Offset of field: SpeakerSample::format"]
+		[::core::mem::offset_of!(SpeakerSample, format) - 8usize];
+	["Offset of field: SpeakerSample::base_midi_note"]
+		[::core::mem::offset_of!(SpeakerSample, base_midi_note) - 9usize];
+	["Offset of field: SpeakerSample::loop_"]
+		[::core::mem::offset_of!(SpeakerSample, loop_) - 10usize];
 };
 /**! A single monophonic voice. Multiple tracks are mixed together by
 ! speaker_play_tracks() to produce polyphony.
@@ -15411,23 +14764,19 @@ const _: () = {
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct SpeakerTrack {
-    pub notes: *const SpeakerNote,
-    pub num_notes: u32,
-    pub sample: *const SpeakerSample,
+	pub notes:     *const SpeakerNote,
+	pub num_notes: u32,
+	pub sample:    *const SpeakerSample,
 }
 #[allow(clippy::unnecessary_operation, clippy::identity_op)]
 const _: () = {
-    ["Size of SpeakerTrack"][::core::mem::size_of::<SpeakerTrack>() - 12usize];
-    ["Alignment of SpeakerTrack"][::core::mem::align_of::<SpeakerTrack>() - 4usize];
-    [
-        "Offset of field: SpeakerTrack::notes",
-    ][::core::mem::offset_of!(SpeakerTrack, notes) - 0usize];
-    [
-        "Offset of field: SpeakerTrack::num_notes",
-    ][::core::mem::offset_of!(SpeakerTrack, num_notes) - 4usize];
-    [
-        "Offset of field: SpeakerTrack::sample",
-    ][::core::mem::offset_of!(SpeakerTrack, sample) - 8usize];
+	["Size of SpeakerTrack"][::core::mem::size_of::<SpeakerTrack>() - 12usize];
+	["Alignment of SpeakerTrack"][::core::mem::align_of::<SpeakerTrack>() - 4usize];
+	["Offset of field: SpeakerTrack::notes"][::core::mem::offset_of!(SpeakerTrack, notes) - 0usize];
+	["Offset of field: SpeakerTrack::num_notes"]
+		[::core::mem::offset_of!(SpeakerTrack, num_notes) - 4usize];
+	["Offset of field: SpeakerTrack::sample"]
+		[::core::mem::offset_of!(SpeakerTrack, sample) - 8usize];
 };
 /**! Play a sequence of notes on the speaker.
 ! @param notes Array of SpeakerNote structs defining the melody
@@ -15440,14 +14789,14 @@ gneiss: Vtable Slot 642, Offset 2568*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.speaker_play_notes")]
 pub unsafe extern "C" fn speaker_play_notes(
-    notes: *const SpeakerNote,
-    num_notes: u32,
-    volume: u8,
+	notes: *const SpeakerNote,
+	num_notes: u32,
+	volume: u8,
 ) -> bool {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =2568", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =2568", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Play N monophonic tracks in parallel, mixed (polyphony).
 ! @param tracks Array of track descriptors (notes + optional sample).
@@ -15460,14 +14809,14 @@ gneiss: Vtable Slot 644, Offset 2576*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.speaker_play_tracks")]
 pub unsafe extern "C" fn speaker_play_tracks(
-    tracks: *const SpeakerTrack,
-    num_tracks: u32,
-    volume: u8,
+	tracks: *const SpeakerTrack,
+	num_tracks: u32,
+	volume: u8,
 ) -> bool {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =2576", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =2576", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Play a single tone on the speaker (convenience wrapper).
 ! @param frequency_hz Tone frequency in Hz
@@ -15481,15 +14830,15 @@ gneiss: Vtable Slot 643, Offset 2572*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.speaker_play_tone")]
 pub unsafe extern "C" fn speaker_play_tone(
-    frequency_hz: u16,
-    duration_ms: u32,
-    volume: u8,
-    waveform: SpeakerWaveform,
+	frequency_hz: u16,
+	duration_ms: u32,
+	volume: u8,
+	waveform: SpeakerWaveform,
 ) -> bool {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =2572", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =2572", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Open a raw PCM stream for app-generated audio.
 ! @param format PCM format specifying sample rate and bit depth
@@ -15500,14 +14849,11 @@ pub unsafe extern "C" fn speaker_play_tone(
 gneiss: Vtable Slot 649, Offset 2596*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.speaker_stream_open")]
-pub unsafe extern "C" fn speaker_stream_open(
-    format: SpeakerPcmFormat,
-    volume: u8,
-) -> bool {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =2596", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+pub unsafe extern "C" fn speaker_stream_open(format: SpeakerPcmFormat, volume: u8) -> bool {
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =2596", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Write PCM data to the open stream.
 ! @param data Buffer of PCM data in the format specified at open
@@ -15519,13 +14865,13 @@ gneiss: Vtable Slot 650, Offset 2600*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.speaker_stream_write")]
 pub unsafe extern "C" fn speaker_stream_write(
-    data: *const ::core::ffi::c_void,
-    num_bytes: u32,
+	data: *const ::core::ffi::c_void,
+	num_bytes: u32,
 ) -> u32 {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =2600", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =2600", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 ///! Close the PCM stream. Buffered data will be played before stopping.
 /** speaker_stream_close
@@ -15534,10 +14880,10 @@ gneiss: Vtable Slot 648, Offset 2592*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.speaker_stream_close")]
 pub unsafe extern "C" fn speaker_stream_close() {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =2592", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =2592", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 ///! Stop any active speaker playback immediately.
 /** speaker_stop
@@ -15546,10 +14892,10 @@ gneiss: Vtable Slot 647, Offset 2588*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.speaker_stop")]
 pub unsafe extern "C" fn speaker_stop() {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =2588", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =2588", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Set the speaker volume.
 ! @param volume Volume level (0-100)*/
@@ -15559,10 +14905,10 @@ gneiss: Vtable Slot 646, Offset 2584*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.speaker_set_volume")]
 pub unsafe extern "C" fn speaker_set_volume(volume: u8) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =2584", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =2584", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Get the current speaker status.
 ! @return Current SpeakerStatus*/
@@ -15572,10 +14918,10 @@ gneiss: Vtable Slot 641, Offset 2564*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.speaker_get_status")]
 pub unsafe extern "C" fn speaker_get_status() -> SpeakerStatus {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =2564", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =2564", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Register a callback invoked when speaker playback ends.
 ! The callback runs on the app task.
@@ -15587,13 +14933,13 @@ gneiss: Vtable Slot 645, Offset 2580*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.speaker_set_finish_callback")]
 pub unsafe extern "C" fn speaker_set_finish_callback(
-    cb: SpeakerFinishedCallback,
-    ctx: *mut ::core::ffi::c_void,
+	cb: SpeakerFinishedCallback,
+	ctx: *mut ::core::ffi::c_void,
 ) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =2580", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =2580", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Check whether the speaker is currently muted system-wide. The watch can
 ! mute the speaker either always-on (Settings → Sounds & Haptics) or for
@@ -15607,10 +14953,10 @@ gneiss: Vtable Slot 652, Offset 2608*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.speaker_is_muted")]
 pub unsafe extern "C" fn speaker_is_muted() -> bool {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =2608", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =2608", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! @return true if the backlight is currently on in any form (on, timed,
 ! or fading out). Returns false only when the backlight is fully off.
@@ -15623,10 +14969,10 @@ gneiss: Vtable Slot 636, Offset 2544*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.light_is_on")]
 pub unsafe extern "C" fn light_is_on() -> bool {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =2544", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =2544", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Trigger the backlight and schedule a timer to automatically disable the backlight
 ! after a short delay. This is the preferred method of interacting with the backlight.*/
@@ -15636,10 +14982,10 @@ gneiss: Vtable Slot 159, Offset 636*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.light_enable_interaction")]
 pub unsafe extern "C" fn light_enable_interaction() {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =636", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =636", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Turn the watch's backlight on or put it back into automatic control.
 ! Developers should take care when calling this function, keeping Pebble's backlight on for long periods of time
@@ -15651,10 +14997,10 @@ gneiss: Vtable Slot 158, Offset 632*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.light_enable")]
 pub unsafe extern "C" fn light_enable(enable: bool) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =632", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =632", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Tint the backlight LED to the given color. The color persists while the
 ! app is foregrounded and is automatically reset to the user's default
@@ -15670,10 +15016,10 @@ gneiss: Vtable Slot 634, Offset 2536*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.light_set_color")]
 pub unsafe extern "C" fn light_set_color(color: GColor) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =2536", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =2536", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Tint the backlight LED to a packed 24-bit RGB value (0x00RRGGBB).
 ! Same persistence semantics as light_set_color(): the override lasts
@@ -15686,10 +15032,10 @@ gneiss: Vtable Slot 640, Offset 2560*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.light_set_color_rgb888")]
 pub unsafe extern "C" fn light_set_color_rgb888(rgb: u32) {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =2560", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =2560", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Restore the backlight to the user's default color. Rarely needed — the
 ! system resets automatically on app exit. No-op on platforms without a
@@ -15700,10 +15046,10 @@ gneiss: Vtable Slot 635, Offset 2540*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.light_set_system_color")]
 pub unsafe extern "C" fn light_set_system_color() {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =2540", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =2540", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Get the recommended amount of milliseconds a result window should be visible before it should
 ! automatically close.
@@ -15715,10 +15061,10 @@ gneiss: Vtable Slot 623, Offset 2492*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.preferred_result_display_duration")]
 pub unsafe extern "C" fn preferred_result_display_duration() -> u32 {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =2492", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =2492", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 pub const PreferredContentSize_PreferredContentSizeSmall: PreferredContentSize = 0;
 pub const PreferredContentSize_PreferredContentSizeMedium: PreferredContentSize = 1;
@@ -15740,10 +15086,10 @@ gneiss: Vtable Slot 630, Offset 2520*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.preferred_content_size")]
 pub unsafe extern "C" fn preferred_content_size() -> PreferredContentSize {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =2520", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =2520", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Users can toggle Quiet Time manually or on schedule. Watchfaces and apps should respect this
 ! choice and avoid disturbing actions such as vibration if quiet time is active.
@@ -15754,55 +15100,55 @@ gneiss: Vtable Slot 631, Offset 2524*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.quiet_time_is_active")]
 pub unsafe extern "C" fn quiet_time_is_active() -> bool {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =2524", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =2524", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! structure containing broken-down time for expressing calendar time
 ! (ie. Year, Month, Day of Month, Hour of Day) and timezone information*/
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct tm {
-    ///< Seconds. [0-60] (1 leap second)
-    pub tm_sec: ::core::ffi::c_int,
-    ///< Minutes. [0-59]
-    pub tm_min: ::core::ffi::c_int,
-    ///< Hours.  [0-23]
-    pub tm_hour: ::core::ffi::c_int,
-    ///< Day. [1-31]
-    pub tm_mday: ::core::ffi::c_int,
-    ///< Month. [0-11]
-    pub tm_mon: ::core::ffi::c_int,
-    ///< Years since 1900
-    pub tm_year: ::core::ffi::c_int,
-    ///< Day of week. [0-6]
-    pub tm_wday: ::core::ffi::c_int,
-    ///< Days in year.[0-365]
-    pub tm_yday: ::core::ffi::c_int,
-    ///< DST. [-1/0/1]
-    pub tm_isdst: ::core::ffi::c_int,
-    /**< Total seconds east of UTC, DST included. tm_isdst is an indicator only --
-never add it to this value.*/
-    pub tm_gmtoff: ::core::ffi::c_int,
-    ///< Timezone abbreviation
-    pub tm_zone: [::core::ffi::c_char; 6usize],
+	///< Seconds. [0-60] (1 leap second)
+	pub tm_sec:    ::core::ffi::c_int,
+	///< Minutes. [0-59]
+	pub tm_min:    ::core::ffi::c_int,
+	///< Hours.  [0-23]
+	pub tm_hour:   ::core::ffi::c_int,
+	///< Day. [1-31]
+	pub tm_mday:   ::core::ffi::c_int,
+	///< Month. [0-11]
+	pub tm_mon:    ::core::ffi::c_int,
+	///< Years since 1900
+	pub tm_year:   ::core::ffi::c_int,
+	///< Day of week. [0-6]
+	pub tm_wday:   ::core::ffi::c_int,
+	///< Days in year.[0-365]
+	pub tm_yday:   ::core::ffi::c_int,
+	///< DST. [-1/0/1]
+	pub tm_isdst:  ::core::ffi::c_int,
+	/**< Total seconds east of UTC, DST included. tm_isdst is an indicator only --
+	never add it to this value.*/
+	pub tm_gmtoff: ::core::ffi::c_int,
+	///< Timezone abbreviation
+	pub tm_zone:   [::core::ffi::c_char; 6usize],
 }
 #[allow(clippy::unnecessary_operation, clippy::identity_op)]
 const _: () = {
-    ["Size of tm"][::core::mem::size_of::<tm>() - 48usize];
-    ["Alignment of tm"][::core::mem::align_of::<tm>() - 4usize];
-    ["Offset of field: tm::tm_sec"][::core::mem::offset_of!(tm, tm_sec) - 0usize];
-    ["Offset of field: tm::tm_min"][::core::mem::offset_of!(tm, tm_min) - 4usize];
-    ["Offset of field: tm::tm_hour"][::core::mem::offset_of!(tm, tm_hour) - 8usize];
-    ["Offset of field: tm::tm_mday"][::core::mem::offset_of!(tm, tm_mday) - 12usize];
-    ["Offset of field: tm::tm_mon"][::core::mem::offset_of!(tm, tm_mon) - 16usize];
-    ["Offset of field: tm::tm_year"][::core::mem::offset_of!(tm, tm_year) - 20usize];
-    ["Offset of field: tm::tm_wday"][::core::mem::offset_of!(tm, tm_wday) - 24usize];
-    ["Offset of field: tm::tm_yday"][::core::mem::offset_of!(tm, tm_yday) - 28usize];
-    ["Offset of field: tm::tm_isdst"][::core::mem::offset_of!(tm, tm_isdst) - 32usize];
-    ["Offset of field: tm::tm_gmtoff"][::core::mem::offset_of!(tm, tm_gmtoff) - 36usize];
-    ["Offset of field: tm::tm_zone"][::core::mem::offset_of!(tm, tm_zone) - 40usize];
+	["Size of tm"][::core::mem::size_of::<tm>() - 48usize];
+	["Alignment of tm"][::core::mem::align_of::<tm>() - 4usize];
+	["Offset of field: tm::tm_sec"][::core::mem::offset_of!(tm, tm_sec) - 0usize];
+	["Offset of field: tm::tm_min"][::core::mem::offset_of!(tm, tm_min) - 4usize];
+	["Offset of field: tm::tm_hour"][::core::mem::offset_of!(tm, tm_hour) - 8usize];
+	["Offset of field: tm::tm_mday"][::core::mem::offset_of!(tm, tm_mday) - 12usize];
+	["Offset of field: tm::tm_mon"][::core::mem::offset_of!(tm, tm_mon) - 16usize];
+	["Offset of field: tm::tm_year"][::core::mem::offset_of!(tm, tm_year) - 20usize];
+	["Offset of field: tm::tm_wday"][::core::mem::offset_of!(tm, tm_wday) - 24usize];
+	["Offset of field: tm::tm_yday"][::core::mem::offset_of!(tm, tm_yday) - 28usize];
+	["Offset of field: tm::tm_isdst"][::core::mem::offset_of!(tm, tm_isdst) - 32usize];
+	["Offset of field: tm::tm_gmtoff"][::core::mem::offset_of!(tm, tm_gmtoff) - 36usize];
+	["Offset of field: tm::tm_zone"][::core::mem::offset_of!(tm, tm_zone) - 40usize];
 };
 /**! Format the time value at tm according to fmt and place the result in a buffer s of size max
 ! @param s A preallocation char array of size max
@@ -15817,15 +15163,15 @@ gneiss: Vtable Slot 244, Offset 976*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.strftime")]
 pub unsafe extern "C" fn strftime(
-    s: *mut ::core::ffi::c_char,
-    maxsize: usize,
-    format: *const ::core::ffi::c_char,
-    tm_p: *const tm,
+	s: *mut ::core::ffi::c_char,
+	maxsize: usize,
+	format: *const ::core::ffi::c_char,
+	tm_p: *const tm,
 ) -> usize {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =976", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =976", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! convert the time value pointed at by clock to a struct tm which contains the time
 ! adjusted for the local timezone
@@ -15838,10 +15184,10 @@ gneiss: Vtable Slot 379, Offset 1516*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.localtime")]
 pub unsafe extern "C" fn localtime(timep: *const time_t) -> *mut tm {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1516", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1516", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! convert the time value pointed at by clock to a struct tm
 !   which contains the time expressed in Coordinated Universal Time (UTC)
@@ -15853,10 +15199,10 @@ gneiss: Vtable Slot 104, Offset 416*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.gmtime")]
 pub unsafe extern "C" fn gmtime(timep: *const time_t) -> *mut tm {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =416", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =416", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! convert the broken-down time structure to a timestamp
 !   expressed in Coordinated Universal Time (UTC)
@@ -15868,10 +15214,10 @@ gneiss: Vtable Slot 363, Offset 1452*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.mktime")]
 pub unsafe extern "C" fn mktime(tb: *mut tm) -> time_t {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =1452", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =1452", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Obtain the number of seconds since epoch.
 ! Note that the epoch is not adjusted for Timezones and Daylight Savings.
@@ -15884,10 +15230,10 @@ gneiss: Vtable Slot 519, Offset 2076*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.time")]
 pub unsafe extern "C" fn time(tloc: *mut time_t) -> time_t {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =2076", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =2076", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Obtain the number of seconds elapsed between beginning and end represented as a double.
 ! @param end A time_t variable representing some number of seconds since epoch, January 1st 1970
@@ -15906,10 +15252,10 @@ gneiss: Vtable Slot 531, Offset 2124*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.difftime")]
 pub unsafe extern "C" fn difftime(end: time_t, beginning: time_t) -> f64 {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =2124", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =2124", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Obtain the number of seconds and milliseconds part since the epoch.
 !   This is a non-standard C function provided for convenience.
@@ -15922,10 +15268,10 @@ gneiss: Vtable Slot 532, Offset 2128*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.time_ms")]
 pub unsafe extern "C" fn time_ms(tloc: *mut time_t, out_ms: *mut u16) -> u16 {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =2128", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =2128", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Return the UTC time that corresponds to the start of today (midnight).
 ! @return the UTC time corresponding to the start of today (midnight)*/
@@ -15935,10 +15281,10 @@ gneiss: Vtable Slot 608, Offset 2432*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.time_start_of_today")]
 pub unsafe extern "C" fn time_start_of_today() -> time_t {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =2432", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =2432", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Get the most recent HRV peak-to-peak interval in milliseconds. The value is captured from
 ! \ref HealthEventHRVUpdate events, so it only updates while this app is subscribed via
@@ -15950,10 +15296,10 @@ gneiss: Vtable Slot 675, Offset 2700*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.health_service_peek_hrv_ppi_ms")]
 pub unsafe extern "C" fn health_service_peek_hrv_ppi_ms() -> u16 {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =2700", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =2700", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }
 /**! Request HRV (peak-to-peak interval) sampling. While any app holds an HRV sample period, the
 ! sensor collects HRV alongside heart rate and HealthEventHRVUpdate events are delivered to
@@ -15968,11 +15314,9 @@ pub unsafe extern "C" fn health_service_peek_hrv_ppi_ms() -> u16 {
 gneiss: Vtable Slot 676, Offset 2704*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.health_service_set_hrv_sample_period")]
-pub unsafe extern "C" fn health_service_set_hrv_sample_period(
-    interval_sec: u16,
-) -> bool {
-    core::arch::naked_asm!(
-        "push  {{r0-r3}}", "ldr   r1, =2704", "b     {resolver}", resolver = sym crate
-        ::shim::jump_to_pbl_function,
-    )
+pub unsafe extern "C" fn health_service_set_hrv_sample_period(interval_sec: u16) -> bool {
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =2704", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
 }

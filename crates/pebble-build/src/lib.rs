@@ -7,7 +7,7 @@ use std::{
 	collections::BTreeMap,
 	convert::Infallible,
 	env::var,
-	ffi::OsString,
+	ffi::OsStr,
 	fmt::{Display, Write},
 	path::{Path, PathBuf},
 	str::FromStr,
@@ -18,6 +18,7 @@ pub use color_eyre;
 use color_eyre::eyre::{Context, OptionExt, Result, bail};
 use pebble_types::{Platform, pbpack::PbPack};
 use serde::{Deserialize, Serialize};
+use strum::IntoEnumIterator;
 use uuid::Uuid;
 
 mod build_pbw;
@@ -28,15 +29,16 @@ pub use build_pbw::{app_info, message_keys_json, package_platform};
 
 use crate::pbl_font::FontSettings;
 
-pub const FEATURES: &[(&str, Platform)] = &[
-	("CARGO_FEATURE_APLITE", Platform::Aplite),
-	("CARGO_FEATURE_BASALT", Platform::Basalt),
-	("CARGO_FEATURE_CHALK", Platform::Chalk),
-	("CARGO_FEATURE_DIORITE", Platform::Diorite),
-	("CARGO_FEATURE_EMERY", Platform::Emery),
-	("CARGO_FEATURE_FLINT", Platform::Flint),
-	("CARGO_FEATURE_GABBRO", Platform::Gabbro),
-];
+/// Cargo sets `CARGO_FEATURE_<NAME>` for each enabled feature, so a platform's
+/// selection env var follows from its name.
+pub fn platform_features() -> impl Iterator<Item = (String, Platform)> {
+	Platform::iter().map(|platform| {
+		(
+			format!("CARGO_FEATURE_{}", platform.as_str().to_uppercase()),
+			platform,
+		)
+	})
+}
 
 /// Pick the target platform.
 /// `mutually_exclusive_features` only enforces at lib compile time — build.rs
@@ -44,17 +46,22 @@ pub const FEATURES: &[(&str, Platform)] = &[
 /// # Panics
 /// If multiple platforms are enabled by build time, or if the enabled platform is invalid
 pub fn select_platform() -> Platform {
-	let enabled: Vec<Platform> = FEATURES
-		.iter()
-		.filter_map(|(env, p)| var(env).ok().map(|_| *p))
+	let enabled: Vec<Platform> = platform_features()
+		.filter_map(|(env, platform)| var(env).ok().map(|_| platform))
 		.collect();
 	match enabled.as_slice() {
 		[p] => *p,
 		[] => var("PBL_PLATFORM")
-			.expect(
-				"no platform selected: enable exactly one of the `aplite`/`basalt`/`chalk`/\
-                 `diorite`/`emery`/`flint`/`gabbro` features, or set PBL_PLATFORM",
-			)
+			.unwrap_or_else(|_| {
+				panic!(
+					"no platform selected: enable exactly one of the {} features, or set \
+					 PBL_PLATFORM",
+					Platform::iter()
+						.map(|p| format!("`{}`", p.as_str()))
+						.collect::<Vec<_>>()
+						.join("/")
+				)
+			})
 			.parse()
 			.expect("invalid PBL_PLATFORM"),
 		many => panic!(
@@ -76,39 +83,124 @@ pub struct PebbleMetadata {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Resource {
-	/// The shared source file. A sibling `<stem>~<platform>.<ext>` wins over it
-	/// on the platform it names, so one declaration can carry a different file
-	/// per watch
+	/// The untagged source file. Siblings named `<stem>~<tag>…<ext>` override it
+	/// on the platforms carrying those tags, so one declaration can carry a
+	/// different file per watch, colour depth, shape or screen size. The tags
+	/// are listed per platform in [`pebble_types::PlatformConfig`].
 	pub file:             PathBuf,
 	pub target_platforms: Vec<Platform>,
 	#[serde(flatten)]
 	pub res:              ResourceType,
 }
 
+/// A `<stem>~<tag>.<ext>` sibling of a declared resource file.
+struct Variant {
+	path:      PathBuf,
+	is_named:  bool,
+	tag_count: usize,
+}
+
 impl Resource {
-	/// This resource's source file in `dir` for `platform`: its
-	/// `<stem>~<platform>.<ext>` variant if one exists, `file` otherwise.
-	pub fn resolve(&self, dir: &Path, platform: Platform) -> PathBuf {
-		let variant = dir.join(self.variant_of(platform));
-		if variant.is_file() {
-			variant
-		} else {
-			dir.join(&self.file)
+	/// This resource's source file in `dir` for `platform`.
+	///
+	/// A sibling tagged with the platform's own name wins; failing that, the
+	/// one carrying the most of the platform's other tags; failing that, the
+	/// untagged `file`. Tags the platform does not carry rule a sibling out.
+	///
+	/// # Errors
+	/// If `file` itself is tagged, if a sibling carries a tag no platform
+	/// declares, or if two siblings are equally specific.
+	pub fn resolve(&self, dir: &Path, platform: Platform) -> Result<PathBuf> {
+		let untagged = dir.join(&self.file);
+		let stem = self
+			.file
+			.file_stem()
+			.ok_or_eyre(format!("Resource file {} has no name", self.file.display()))?
+			.to_string_lossy()
+			.into_owned();
+		if stem.contains('~') {
+			bail!(
+				"Resource file {} is tagged; `file` names the untagged resource and tagged \
+				 siblings are picked up from the directory",
+				self.file.display()
+			);
+		}
+
+		let Some(parent) = untagged.parent().map(Path::to_path_buf) else {
+			return Ok(untagged);
+		};
+		let Ok(entries) = std::fs::read_dir(&parent) else {
+			return Ok(untagged);
+		};
+
+		let mut best: Vec<Variant> = Vec::new();
+		for entry in entries {
+			let path = entry?.path();
+			let Some(variant) = self.variant_at(&path, &stem, platform)? else {
+				continue;
+			};
+			let better = best.first().is_none_or(|top| {
+				(variant.is_named, variant.tag_count) > (top.is_named, top.tag_count)
+			});
+			if better {
+				best.clear();
+			}
+			if better
+				|| best.first().is_some_and(|top| {
+					(variant.is_named, variant.tag_count) == (top.is_named, top.tag_count)
+				}) {
+				best.push(variant);
+			}
+		}
+
+		match best.as_slice() {
+			[] => Ok(untagged),
+			[only] => Ok(only.path.clone()),
+			ambiguous => bail!(
+				"{} is ambiguous on {platform}: {} are equally specific",
+				self.file.display(),
+				ambiguous
+					.iter()
+					.map(|v| v.path.display().to_string())
+					.collect::<Vec<_>>()
+					.join(", ")
+			),
 		}
 	}
 
-	fn variant_of(&self, platform: Platform) -> PathBuf {
-		let mut name = self
-			.file
-			.file_stem()
-			.map_or_else(OsString::new, ToOwned::to_owned);
-		name.push("~");
-		name.push(platform.as_str());
-		if let Some(ext) = self.file.extension() {
-			name.push(".");
-			name.push(ext);
+	/// `path` as a variant of this resource for `platform`, or `None` if it is
+	/// a different file or is tagged for other platforms.
+	fn variant_at(&self, path: &Path, stem: &str, platform: Platform) -> Result<Option<Variant>> {
+		if path.extension() != self.file.extension() {
+			return Ok(None);
 		}
-		self.file.with_file_name(name)
+		let Some(name) = path.file_stem().map(OsStr::to_string_lossy) else {
+			return Ok(None);
+		};
+		let Some(tags) = name.strip_prefix(stem).and_then(|t| t.strip_prefix('~')) else {
+			return Ok(None);
+		};
+
+		let mut is_named = false;
+		let mut tag_count = 0;
+		for tag in tags.split('~') {
+			if !Platform::iter().any(|p| p.config().tags.contains(&tag)) {
+				bail!(
+					"{} carries the tag `{tag}`, which no platform declares",
+					path.display()
+				);
+			}
+			if !platform.config().tags.contains(&tag) {
+				return Ok(None);
+			}
+			is_named |= tag == platform.as_str();
+			tag_count += 1;
+		}
+		Ok(Some(Variant {
+			path: path.to_path_buf(),
+			is_named,
+			tag_count,
+		}))
 	}
 }
 
@@ -265,9 +357,22 @@ pub fn read_pbl_metadata() -> Result<
 	Ok((cargo_meta, pkg, pbl_metadata))
 }
 
+/// Set the platform's `pbl_*` cfg flags, and declare the whole vocabulary so
+/// `#[cfg]`-ing on a flag this platform lacks doesn't trip `unexpected_cfgs`.
+/// A build script's cfgs reach only its own crate, so every crate that gates
+/// on them calls this.
+pub fn emit_platform_cfgs(platform: Platform) {
+	for flag in pebble_types::ALL_CFGS {
+		println!("cargo::rustc-check-cfg=cfg({flag})");
+	}
+	for flag in platform.config().cfgs {
+		println!("cargo::rustc-cfg={flag}");
+	}
+}
+
 /// To be called from app's `build.rs`, puts `resources.rs` and `message_keys.rs` in `OUT_DIR`.
 pub fn gen_includes() -> Result<()> {
-	for (env, _) in FEATURES {
+	for (env, _) in platform_features() {
 		println!("cargo:rerun-if-env-changed={env}");
 	}
 	let in_dir = PathBuf::from(var("CARGO_MANIFEST_DIR")?);
@@ -279,6 +384,8 @@ pub fn gen_includes() -> Result<()> {
 		pkg.manifest_path.join("Cargo.toml")
 	);
 	let platform = select_platform();
+
+	emit_platform_cfgs(platform);
 
 	gen_resource_declarations(&in_dir, &pbl_metadata, platform)?;
 	gen_message_keys(pbl_metadata.message_keys.as_deref_mut())?;
@@ -298,29 +405,29 @@ pub fn gen_resource_declarations(
 	let mut pos = 0;
 	let mut resources = Vec::with_capacity(pbl_metadata.resources.len());
 	let res_dir = in_dir.join("resources");
-	// Whether a `~platform` variant wins depends on the directory's contents, not
-	// just on the files this build read, so adding or dropping one has to re-run us
+	// Which file a resource resolves to depends on the directory's contents, not
+	// only on the files this build read, so adding or dropping one must re-run it
 	println!("cargo:rerun-if-changed={}", res_dir.display());
 	for (name, resource) in &pbl_metadata.resources {
 		if !resource.target_platforms.contains(&platform) {
 			continue;
 		}
 
-		let path = resource.resolve(&res_dir, platform);
+		let path = resource.resolve(&res_dir, platform)?;
 		println!("cargo:rerun-if-changed={}", path.display());
 		let bytes = match resource.res.clone() {
-			ResourceType::Raw => std::fs::read(&path)
-				.wrap_err_with(|| format!("Resource Missing! {}", path.display()))?,
-			ResourceType::Png => pbl_image::process_png(&path, platform)?,
-			ResourceType::Bitmap => pbl_image::process_bitmap(&path, platform)?,
-			ResourceType::Pbi => pbl_image::check_bitmap(&path)?,
+			ResourceType::Raw => std::fs::read(&path).map_err(Into::into),
+			ResourceType::Png => pbl_image::process_png(&path, platform),
+			ResourceType::Bitmap => pbl_image::process_bitmap(&path, platform),
+			ResourceType::Pbi => pbl_image::check_bitmap(&path),
 			ResourceType::Font(settings) => {
-				pbl_font::process_font(&path, name, platform, &settings)?
+				pbl_font::process_font(&path, name, platform, &settings)
 			}
-			ResourceType::Pbf => pbl_font::check_font(&path)?,
-			ResourceType::Icon => pbl_image::process_icon(&path, platform)?,
-			ResourceType::Vibe => pbl_vibe::process_vibe(&path)?,
-		};
+			ResourceType::Pbf => pbl_font::check_font(&path),
+			ResourceType::Icon => pbl_image::process_icon(&path, platform),
+			ResourceType::Vibe => pbl_vibe::process_vibe(&path),
+		}
+		.wrap_err_with(|| format!("{name} on {platform}, from {}", path.display()))?;
 		pos += 1;
 		// Not all resources are referenced from app code; icons in particular
 		// are consumed by the packaging step
