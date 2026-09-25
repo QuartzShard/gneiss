@@ -18,7 +18,7 @@ This project is early stage, but the build tooling and `pebble-sys` FFI path alr
 ## Usage
 Clone the repo and build `cargo-pebble`, then stick it somewhere on your path (or add the build dir to your path) to get `cargo pebble` to work.
 
-`cargo pebble new <name> -p emery,<other platforms> /path/to/gneiss/crates/gneiss/ [watchface|application]` to generate a template app, which you can build and run as is. Add `--sys-only` (and point at `crates/pebble-sys/` instead) for a raw `pebble-sys` app with no `gneiss`. See `crates/pebble-types/lib.rs` if you're not sure which platform is which watch.
+`cargo pebble new <name> -p emery,<other platforms> /path/to/gneiss/crates/gneiss/ [watchface|application]` to generate a template app, which you can build and run as is. If you want a raw `pebble-sys` app with no `gneiss`, crib from `examples/sys-only/`. See `crates/pebble-types/lib.rs` if you're not sure which platform is which watch.
 
 `cargo pebble build emery <other platforms>` to build your application bundle, which you can use the usual `pebble install --phone <ip> ./target/thumbv7m-pebble/release/<name>.pbw` to sideload on to your watch (after enabling dev connection in the app), or `pebble install --emulator emery --logs ./target/thumbv7m-pebble/release/<name>.pbw` to run on emulator.
 
