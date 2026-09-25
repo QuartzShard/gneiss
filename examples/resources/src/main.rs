@@ -35,7 +35,7 @@ fn main() {
 			origin: sys::GPoint { x: inset, y: 0 },
 			size:   sys::GSize {
 				w: bounds.size.w - 2 * inset,
-				h: 40,
+				h: 38,
 			},
 		});
 		sys::text_layer_set_font(text, font);
@@ -52,24 +52,45 @@ fn main() {
 		let _from_bitmap = sys::gbitmap_create_with_resource(resources::IMAGE_BITMAP);
 		let from_pbi = sys::gbitmap_create_with_resource(resources::IMAGE_PBI);
 		let image = sys::bitmap_layer_create(sys::GRect {
-			origin: sys::GPoint { x: 0, y: 50 },
+			origin: sys::GPoint { x: 0, y: 40 },
 			size:   sys::GSize {
 				w: bounds.size.w,
-				h: 60,
+				h: 56,
 			},
 		});
 		sys::bitmap_layer_set_bitmap(image, bitmap);
 		sys::layer_add_child(root, sys::bitmap_layer_get_layer(image));
 
 		let pbi_image = sys::bitmap_layer_create(sys::GRect {
-			origin: sys::GPoint { x: 0, y: 115 },
+			origin: sys::GPoint { x: 0, y: 98 },
 			size:   sys::GSize {
 				w: bounds.size.w,
-				h: 45,
+				h: 28,
 			},
 		});
 		sys::bitmap_layer_set_bitmap(pbi_image, from_pbi);
 		sys::layer_add_child(root, sys::bitmap_layer_get_layer(pbi_image));
+
+		// svg: one file compiles to a draw command image. The firmware strokes and
+		// fills it from the resource at draw time, so it scales with no palette
+		// and no decode buffer; there is still nothing that draws it for us.
+		let ferris = sys::gdraw_command_image_create_with_resource(resources::FERRIS_PDC);
+		let ferris_size = sys::gdraw_command_image_get_bounds_size(ferris);
+		let ferris_layer = sys::layer_create_with_data(
+			sys::GRect {
+				origin: sys::GPoint {
+					x: (bounds.size.w - ferris_size.w) / 2,
+					y: 126,
+				},
+				size:   ferris_size,
+			},
+			size_of::<*mut sys::GDrawCommandImage>(),
+		);
+		sys::layer_get_data(ferris_layer)
+			.cast::<*mut sys::GDrawCommandImage>()
+			.write(ferris);
+		sys::layer_set_update_proc(ferris_layer, Some(draw_ferris));
+		sys::layer_add_child(root, ferris_layer);
 
 		// svg: a directory of frames compiles to a draw command sequence. Nothing
 		// draws it for us — a layer's update_proc asks the sequence for the frame
@@ -120,8 +141,16 @@ struct Spinner {
 	elapsed_ms: u32,
 }
 
-/// The OS calls this when the layer needs to redraw, handing over a context to
-/// draw into.
+/// The OS calls an update_proc when its layer needs to redraw, handing over a
+/// context to draw into.
+unsafe extern "C" fn draw_ferris(layer: *mut sys::Layer, ctx: *mut sys::GContext) {
+	unsafe {
+		let image = *sys::layer_get_data(layer).cast::<*mut sys::GDrawCommandImage>();
+		sys::gdraw_command_image_draw(ctx, image, sys::GPoint { x: 0, y: 0 });
+	}
+}
+
+/// Same, for the animated sequence: pick the frame for the elapsed time.
 unsafe extern "C" fn draw_spinner(layer: *mut sys::Layer, ctx: *mut sys::GContext) {
 	unsafe {
 		let spinner = &*sys::layer_get_data(layer).cast::<Spinner>();

@@ -16,8 +16,12 @@ use svgtypes::{
 
 const PDC_VERSION: u8 = 1;
 const SVG_NS: &str = "http://www.w3.org/2000/svg";
-/// `Fixed_S16_3`: precise paths carry 1/8th-pixel coordinates
+/// `Fixed_S16_3` is 13 integer bits over 3 fractional ones (`math_fixed.h`),
+/// so a precise path's coordinates step by 1/8th of a pixel over
+/// [`PRECISE_RANGE`]. A plain `GPoint` is two `i16` pixels.
 const PRECISE_FACTOR: f64 = 8.0;
+const PRECISE_RANGE: (f64, f64) = (-4096.0, 4095.875);
+const COORD_RANGE: (f64, f64) = (i16::MIN as f64, i16::MAX as f64);
 const DEFAULT_TOLERANCE: f64 = 0.125;
 const DEFAULT_FRAME_DURATION_MS: u16 = 33;
 const DEFAULT_PLAY_COUNT: u16 = 1;
@@ -228,7 +232,10 @@ fn frame_paths(dir: &Path) -> Result<Vec<PathBuf>> {
 }
 
 fn parse(svg: &str) -> Result<Drawing<Curved>> {
-	let doc = roxmltree::Document::parse(svg)?;
+	let doc = roxmltree::Document::parse_with_options(svg, roxmltree::ParsingOptions {
+		allow_dtd: true,
+		..roxmltree::ParsingOptions::default()
+	})?;
 	let root = doc.root_element();
 	let name = root.tag_name().name();
 	if name != "svg" {
@@ -797,33 +804,39 @@ fn encode(shapes: Vec<Shape<Flat>>, precise: bool) -> Result<Vec<DrawCommand>> {
 
 /// Pebble's pixel grid sits half a pixel off the SVG one.
 fn encode_point(point: Point, precise: bool) -> Result<(i16, i16)> {
-	let scale = if precise { PRECISE_FACTOR } else { 1.0 };
+	let (scale, (low, high)) = if precise {
+		(PRECISE_FACTOR, PRECISE_RANGE)
+	} else {
+		(1.0, COORD_RANGE)
+	};
 	let fit = |value: f64| -> Result<i16> {
 		if !value.is_finite() {
 			bail!("Coordinate {value} is not a finite number");
 		}
-		i16::try_from(((value - 0.5) * scale).round() as i64).wrap_err_with(|| {
-			if precise {
-				format!("Coordinate {value} outside the ±4096px range of a precise path")
-			} else {
-				format!("Coordinate {value} outside the ±32767px coordinate range")
-			}
-		})
+		let shifted = value - 0.5;
+		if shifted < low || shifted > high {
+			bail!(
+				"Coordinate {value} is outside the {low}..={high}px range of a{} path",
+				if precise { " precise" } else { "" }
+			);
+		}
+		Ok((shifted * scale).round() as i16)
 	};
 	Ok((fit(point.0)?, fit(point.1)?))
 }
 
-/// Two bits per channel, truncating. Zero alpha zeroes the whole colour, and
-/// is how the command list spells "absent".
+/// Two bits per channel, to the nearest of the four levels. Zero alpha zeroes
+/// the whole colour, and is how a command list spells "absent".
 fn argb2(colour: Option<Color>) -> u8 {
 	let Some(colour) = colour else {
 		return 0;
 	};
-	let alpha = colour.alpha / 85;
+	let level = |channel: u8| ((u16::from(channel) + 42) / 85) as u8;
+	let alpha = level(colour.alpha);
 	if alpha == 0 {
 		0
 	} else {
-		alpha << 6 | (colour.red / 85) << 4 | (colour.green / 85) << 2 | (colour.blue / 85)
+		alpha << 6 | level(colour.red) << 4 | level(colour.green) << 2 | level(colour.blue)
 	}
 }
 
@@ -936,15 +949,17 @@ mod tests {
   <polygon points="4,24 20,24 12,40" fill="#ffffff" stroke="#000000" stroke-width="1"/>
   <polyline points="26,26 34,30 40,26 44,34" fill="none" stroke="#ff00ff" stroke-width="3"/>
   <line x1="2" y1="45" x2="46" y2="45" fill="none" stroke="#00ffff" stroke-width="1"/>
-  <path d="M 26 40 L 34 40 L 34 46 Z" fill="#888888" stroke="none" stroke-width="0"/>
+  <path d="M 26 40 L 34 40 L 34 46 Z" fill="#aaaaaa" stroke="none" stroke-width="0"/>
 </svg>
 "##;
 
-	/// `create_pdc_data_from_path(IMAGE_SVG, duration=0, play_count=0, precise=True)`
+	/// `create_pdc_data_from_path(IMAGE_SVG, duration=0, play_count=0, precise=True)`.
+	/// Every colour is an exact palette level, so upstream's truncating
+	/// quantiser and this one's nearest agree on the bytes.
 	const IMAGE_PDCI: &str = "504443498200000001003000300006000300cc02f0000004000c001400ac0014
 	                          00ac0084000c00840002000000c3070001001e000c000300c001ff000003001c
 	                          00bc009c00bc005c003c010300f3030001000400cc00cc000c01ec003c01cc00
-	                          5c010c010300cf0100010002000c0064016c01640103000000d500000300cc00
+	                          5c010c010300cf0100010002000c0064016c01640103000000ea00000300cc00
 	                          3c010c013c010c016c01";
 
 	/// `create_pdc_data_from_path(<dir of frame(1..=3)>, duration=33, play_count=1,
@@ -1041,6 +1056,20 @@ mod tests {
 			geometry: Encoded::Path { open: false, .. },
 			..
 		}]));
+	}
+
+	#[test]
+	fn precise_range_is_enforced() {
+		let svg = r##"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 5000 100">
+			<path d="M 10 10 L 4990 90 Z" fill="#ff0000"/>
+		</svg>"##;
+		let drawing = parse(svg).unwrap();
+		let shapes = flatten(drawing, DEFAULT_TOLERANCE).shapes;
+		assert!(encode(shapes, true).is_err());
+
+		let drawing = parse(svg).unwrap();
+		let shapes = flatten(drawing, DEFAULT_TOLERANCE).shapes;
+		assert!(encode(shapes, false).is_ok());
 	}
 
 	#[test]

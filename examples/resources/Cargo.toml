@@ -78,13 +78,18 @@ file = "font.pbf"
 target_platforms = ["emery", "flint", "chalk", "basalt", "aplite"]
 
 # SVGs compiled to Pebble Draw Commands: vectors the firmware strokes and fills
-# at draw time rather than a bitmap. A single file becomes a .pdc image; a
-# directory of frames (sorted by filename, all sharing one viewBox) becomes an
-# animated .pdc sequence, which is what spinner/ is. SvgSettings (camelCase)
-# tune it: precise, tolerance, frameDurationMs, playCount. Curves are
-# subdivided to `tolerance` pixels, which is what a vector costs you in bytes —
-# 0.5px halves this spinner against the default. 0xFFFF play counts are the
-# firmware's "loop forever".
+# at draw time rather than a bitmap. A single file becomes a .pdc image, a
+# directory of frames (sorted by filename, all sharing one viewBox) an animated
+# .pdc sequence. SvgSettings (camelCase) tune both: precise, tolerance,
+# frameDurationMs, playCount.
+[package.metadata.pebble.resources.FERRIS_PDC]
+type = "svg"
+file = "ferris.svg"
+target_platforms = ["emery", "flint", "chalk", "basalt", "aplite"]
+
+# Curves are subdivided to `tolerance` pixels, which is what a vector costs you
+# in bytes: 0.5px halves this spinner against the default. A 0xFFFF play count
+# is the firmware's "loop forever", so the app can feed it a monotonic clock.
 [package.metadata.pebble.resources.SPINNER_PDCS]
 type = "svg"
 file = "spinner"

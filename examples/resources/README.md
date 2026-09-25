@@ -44,9 +44,9 @@ being built is a build error naming the resource, the platform and the path.
 
 The app draws its title from `DATA_RAW`, the tagged PNG below it and the
 prebaked `.pbi` below that, so a screenshot shows what each watch resolved to.
-The spinner in the top-right corner is `SPINNER_PDCS`, a draw command sequence
-compiled from the twelve SVG frames in `spinner/`. All five run in the emulator
-(`pebble install --emulator <platform>`).
+Below those is `FERRIS_PDC` and in the top-right corner `SPINNER_PDCS`, the two
+draw command kinds. All five run in the emulator (`pebble install --emulator
+<platform>`).
 
 ## Prebaked samples
 
@@ -58,3 +58,16 @@ rather than for a watch — the emery, basalt and chalk packs hold byte-identica
 2-bit bitmaps, and flint and aplite byte-identical 1-bit ones — so two files
 cover five platforms, and there is no shared `logo.pbi` to fall back to.
 Everything else compiles from its source asset.
+
+## Ferris
+
+`ferris.svg` is [rustacean.net](https://rustacean.net)'s `rustacean-flat-noshadow.svg`,
+released CC0 by Karen Rustad Tölva. It is here as a real-world input rather than
+something authored for the watch: twelve `<path>`s of cubic curves, each under
+its own `<g transform="matrix(...)">`, styled through `style=""`, with four of
+them declaring no fill at all and relying on SVG's black default.
+
+Two attributes are changed from the original, both to size it for a watch — the
+root `viewBox` from `0 0 1200 800` to `0 0 60 40`, and a `transform="scale(0.05)"`
+on the top-level group. Draw commands have no scale at draw time, so an SVG has
+to arrive at the size it will be drawn.
