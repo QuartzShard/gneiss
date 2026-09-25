@@ -116,6 +116,9 @@ fn main() {
 				sequence,
 				elapsed_ms: 0,
 			});
+		// a prebaked .pdc loads identically, image or sequence
+		let _prebaked =
+			sys::gdraw_command_sequence_create_with_resource(resources::SPINNER_PREBAKED);
 		sys::layer_set_update_proc(spinner, Some(draw_spinner));
 		sys::layer_add_child(root, spinner);
 		sys::app_timer_register(SPINNER_STEP_MS, Some(advance_spinner), spinner.cast());

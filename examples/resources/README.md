@@ -50,14 +50,17 @@ draw command kinds. All five run in the emulator (`pebble install --emulator
 
 ## Prebaked samples
 
-`logo~color.pbi`, `logo~bw.pbi` and `font.pbf` are prebaked samples for the
-`pbi` / `pbf` kinds. Those types copy an already-compiled file rather than
+`logo~color.pbi`, `logo~bw.pbi`, `font.pbf` and `spinner.pdc` are prebaked
+samples for the `pbi` / `pbf` / `pdc` kinds. Those types copy an already-compiled file rather than
 building one, so they were pulled straight out of a resource pack (the `.pbi`s
 are what `IMAGE_BITMAP` compiled to). A `.pbi` is quantised for a colour depth
 rather than for a watch — the emery, basalt and chalk packs hold byte-identical
 2-bit bitmaps, and flint and aplite byte-identical 1-bit ones — so two files
 cover five platforms, and there is no shared `logo.pbi` to fall back to.
-Everything else compiles from its source asset.
+`spinner.pdc` is what `SPINNER_PDCS` compiled to, so the two share one blob in
+the pack — the same deduplication the `.pbi`s and the two fonts get, which is
+why declaring it costs no flash. Everything else compiles from its source
+asset.
 
 ## Ferris
 

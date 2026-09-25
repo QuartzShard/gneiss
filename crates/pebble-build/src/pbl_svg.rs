@@ -938,6 +938,132 @@ impl Pdc {
 	}
 }
 
+pub(crate) fn check_pdc(file: &Path) -> Result<Vec<u8>> {
+	check_pdc_bytes(
+		std::fs::read(file).wrap_err_with(|| format!("Resource Missing! {}", file.display()))?,
+	)
+}
+
+fn read_u16(pdc: &[u8], at: usize, what: &str) -> Result<u16> {
+	let bytes = pdc
+		.get(at..at + 2)
+		.ok_or_eyre(format!("PDC ends before its {what} at byte {at}"))?;
+	Ok(u16::from_le_bytes([bytes[0], bytes[1]]))
+}
+
+/// Walks one count-prefixed command list, returning the byte after it.
+fn check_command_list(pdc: &[u8], mut at: usize, what: &str) -> Result<usize> {
+	let count = read_u16(pdc, at, &format!("{what} command count"))?;
+	at += 2;
+	for index in 0..count {
+		let head = pdc
+			.get(at..at + 5)
+			.ok_or_eyre(format!("PDC ends inside {what} command {index}"))?;
+		// bit 0 is GDrawCommand's `hidden` flag, the rest is padding
+		if head[1] & !1 != 0 {
+			bail!(
+				"{what} command {index} has reserved bits set in {:#04X}",
+				head[1]
+			);
+		}
+		at += 5;
+		let points = match head[0] {
+			ty @ (1 | 3) => {
+				let open = *pdc
+					.get(at)
+					.ok_or_eyre(format!("PDC ends inside {what} command {index}"))?;
+				if open > 1 {
+					bail!("{what} command {index} has an open flag of {open}");
+				}
+				at += 2;
+				let points = read_u16(pdc, at, &format!("{what} command {index} point count"))?;
+				if points == 0 {
+					bail!(
+						"{what} command {index} is a{} path with no points",
+						match ty {
+							3 => " precise",
+							_ => "",
+						}
+					);
+				}
+				points
+			}
+			2 => {
+				at += 2;
+				let points = read_u16(pdc, at, &format!("{what} command {index} point count"))?;
+				if points != 1 {
+					bail!("{what} command {index} is a circle with {points} points, expected 1");
+				}
+				points
+			}
+			ty => bail!("{what} command {index} has type {ty}, expected 1, 2 or 3"),
+		};
+		at += 2 + 4 * points as usize;
+		if at > pdc.len() {
+			bail!(
+				"{what} command {index} declares {points} points, past the end of a {} byte file",
+				pdc.len()
+			);
+		}
+	}
+	Ok(at)
+}
+
+fn check_pdc_bytes(pdc: Vec<u8>) -> Result<Vec<u8>> {
+	let sequence = match pdc.get(..4) {
+		Some(b"PDCI") => false,
+		Some(b"PDCS") => true,
+		_ => bail!("Not a PDC: no PDCI or PDCS signature"),
+	};
+	// signature, payload length, then the version header
+	if pdc.len() < 16 {
+		bail!(
+			"PDC is {} bytes, smaller than an empty command list",
+			pdc.len()
+		);
+	}
+	let payload = u32::from_le_bytes([pdc[4], pdc[5], pdc[6], pdc[7]]) as usize;
+	if payload != pdc.len() - 8 {
+		bail!(
+			"PDC declares a {payload} byte payload, the file holds {}",
+			pdc.len() - 8
+		);
+	}
+	if pdc[8] != PDC_VERSION {
+		bail!(
+			"Unsupported PDC version {} (expected {PDC_VERSION})",
+			pdc[8]
+		);
+	}
+	let size = Size {
+		width:  i16::from_le_bytes([pdc[10], pdc[11]]),
+		height: i16::from_le_bytes([pdc[12], pdc[13]]),
+	};
+	if size.width <= 0 || size.height <= 0 {
+		bail!("PDC is {}x{}", size.width, size.height);
+	}
+
+	let at = if sequence {
+		let frames = read_u16(&pdc, 16, "frame count")?;
+		if frames == 0 {
+			bail!("PDCS has no frames");
+		}
+		let mut at = 18;
+		for frame in 0..frames {
+			read_u16(&pdc, at, &format!("frame {frame} duration"))?;
+			at = check_command_list(&pdc, at + 2, &format!("frame {frame}"))?;
+		}
+		at
+	} else {
+		check_command_list(&pdc, 14, "image")?
+	};
+	if at != pdc.len() {
+		bail!("PDC has {} bytes after its last command", pdc.len() - at);
+	}
+
+	Ok(pdc)
+}
+
 #[cfg(test)]
 mod tests {
 	use super::*;
@@ -1056,6 +1182,37 @@ mod tests {
 			geometry: Encoded::Path { open: false, .. },
 			..
 		}]));
+	}
+
+	#[test]
+	fn compiled_output_passes_the_checker() {
+		for pdc in [unhex(IMAGE_PDCI), unhex(SEQUENCE_PDCS)] {
+			check_pdc_bytes(pdc).unwrap();
+		}
+	}
+
+	#[test]
+	fn damaged_pdc_is_rejected() {
+		let good = unhex(IMAGE_PDCI);
+		// byte 16 starts the first command: type, hidden, stroke, width, fill,
+		// open, unused, then its point count
+		for (what, at, byte) in [
+			("signature", 1, b'X'),
+			("payload length", 4, 0x99),
+			("version", 8, 2),
+			("width", 10, 0),
+			("command type", 16, 9),
+			("reserved bits", 17, 0x02),
+			("open flag", 21, 7),
+			("point count", 24, 0xFF),
+		] {
+			let mut pdc = good.clone();
+			pdc[at] = byte;
+			assert!(
+				check_pdc_bytes(pdc).is_err(),
+				"a damaged {what} passed the checker"
+			);
+		}
 	}
 
 	#[test]

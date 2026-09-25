@@ -219,6 +219,7 @@ pub enum ResourceType {
 	Icon,
 	Vibe,
 	Svg(SvgSettings),
+	Pdc,
 }
 
 #[derive(Debug, Clone)]
@@ -429,6 +430,7 @@ pub fn gen_resource_declarations(
 			ResourceType::Icon => pbl_image::process_icon(&path, platform),
 			ResourceType::Vibe => pbl_vibe::process_vibe(&path),
 			ResourceType::Svg(settings) => pbl_svg::process_svg(&path, &settings),
+			ResourceType::Pdc => pbl_svg::check_pdc(&path),
 		}
 		.wrap_err_with(|| format!("{name} on {platform}, from {}", path.display()))?;
 		pos += 1;
