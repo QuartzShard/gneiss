@@ -24,10 +24,11 @@ use uuid::Uuid;
 mod build_pbw;
 mod pbl_font;
 mod pbl_image;
+mod pbl_svg;
 mod pbl_vibe;
 pub use build_pbw::{app_info, message_keys_json, package_platform};
 
-use crate::pbl_font::FontSettings;
+use crate::{pbl_font::FontSettings, pbl_svg::SvgSettings};
 
 /// Cargo sets `CARGO_FEATURE_<NAME>` for each enabled feature, so a platform's
 /// selection env var follows from its name.
@@ -217,6 +218,7 @@ pub enum ResourceType {
 	/// resource index is wired into the app header automatically
 	Icon,
 	Vibe,
+	Svg(SvgSettings),
 }
 
 #[derive(Debug, Clone)]
@@ -426,6 +428,7 @@ pub fn gen_resource_declarations(
 			ResourceType::Pbf => pbl_font::check_font(&path),
 			ResourceType::Icon => pbl_image::process_icon(&path, platform),
 			ResourceType::Vibe => pbl_vibe::process_vibe(&path),
+			ResourceType::Svg(settings) => pbl_svg::process_svg(&path, &settings),
 		}
 		.wrap_err_with(|| format!("{name} on {platform}, from {}", path.display()))?;
 		pos += 1;

@@ -1,6 +1,5 @@
 //! A cargo-subcommand utility for building and packaging rust binaries using `pebble-sys`.
 #![allow(incomplete_features)]
-#![feature(generic_const_exprs)]
 pub mod build_project;
 pub mod template;
 

@@ -36,8 +36,8 @@ Resources must be declared in Cargo.toml, an example is provided in the template
 - font (freetype -> .pbf) / pbf (already existing, copied raw),
 - icon (app menu icon, a special-case bitmap wired into the app header),
 - vibe -> Haptics.
-Coming soon™:
 - pdc -> Pebble Draw Command (vector format)
+Coming soon™:
 - mo -> i18n
 
 A resource can ship a different file per watch: name a sibling of the declared `file` `<stem>~<tag>.<ext>` and it is used on the platforms carrying that tag. The tags are upstream's — the platform name, `color`/`bw`, `rect`/`round`, dimensions like `200w`, and capabilities like `touch` — and a file may carry several (`image~color~rect.png`). A sibling naming the platform wins, then the one matching the most tags, then the untagged `file`. `examples/resources` demos it.

@@ -71,6 +71,34 @@ fn main() {
 		sys::bitmap_layer_set_bitmap(pbi_image, from_pbi);
 		sys::layer_add_child(root, sys::bitmap_layer_get_layer(pbi_image));
 
+		// svg: a directory of frames compiles to a draw command sequence. Nothing
+		// draws it for us — a layer's update_proc asks the sequence for the frame
+		// at an elapsed time, and a repeating app timer advances that time. The
+		// state rides in the layer's own callback data rather than a static.
+		let sequence = sys::gdraw_command_sequence_create_with_resource(resources::SPINNER_PDCS);
+		let spinner = sys::layer_create_with_data(
+			sys::GRect {
+				origin: sys::GPoint {
+					x: bounds.size.w - SPINNER_SIZE - 2,
+					y: 4,
+				},
+				size:   sys::GSize {
+					w: SPINNER_SIZE,
+					h: SPINNER_SIZE,
+				},
+			},
+			size_of::<Spinner>(),
+		);
+		sys::layer_get_data(spinner)
+			.cast::<Spinner>()
+			.write(Spinner {
+				sequence,
+				elapsed_ms: 0,
+			});
+		sys::layer_set_update_proc(spinner, Some(draw_spinner));
+		sys::layer_add_child(root, spinner);
+		sys::app_timer_register(SPINNER_STEP_MS, Some(advance_spinner), spinner.cast());
+
 		// vibe: the score compiles and gets a handle, but the current SDK has no
 		// public "play this score" call; apps use the in-memory vibes_* API
 		// (vibes_short_pulse, vibes_enqueue_custom_pattern).
@@ -80,5 +108,39 @@ fn main() {
 		// packaging time. (`resources::APP_ICON` still exists if you want it.)
 
 		sys::window_stack_push(window, false);
+	}
+}
+
+/// Matches the `spinner` resource's `frameDurationMs`.
+const SPINNER_STEP_MS: u32 = 60;
+const SPINNER_SIZE: i16 = 28;
+
+struct Spinner {
+	sequence:   *mut sys::GDrawCommandSequence,
+	elapsed_ms: u32,
+}
+
+/// The OS calls this when the layer needs to redraw, handing over a context to
+/// draw into.
+unsafe extern "C" fn draw_spinner(layer: *mut sys::Layer, ctx: *mut sys::GContext) {
+	unsafe {
+		let spinner = &*sys::layer_get_data(layer).cast::<Spinner>();
+		let frame =
+			sys::gdraw_command_sequence_get_frame_by_elapsed(spinner.sequence, spinner.elapsed_ms);
+		if !frame.is_null() {
+			sys::gdraw_command_frame_draw(ctx, spinner.sequence, frame, sys::GPoint { x: 0, y: 0 });
+		}
+	}
+}
+
+/// An app timer fires once, so re-register to keep going. The sequence's play
+/// count is `0xFFFF`, so the firmware wraps the elapsed time for us.
+unsafe extern "C" fn advance_spinner(data: *mut core::ffi::c_void) {
+	unsafe {
+		let layer: *mut sys::Layer = data.cast();
+		let spinner = &mut *sys::layer_get_data(layer).cast::<Spinner>();
+		spinner.elapsed_ms = spinner.elapsed_ms.wrapping_add(SPINNER_STEP_MS);
+		sys::layer_mark_dirty(layer);
+		sys::app_timer_register(SPINNER_STEP_MS, Some(advance_spinner), data);
 	}
 }

@@ -44,7 +44,9 @@ being built is a build error naming the resource, the platform and the path.
 
 The app draws its title from `DATA_RAW`, the tagged PNG below it and the
 prebaked `.pbi` below that, so a screenshot shows what each watch resolved to.
-All five run in the emulator (`pebble install --emulator <platform>`).
+The spinner in the top-right corner is `SPINNER_PDCS`, a draw command sequence
+compiled from the twelve SVG frames in `spinner/`. All five run in the emulator
+(`pebble install --emulator <platform>`).
 
 ## Prebaked samples
 
