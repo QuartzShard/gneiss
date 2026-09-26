@@ -1,5 +1,5 @@
 //! ISR-Like services for watchapps to subscribe to with the #[gneiss::service] macro
-use core::marker::PhantomData;
+use core::{marker::PhantomData, ptr};
 
 #[cfg(pbl_touch)]
 use crate::touch;
@@ -15,6 +15,14 @@ pub trait Service: Sealed {
 	type Context;
 
 	fn subscribe(f: Self::RawHandler, a: Self::SubscribeArg);
+}
+
+pub trait Peekable: Service {
+	type PeekArgs;
+	type Output;
+
+	/// Peeks the service, returning its last reading as converted types
+	fn peek(arg: Self::PeekArgs) -> Self::Output;
 }
 
 /// Called every time the time elapses the `TimeUnit` used in the `SubscribeArg`
@@ -69,6 +77,15 @@ impl Service for BatteryService {
 	fn subscribe(f: Self::RawHandler, _a: Self::SubscribeArg) {
 		crate::log::debug!("Registering BatteryService handler;");
 		unsafe { sys::battery_state_service_subscribe(Some(f)) }
+	}
+}
+impl Peekable for BatteryService {
+	type Output = sys::BatteryChargeState;
+	type PeekArgs = ();
+
+	/// Query the state of the battery
+	fn peek(_arg: Self::PeekArgs) -> Self::Output {
+		unsafe { sys::battery_state_service_peek() }
 	}
 }
 #[macro_export]
@@ -165,6 +182,22 @@ impl Service for AccelDataService {
 		unsafe { sys::accel_data_service_subscribe(a.get(), Some(f)) }
 	}
 }
+impl Peekable for AccelDataService {
+	type Output = Option<accel::AccelData>;
+	type PeekArgs = ();
+
+	/// Peek one accel sample if available.
+	/// Older watches may return Some(garbage) if accel is not running, as they never flag an error case
+	fn peek(_arg: Self::PeekArgs) -> Self::Output {
+		let dat = ptr::null_mut();
+		let ret = unsafe { sys::accel_service_peek(dat) };
+		match ret {
+			// SAFETY: 0 == OK, dat is populated
+			0 => Some(unsafe { accel::AccelData::from(*dat) }),
+			_ => None,
+		}
+	}
+}
 #[macro_export]
 #[doc(hidden)]
 macro_rules! AccelDataService_raw {
@@ -197,6 +230,23 @@ impl Service for AccelRawDataService {
 	fn subscribe(f: Self::RawHandler, a: Self::SubscribeArg) {
 		crate::log::debug!("Registering AccelRawDataService handler;");
 		unsafe { sys::accel_raw_data_service_subscribe(a.get(), Some(f)) }
+	}
+}
+impl Peekable for AccelRawDataService {
+	type Output = Option<(accel::Sample, u64)>;
+	type PeekArgs = ();
+
+	/// Peek one accel sample if available.
+	/// Older watches may return Some(garbage) if accel is not running, as they never flag an error case
+	fn peek(_arg: Self::PeekArgs) -> Self::Output {
+		let dat = ptr::null_mut();
+		let ret = unsafe { sys::accel_service_peek(dat) };
+		let dat = match ret {
+			// SAFETY: 0 == OK, dat is populated
+			0 => Some(unsafe { accel::AccelData::from(*dat) }),
+			_ => None,
+		};
+		dat.map(|d| (d.sample(), d.timestamp()))
 	}
 }
 #[macro_export]
@@ -235,6 +285,20 @@ impl Service for CompassService {
 			sys::compass_service_set_heading_filter(a.inner().abs());
 			sys::compass_service_subscribe(Some(f));
 		}
+	}
+}
+impl Peekable for CompassService {
+	type Output = compass::HeadingData;
+	type PeekArgs = ();
+
+	/// Peek the compass service
+	fn peek(_arg: Self::PeekArgs) -> Self::Output {
+		let data = ptr::null_mut();
+		if unsafe { sys::compass_service_peek(data) } != 0 {
+			panic!("Expected infallible, please report bug uptstream");
+		};
+		// SAFETY: peek deocumented to be infallible, we panic if it lied
+		compass::HeadingData::from(unsafe { *data })
 	}
 }
 #[macro_export]
@@ -319,6 +383,20 @@ impl Service for ConnectionService {
 				.then_some(handlers.1),
 		};
 		unsafe { sys::connection_service_subscribe(handlers) }
+	}
+}
+impl Peekable for ConnectionService {
+	type Output = connection::State;
+	type PeekArgs = ();
+
+	/// Return the current [`connection::State`] of the watch
+	fn peek(_arg: Self::PeekArgs) -> Self::Output {
+		unsafe {
+			connection::State {
+				app:       sys::connection_service_peek_pebble_app_connection(),
+				pebblekit: sys::connection_service_peek_pebblekit_connection(),
+			}
+		}
 	}
 }
 #[macro_export]
@@ -479,6 +557,7 @@ impl<T> Service for HealthService<T> {
 		Self::__subscribe(f, core::ptr::null_mut())
 	}
 }
+
 impl<T> HealthService<T> {
 	fn __subscribe(f: <Self as Service>::RawHandler, ctx: *mut T) {
 		crate::log::debug!("Registering HealthService handler;");
@@ -499,7 +578,7 @@ macro_rules! HealthService_raw {
 		unsafe extern "C" fn $r(event: u8, ctx: *mut core::ffi::c_void) {
 			// SAFETY: We leaked ctx, we know it's valid
 			$f(
-				health::Event::from(event),
+				::gneiss::health::Event::from(event),
 				ctx.cast::<<$s as ::gneiss::service::Service>::Context>()
 					.as_mut(),
 			)
