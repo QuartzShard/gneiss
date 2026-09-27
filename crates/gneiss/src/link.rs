@@ -87,6 +87,7 @@ impl<'msg> Outbox<'msg> {
 	/// `DictHandle` view or its `Refs`) is live: `begin` invalidates it. The safe
 	/// [`Self::open_after`] consumes the view for you.
 	pub unsafe fn open() -> Option<Outbox<'msg>> {
+		// SAFETY: begin() doesn't deref dict_ptr, it replaces it with a pointer to the outbox
 		let mut dict_ptr = ptr::null_mut();
 		let result = AppMessageError::from_bits_retain(unsafe {
 			sys::app_message_outbox_begin(&mut dict_ptr)

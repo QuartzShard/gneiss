@@ -1,5 +1,5 @@
 //! ISR-Like services for watchapps to subscribe to with the #[gneiss::service] macro
-use core::{marker::PhantomData, ptr};
+use core::{marker::PhantomData, mem::MaybeUninit, ptr};
 
 #[cfg(pbl_touch)]
 use crate::touch;
@@ -44,6 +44,15 @@ impl Service for TickService {
 	fn subscribe(f: Self::RawHandler, a: Self::SubscribeArg) {
 		crate::log::debug!("Registering TickService handler;");
 		unsafe { sys::tick_timer_service_subscribe(a.bits(), Some(f)) }
+	}
+}
+impl Peekable for TickService {
+	type Output = time::TickTime;
+	type PeekArgs = ();
+
+	fn peek(arg: Self::PeekArgs) -> Self::Output {
+		// SAFETY: Time returns i32, &i32 is always valid, localtime has no documented fail state
+		unsafe { *sys::localtime(&sys::time(ptr::null_mut())) }
 	}
 }
 #[macro_export]
@@ -189,13 +198,10 @@ impl Peekable for AccelDataService {
 	/// Peek one accel sample if available.
 	/// Older watches may return Some(garbage) if accel is not running, as they never flag an error case
 	fn peek(_arg: Self::PeekArgs) -> Self::Output {
-		let dat = ptr::null_mut();
-		let ret = unsafe { sys::accel_service_peek(dat) };
-		match ret {
-			// SAFETY: 0 == OK, dat is populated
-			0 => Some(unsafe { accel::AccelData::from(*dat) }),
-			_ => None,
-		}
+		let mut dat = MaybeUninit::uninit();
+		let ret = unsafe { sys::accel_service_peek(dat.as_mut_ptr()) };
+		// SAFETY: 0 == OK, dat is populated
+		(ret == 0).then(|| unsafe { accel::AccelData::from(dat.assume_init()) })
 	}
 }
 #[macro_export]
@@ -239,14 +245,12 @@ impl Peekable for AccelRawDataService {
 	/// Peek one accel sample if available.
 	/// Older watches may return Some(garbage) if accel is not running, as they never flag an error case
 	fn peek(_arg: Self::PeekArgs) -> Self::Output {
-		let dat = ptr::null_mut();
-		let ret = unsafe { sys::accel_service_peek(dat) };
-		let dat = match ret {
-			// SAFETY: 0 == OK, dat is populated
-			0 => Some(unsafe { accel::AccelData::from(*dat) }),
-			_ => None,
-		};
-		dat.map(|d| (d.sample(), d.timestamp()))
+		let mut dat = MaybeUninit::uninit();
+		let ret = unsafe { sys::accel_service_peek(dat.as_mut_ptr()) };
+		// SAFETY: 0 == OK, dat is populated
+		(ret == 0)
+			.then(|| unsafe { accel::AccelData::from(dat.assume_init()) })
+			.map(|d| (d.sample(), d.timestamp()))
 	}
 }
 #[macro_export]
@@ -293,12 +297,12 @@ impl Peekable for CompassService {
 
 	/// Peek the compass service
 	fn peek(_arg: Self::PeekArgs) -> Self::Output {
-		let data = ptr::null_mut();
-		if unsafe { sys::compass_service_peek(data) } != 0 {
+		let mut data = MaybeUninit::uninit();
+		if unsafe { sys::compass_service_peek(data.as_mut_ptr()) } != 0 {
 			panic!("Expected infallible, please report bug uptstream");
 		};
 		// SAFETY: peek deocumented to be infallible, we panic if it lied
-		compass::HeadingData::from(unsafe { *data })
+		compass::HeadingData::from(unsafe { data.assume_init() })
 	}
 }
 #[macro_export]
