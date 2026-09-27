@@ -298,6 +298,7 @@ impl Peekable for CompassService {
 	/// Peek the compass service
 	fn peek(_arg: Self::PeekArgs) -> Self::Output {
 		let mut data = MaybeUninit::uninit();
+		#[allow(clippy::panic, reason = "Defensive against unreachable path")]
 		if unsafe { sys::compass_service_peek(data.as_mut_ptr()) } != 0 {
 			panic!("Expected infallible, please report bug uptstream");
 		};

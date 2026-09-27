@@ -155,11 +155,12 @@ impl Default for Style {
 	}
 }
 
-pub(crate) fn process_svg(file: &Path, settings: &SvgSettings) -> Result<Vec<u8>> {
+pub(crate) fn process_svg(file: &Path, settings: &SvgSettings) -> Result<(Vec<u8>, bool)> {
 	let tolerance = settings.tolerance.unwrap_or(DEFAULT_TOLERANCE);
 	if tolerance <= 0.0 || !tolerance.is_finite() {
 		bail!("tolerance must be a positive number of pixels, got {tolerance}");
 	}
+	let animated: bool;
 	let pdc = if file.is_dir() {
 		let precise = settings.precise.unwrap_or(false);
 		let duration_ms = settings
@@ -188,6 +189,7 @@ pub(crate) fn process_svg(file: &Path, settings: &SvgSettings) -> Result<Vec<u8>
 				commands: encode(flatten(drawing, tolerance).shapes, precise)?,
 			});
 		}
+		animated = true;
 		Pdc::Sequence {
 			size: size.ok_or_eyre("Sequence has no frames")?,
 			play_count: settings.play_count.unwrap_or(DEFAULT_PLAY_COUNT),
@@ -195,6 +197,7 @@ pub(crate) fn process_svg(file: &Path, settings: &SvgSettings) -> Result<Vec<u8>
 		}
 	} else {
 		let drawing = read_drawing(file)?;
+		animated = false;
 		Pdc::Image {
 			size:     pdc_size(drawing.size)?,
 			commands: encode(
@@ -203,7 +206,7 @@ pub(crate) fn process_svg(file: &Path, settings: &SvgSettings) -> Result<Vec<u8>
 			)?,
 		}
 	};
-	pdc.serialise()
+	pdc.serialise().map(|bytes| (bytes, animated))
 }
 
 fn read_drawing(file: &Path) -> Result<Drawing<Curved>> {
@@ -938,7 +941,9 @@ impl Pdc {
 	}
 }
 
-pub(crate) fn check_pdc(file: &Path) -> Result<Vec<u8>> {
+/// The validated file, and whether it is a sequence (`PDCS`) rather than a
+/// single image (`PDCI`)
+pub(crate) fn check_pdc(file: &Path) -> Result<(Vec<u8>, bool)> {
 	check_pdc_bytes(
 		std::fs::read(file).wrap_err_with(|| format!("Resource Missing! {}", file.display()))?,
 	)
@@ -1009,7 +1014,7 @@ fn check_command_list(pdc: &[u8], mut at: usize, what: &str) -> Result<usize> {
 	Ok(at)
 }
 
-fn check_pdc_bytes(pdc: Vec<u8>) -> Result<Vec<u8>> {
+fn check_pdc_bytes(pdc: Vec<u8>) -> Result<(Vec<u8>, bool)> {
 	let sequence = match pdc.get(..4) {
 		Some(b"PDCI") => false,
 		Some(b"PDCS") => true,
@@ -1061,7 +1066,7 @@ fn check_pdc_bytes(pdc: Vec<u8>) -> Result<Vec<u8>> {
 		bail!("PDC has {} bytes after its last command", pdc.len() - at);
 	}
 
-	Ok(pdc)
+	Ok((pdc, sequence))
 }
 
 #[cfg(test)]
@@ -1186,8 +1191,9 @@ mod tests {
 
 	#[test]
 	fn compiled_output_passes_the_checker() {
-		for pdc in [unhex(IMAGE_PDCI), unhex(SEQUENCE_PDCS)] {
-			check_pdc_bytes(pdc).unwrap();
+		// the flag picks PdcKey vs PdcSeqKey for a prebaked `pdc` resource
+		for (pdc, is_sequence) in [(unhex(IMAGE_PDCI), false), (unhex(SEQUENCE_PDCS), true)] {
+			assert_eq!(check_pdc_bytes(pdc).unwrap().1, is_sequence);
 		}
 	}
 

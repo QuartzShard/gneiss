@@ -10,7 +10,10 @@ uuid = "bfccfe59-e1a6-4b31-848c-697a5becda85"
 watchface = false
 
 # Every resource entry needs `file`, `target_platforms`, and `type`. The name of
-# the table (e.g. APP_ICON) becomes a `resources::APP_ICON: u32` const in the app.
+# the table (e.g. APP_ICON) becomes a const in the app's `resources` module, so
+# it has to be a usable Rust name. Its type follows `type` here: `raw` gives a
+# `RawBytesKey`, the image kinds an `ImageKey`, `font`/`pbf` a `FontKey`, and an
+# `svg`/`pdc` a `PdcKey` or `PdcSeqKey` depending on whether it holds a sequence.
 #
 # Siblings of `file` named `<stem>~<tag>.<ext>` override it on the platforms
 # carrying those tags (the platform name, `color`/`bw`, `rect`/`round`, `200w`,

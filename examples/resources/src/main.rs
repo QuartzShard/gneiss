@@ -1,13 +1,16 @@
 //! Declares every currently-supported resource kind (see Cargo.toml) and shows
 //! how each is loaded at runtime. The generated `resources` module gives one
-//! `u32` const per declared resource.
+//! typed key per declared resource, named after the declaration: the key's type
+//! follows the declared `type`, and its `.0` is the resource id the `sys` layer
+//! takes. A prebaked `pdc` gets `PdcKey` or `PdcSeqKey` from the file's own
+//! signature, so it matches how the firmware will load it.
 #![no_std]
 #![no_main]
 extern crate alloc;
 
-use alloc::vec;
+use alloc::{boxed::Box, vec::Vec};
 
-use gneiss::sys;
+use gneiss::{resource::raw, sys};
 
 #[gneiss::entry]
 fn main() {
@@ -16,18 +19,24 @@ fn main() {
 		let root = sys::window_get_root_layer(window);
 		let bounds = sys::layer_get_bounds(root);
 
-		// raw: read the bytes back into a heap buffer. The text layer below keeps
-		// the pointer, so the buffer has to outlive this function — leak it.
-		let raw = sys::resource_get_handle(resources::DATA_RAW);
-		let size = sys::resource_size(raw);
-		let mut buf = vec![0u8; size];
-		let _read = sys::resource_load(raw, buf.as_mut_ptr(), size);
-		let raw_text = alloc::boxed::Box::leak(buf.into_boxed_slice());
+		// raw: a handle validates the resource once and holds its length, then
+		// streams it SIZE bytes at a time (the last chunk is short). The text
+		// layer below keeps the pointer, so the buffer has to outlive this
+		// function: leak it.
+		let handle = raw::ResourceHandle::load(resources::DATA_RAW).expect("DATA_RAW declared");
+		let mut bytes = Vec::with_capacity(handle.len());
+		for chunk in handle.iter::<8>() {
+			bytes.extend_from_slice(&chunk);
+		}
+		let raw_text = Box::leak(bytes.into_boxed_slice());
+		// the whole thing in one call, for when it fits in the app heap
+		let _whole = raw::load_all(resources::DATA_RAW).expect("DATA_RAW loaded");
 
 		// font: a rasterised .pbf. A pre-baked `pbf` resource loads identically.
-		let font = sys::fonts_load_custom_font(sys::resource_get_handle(resources::FONT_ROBOTO_18));
+		let font =
+			sys::fonts_load_custom_font(sys::resource_get_handle(resources::FONT_ROBOTO_18.0.get()));
 		let _font_from_pbf =
-			sys::fonts_load_custom_font(sys::resource_get_handle(resources::FONT_PBF));
+			sys::fonts_load_custom_font(sys::resource_get_handle(resources::FONT_PBF.0.get()));
 		// A round screen clips its corners; `pbl_round` is one of the cfg flags
 		// the build script sets from the platform's tags
 		let inset = if cfg!(pbl_round) { 24 } else { 0 };
@@ -49,9 +58,9 @@ fn main() {
 		// an image~<platform>.png for both watches and IMAGE_PBI a logo~<platform>
 		// .pbi, so those two layers show a different asset on each; IMAGE_BITMAP
 		// compiles the one shared logo.png.
-		let bitmap = sys::gbitmap_create_with_resource(resources::IMAGE_PNG);
-		let _from_bitmap = sys::gbitmap_create_with_resource(resources::IMAGE_BITMAP);
-		let from_pbi = sys::gbitmap_create_with_resource(resources::IMAGE_PBI);
+		let bitmap = sys::gbitmap_create_with_resource(resources::IMAGE_PNG.0.get());
+		let _from_bitmap = sys::gbitmap_create_with_resource(resources::IMAGE_BITMAP.0.get());
+		let from_pbi = sys::gbitmap_create_with_resource(resources::IMAGE_PBI.0.get());
 		let image = sys::bitmap_layer_create(sys::GRect {
 			origin: sys::GPoint { x: 0, y: 40 },
 			size:   sys::GSize {
@@ -75,7 +84,7 @@ fn main() {
 		// svg: one file compiles to a draw command image. The firmware strokes and
 		// fills it from the resource at draw time, so it scales with no palette
 		// and no decode buffer; there is still nothing that draws it for us.
-		let ferris = sys::gdraw_command_image_create_with_resource(resources::FERRIS_PDC);
+		let ferris = sys::gdraw_command_image_create_with_resource(resources::FERRIS_PDC.0.get());
 		let ferris_size = sys::gdraw_command_image_get_bounds_size(ferris);
 		let ferris_layer = sys::layer_create_with_data(
 			sys::GRect {
@@ -97,7 +106,7 @@ fn main() {
 		// draws it for us — a layer's update_proc asks the sequence for the frame
 		// at an elapsed time, and a repeating app timer advances that time. The
 		// state rides in the layer's own callback data rather than a static.
-		let sequence = sys::gdraw_command_sequence_create_with_resource(resources::SPINNER_PDCS);
+		let sequence = sys::gdraw_command_sequence_create_with_resource(resources::SPINNER_PDCS.0.get());
 		let spinner = sys::layer_create_with_data(
 			sys::GRect {
 				origin: sys::GPoint {
@@ -119,7 +128,7 @@ fn main() {
 			});
 		// a prebaked .pdc loads identically, image or sequence
 		let _prebaked =
-			sys::gdraw_command_sequence_create_with_resource(resources::SPINNER_PREBAKED);
+			sys::gdraw_command_sequence_create_with_resource(resources::SPINNER_PREBAKED.0.get());
 		sys::layer_set_update_proc(spinner, Some(draw_spinner));
 		sys::layer_add_child(root, spinner);
 		sys::app_timer_register(SPINNER_STEP_MS, Some(advance_spinner), spinner.cast());
@@ -127,7 +136,7 @@ fn main() {
 		// vibe: the score compiles and gets a handle, but the current SDK has no
 		// public "play this score" call; apps use the in-memory vibes_* API
 		// (vibes_short_pulse, vibes_enqueue_custom_pattern).
-		let _buzz = sys::resource_get_handle(resources::BUZZ);
+		let _buzz = sys::resource_get_handle(resources::BUZZ.0.get());
 
 		// icon needs no code: it is wired into the app header as the menu icon at
 		// packaging time. (`resources::APP_ICON` still exists if you want it.)

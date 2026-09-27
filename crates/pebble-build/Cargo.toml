@@ -26,4 +26,8 @@ freetype-rs = { version = "0.38.0", features = ["bundled"] }
 regex = "1.12.4"
 roxmltree = "0.21.1"
 svgtypes = "0.16.1"
+quote.workspace = true
+proc-macro2.workspace = true
+syn.workspace = true
+prettyplease.workspace = true
 

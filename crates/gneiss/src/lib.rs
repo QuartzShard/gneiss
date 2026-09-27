@@ -20,8 +20,12 @@ pub mod display;
 pub mod log;
 pub mod service;
 
+// Message keys
 pub mod dict;
 pub mod link;
+
+// Typed Resources
+pub mod resource;
 
 // Strong type wrappers for sys types
 pub mod accel;

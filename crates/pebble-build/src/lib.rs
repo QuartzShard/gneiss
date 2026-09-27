@@ -17,6 +17,7 @@ use cargo_metadata::MetadataCommand;
 pub use color_eyre;
 use color_eyre::eyre::{Context, OptionExt, Result, bail};
 use pebble_types::{Platform, pbpack::PbPack};
+use quote::quote;
 use serde::{Deserialize, Serialize};
 use strum::IntoEnumIterator;
 use uuid::Uuid;
@@ -260,6 +261,26 @@ pub enum ResourceType {
 	Pdc,
 }
 
+impl ResourceType {
+	/// The `<type> = <initialiser>` half of this resource's generated const, for
+	/// a `pub const <NAME>: <..>;` item.
+	pub fn as_resource_tokens(&self, pos: u32, pdc_was_animated: bool) -> proc_macro2::TokenStream {
+		let key = match self {
+			ResourceType::Raw => quote!(RawBytesKey),
+			ResourceType::Png | ResourceType::Bitmap | ResourceType::Pbi | ResourceType::Icon => {
+				quote!(ImageKey)
+			}
+			ResourceType::Font(_) | ResourceType::Pbf => quote!(FontKey),
+			ResourceType::Vibe => quote!(VibeKey),
+			ResourceType::Svg(_) | ResourceType::Pdc if pdc_was_animated => quote!(PdcSeqKey),
+			ResourceType::Svg(_) | ResourceType::Pdc => quote!(PdcKey),
+		};
+		quote! {
+			resource::#key = resource::#key(NonZeroU32::new(#pos).expect("resource ids start at 1"))
+		}
+	}
+}
+
 #[derive(Debug, Clone)]
 pub enum MessageKey {
 	Single(String),
@@ -434,7 +455,6 @@ pub fn gen_includes() -> Result<()> {
 	Ok(())
 }
 
-// TODO: Emit typed decls
 pub fn gen_resource_declarations(
 	in_dir: &Path,
 	pbl_metadata: &PebbleMetadata,
@@ -443,7 +463,10 @@ pub fn gen_resource_declarations(
 	// Fail icon duplication at codegen time rather than at packaging
 	icon_index(pbl_metadata, platform)?;
 
-	let mut resource_rs = String::from("// Generated consts for accessing declared resources\n");
+	let mut resource_rs = quote! {
+		use ::core::num::NonZeroU32;
+		use ::gneiss::resource;
+	};
 	let mut pos = 0;
 	let mut resources = Vec::with_capacity(pbl_metadata.resources.len());
 	let res_dir = in_dir.join("resources");
@@ -457,6 +480,7 @@ pub fn gen_resource_declarations(
 
 		let path = resource.resolve(&res_dir, platform)?;
 		println!("cargo:rerun-if-changed={}", path.display());
+		let mut pdc_was_animated = false;
 		let bytes = match resource.res.clone() {
 			ResourceType::Raw => std::fs::read(&path).map_err(Into::into),
 			ResourceType::Png => pbl_image::process_png(&path, platform),
@@ -468,23 +492,42 @@ pub fn gen_resource_declarations(
 			ResourceType::Pbf => pbl_font::check_font(&path),
 			ResourceType::Icon => pbl_image::process_icon(&path, platform),
 			ResourceType::Vibe => pbl_vibe::process_vibe(&path),
-			ResourceType::Svg(settings) => pbl_svg::process_svg(&path, &settings),
-			ResourceType::Pdc => pbl_svg::check_pdc(&path),
+			ResourceType::Svg(settings) => {
+				pbl_svg::process_svg(&path, &settings).map(|(bytes, animated)| {
+					pdc_was_animated = animated;
+					bytes
+				})
+			}
+			ResourceType::Pdc => pbl_svg::check_pdc(&path).map(|(bytes, animated)| {
+				pdc_was_animated = animated;
+				bytes
+			}),
 		}
 		.wrap_err_with(|| format!("{name} on {platform}, from {}", path.display()))?;
 		pos += 1;
+		let name: syn::Ident = syn::parse_str(name)
+			.wrap_err_with(|| format!("`{name}` is not usable as a Rust const name"))?;
 		// Not all resources are referenced from app code; icons in particular
 		// are consumed by the packaging step
-		let _ = write!(
-			resource_rs,
-			"#[allow(dead_code)]\npub const {name}: u32 = {pos};\n"
-		);
+		let type_decl = resource.res.as_resource_tokens(pos, pdc_was_animated);
+		resource_rs.extend(quote! {
+			#[allow(dead_code)]
+			pub const #name: #type_decl;
+		});
 		resources.push(bytes);
 	}
 	let resources: Vec<&[u8]> = resources.iter().map(Borrow::borrow).collect();
 	let pbpack = PbPack::new(&resources);
 	let out = PathBuf::from(var("OUT_DIR")?);
-	std::fs::write(out.join("resources.rs"), &resource_rs)?;
+
+	std::fs::write(
+		out.join("resources.rs"),
+		format!(
+			"// Generated consts for accessing declared resources\n{}",
+			prettyplease::unparse(&syn::parse2(resource_rs)?)
+		),
+	)?;
+
 	std::fs::write(
 		out.join(format!("{platform}_app_resources.pbpack")),
 		pbpack.as_bytes(),
