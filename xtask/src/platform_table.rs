@@ -402,6 +402,7 @@ pub fn render(
 		syn::parse_quote!(
 			#![doc = " Do not hand-edit: see `xtask/src/platform_table.rs`"]
 		),
+		syn::parse_quote!(#![allow(clippy::pedantic)]),
 	];
 	Ok(prettyplease::unparse(&file))
 }

@@ -10,11 +10,11 @@ pub struct GBitMap {
 impl GBitMap {
 	pub fn load(key: ImageKey) -> Option<Self> {
 		let inner = unsafe { sys::gbitmap_create_with_resource(key.0.get()) };
-		if !inner.is_null() {
-			Some(GBitMap { inner })
-		} else {
-			None
-		}
+		if inner.is_null() {
+  			None
+  		} else {
+  			Some(GBitMap { inner })
+  		}
 	}
 }
 impl Drop for GBitMap {
@@ -29,11 +29,11 @@ pub struct DrawCommand {
 impl DrawCommand {
 	pub fn load(key: PdcKey) -> Option<Self> {
 		let inner = unsafe { sys::gdraw_command_image_create_with_resource(key.0.get()) };
-		if !inner.is_null() {
-			Some(DrawCommand { inner })
-		} else {
-			None
-		}
+		if inner.is_null() {
+  			None
+  		} else {
+  			Some(DrawCommand { inner })
+  		}
 	}
 }
 impl Drop for DrawCommand {
@@ -48,11 +48,11 @@ pub struct DrawCommandSequence {
 impl DrawCommandSequence {
 	pub fn load(key: PdcKey) -> Option<Self> {
 		let inner = unsafe { sys::gdraw_command_sequence_create_with_resource(key.0.get()) };
-		if !inner.is_null() {
-			Some(DrawCommandSequence { inner })
-		} else {
-			None
-		}
+		if inner.is_null() {
+  			None
+  		} else {
+  			Some(DrawCommandSequence { inner })
+  		}
 	}
 }
 impl Drop for DrawCommandSequence {

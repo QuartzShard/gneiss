@@ -287,6 +287,7 @@ pub enum MessageKey {
 	Array { name: String, len: usize },
 }
 
+#[allow(clippy::len_without_is_empty)]
 impl MessageKey {
 	pub fn name(&self) -> &str {
 		match self {

@@ -1,4 +1,4 @@
-//! AppMessage link layer: subscription flags, the event stream, and the
+//! `AppMessage` link layer: subscription flags, the event stream, and the
 //! outbound handle. Reads run through [`crate::dict::DictHandle`], which the
 //! read events carry directly.
 use core::ptr;
@@ -59,7 +59,7 @@ bitflags::bitflags! {
 }
 
 /// Size in bytes of buffer to request at in/outbox open
-/// Will be clamped between min/max, or if None, sys::app_message_*box_size_maximum(),
+/// Will be clamped between min/max, or if None, `sys::app_message_*_box_size_maximum()`,
 #[derive(Default, Clone, Copy)]
 pub struct BufferSizes {
 	pub inbox:  Option<u32>,
@@ -76,6 +76,10 @@ impl<'msg> Outbox<'msg> {
 	/// reference into that view survives the `begin` this triggers.
 	/// Return will always be `Some` in the Sent/Failed handlers
 	pub fn open_after(view: DictHandle<'msg>) -> Option<Outbox<'msg>> {
+		#[allow(
+			clippy::drop_non_drop,
+			reason = "Strictly speaking, view must NOT exsit by the time open is called"
+		)]
 		drop(view);
 		unsafe { Self::open() }
 	}
@@ -90,7 +94,7 @@ impl<'msg> Outbox<'msg> {
 		// SAFETY: begin() doesn't deref dict_ptr, it replaces it with a pointer to the outbox
 		let mut dict_ptr = ptr::null_mut();
 		let result = AppMessageError::from_bits_retain(unsafe {
-			sys::app_message_outbox_begin(&mut dict_ptr)
+			sys::app_message_outbox_begin(&raw mut dict_ptr)
 		});
 		if result.is_empty() {
 			// SAFETY: APP_MSG_OK, so dict_ptr is a valid outbox iterator for 'msg.
@@ -105,14 +109,14 @@ impl<'msg> Outbox<'msg> {
 				log::log_sys_fmt!(
 					log::LogLevel::Error,
 					"Unexpected response opening outbox: 0x%x",
-					result.bits() as core::ffi::c_uint
-				)
+					core::ffi::c_uint::from(result.bits())
+				);
 			};
 			None
 		}
 	}
 
-	/// Calls app_message_outbox_send.
+	/// Calls `app_message_outbox_send`.
 	/// Equivalent to just dropping it.
 	pub fn send(self) {}
 
@@ -135,8 +139,8 @@ impl Drop for Outbox<'_> {
 				log::log_sys_fmt!(
 					log::LogLevel::Error,
 					"Error on outbox close: 0x%x",
-					res.bits() as core::ffi::c_int
-				)
+					core::ffi::c_int::from(res.bits())
+				);
 			}
 		}
 	}

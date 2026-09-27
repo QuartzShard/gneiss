@@ -1,7 +1,7 @@
 #[cfg(feature = "alloc")]
 extern crate alloc;
 #[cfg(feature = "alloc")]
-use alloc::{boxed::Box, vec, vec::Vec};
+use alloc::{boxed::Box, vec};
 use core::ops::Deref;
 
 use crate::{resource::RawBytesKey, sys};
@@ -12,6 +12,10 @@ pub struct ResourceHandle {
 	len:    usize,
 }
 
+#[allow(
+	clippy::len_without_is_empty,
+	reason = "Resource of len 0 is not correct"
+)]
 impl ResourceHandle {
 	/// Get a handle to a resource.
 	///
@@ -35,11 +39,11 @@ impl ResourceHandle {
 		self.len
 	}
 
-	/// Loads min(view.len(), available) into view, returning how many bytes it read.
+	/// Loads min(`view.len()`, available) into view, returning how many bytes it read.
 	/// Prefer [`ResourceHandle::iter`] to calling this in a loop, this is for random access
 	pub fn load_slice(self, pos: usize, view: &mut [u8]) -> usize {
-		let ResourceHandle { handle, len } = self;
-		if view.len() == 0 {
+		let ResourceHandle { handle, len: _ } = self;
+		if view.is_empty() {
 			return 0;
 		}
 		unsafe { sys::resource_load_byte_range(handle, pos as u32, view.as_mut_ptr(), view.len()) }
@@ -89,7 +93,7 @@ impl<const SIZE: usize> Deref for Chunk<SIZE> {
 /// Beware that loading a resource larger than your available heap will hit OOM
 ///
 /// # Panics
-/// If handed an invalid ResourceID (but any resource type may be used as a RawBytesKey)
+/// If handed an invalid `ResourceID` (but any resource type may be used as a `RawBytesKey`)
 pub fn load_all(key: RawBytesKey) -> Option<Box<[u8]>> {
 	let ResourceHandle { handle, len } = ResourceHandle::load(key).expect("Invalid resource id");
 	let mut buf = vec![0u8; len];

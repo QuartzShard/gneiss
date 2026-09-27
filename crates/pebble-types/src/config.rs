@@ -4,6 +4,7 @@
 //! (upstream `tools/pebble_sdk_platform.py`; see `vendor/UPSTREAM` for the
 //! snapshot's commit) and the `pebble_process_info.h` bindings.
 //! Do not hand-edit: see `xtask/src/platform_table.rs`
+#![allow(clippy::pedantic)]
 use crate::{Platform, pebble_process_info::Version};
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum DisplayShape {

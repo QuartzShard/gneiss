@@ -1,4 +1,4 @@
-//! AppMessage dictionary layer: keys, a read/write dictionary handle, tuple
+//! `AppMessage` dictionary layer: keys, a read/write dictionary handle, tuple
 //! iteration, and conversion of tuples to and from Rust values.
 
 use core::{ffi::CStr, marker::PhantomData, ptr};
@@ -6,6 +6,7 @@ use core::{ffi::CStr, marker::PhantomData, ptr};
 use crate::sys;
 
 /// From name declarations, or a specific index into a `name[N]` declaration.
+#[derive(Clone, Copy, Debug)]
 pub struct SingleKey {
 	index: u32,
 }
@@ -18,6 +19,7 @@ impl SingleKey {
 }
 
 /// From `name[N]` declarations.
+#[derive(Clone, Copy, Debug)]
 pub struct ArrayKey {
 	base: u32,
 	len:  u32,
@@ -69,7 +71,7 @@ pub struct DictHandle<'a> {
 	_a:    PhantomData<&'a mut sys::DictionaryIterator>,
 }
 
-impl<'a> DictHandle<'a> {
+impl DictHandle<'_> {
 	/// # Safety
 	/// `ptr` must be a valid, non-null `DictionaryIterator` for the whole of `'a`.
 	pub unsafe fn from_raw(ptr: *mut sys::DictionaryIterator) -> Self {
@@ -135,16 +137,25 @@ pub struct Refs<'a> {
 	_a:      PhantomData<&'a sys::DictionaryIterator>,
 }
 
+impl<'a> IntoIterator for &'a DictHandle<'_> {
+	type IntoIter = Refs<'a>;
+	type Item = &'a sys::Tuple;
+
+	fn into_iter(self) -> Self::IntoIter {
+		self.iter()
+	}
+}
+
 impl<'a> Iterator for Refs<'a> {
 	type Item = &'a sys::Tuple;
 
 	fn next(&mut self) -> Option<&'a sys::Tuple> {
 		let tuple = if self.started {
 			// SAFETY: our own iterator copy; advances only the local cursor.
-			unsafe { sys::dict_read_next(&mut self.iter) }
+			unsafe { sys::dict_read_next(&raw mut self.iter) }
 		} else {
 			self.started = true;
-			unsafe { sys::dict_read_first(&mut self.iter) }
+			unsafe { sys::dict_read_first(&raw mut self.iter) }
 		};
 		// SAFETY: NULL at the end, else a valid Tuple in the buffer, alive for 'a.
 		unsafe { tuple.as_ref() }
@@ -298,7 +309,7 @@ impl FromTuple<'_> for bool {
 
 impl ToTuple for bool {
 	fn to_tuple(&self) -> TupleValue<'_> {
-		TupleValue::U8(*self as u8)
+		TupleValue::U8(u8::from(*self))
 	}
 }
 

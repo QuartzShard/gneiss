@@ -1,4 +1,4 @@
-//! ISR-Like services for watchapps to subscribe to with the #[gneiss::service] macro
+//! ISR-Like services for watchapps to subscribe to with the #[`gneiss::service`] macro
 use core::{marker::PhantomData, mem::MaybeUninit, ptr};
 
 #[cfg(pbl_touch)]
@@ -50,7 +50,7 @@ impl Peekable for TickService {
 	type Output = time::TickTime;
 	type PeekArgs = ();
 
-	fn peek(arg: Self::PeekArgs) -> Self::Output {
+	fn peek(_arg: Self::PeekArgs) -> Self::Output {
 		// SAFETY: Time returns i32, &i32 is always valid, localtime has no documented fail state
 		unsafe { *sys::localtime(&sys::time(ptr::null_mut())) }
 	}
@@ -298,10 +298,12 @@ impl Peekable for CompassService {
 	/// Peek the compass service
 	fn peek(_arg: Self::PeekArgs) -> Self::Output {
 		let mut data = MaybeUninit::uninit();
-		#[allow(clippy::panic, reason = "Defensive against unreachable path")]
-		if unsafe { sys::compass_service_peek(data.as_mut_ptr()) } != 0 {
-			panic!("Expected infallible, please report bug uptstream");
-		};
+
+		assert!(
+			unsafe { sys::compass_service_peek(data.as_mut_ptr()) } == 0,
+			"Expected infallible, please report bug uptstream"
+		);
+
 		// SAFETY: peek deocumented to be infallible, we panic if it lied
 		compass::HeadingData::from(unsafe { data.assume_init() })
 	}
@@ -479,7 +481,7 @@ macro_rules! WakeupService_raw {
 	};
 }
 
-/// Requires alloc for the context storage. Ommiting or passing None to the SubscribeArg will skip
+/// Requires alloc for the context storage. Ommiting or passing None to the `SubscribeArg` will skip
 /// context alloc
 ///
 /// Only on watches with a touch panel (`PBL_TOUCH`).
@@ -500,7 +502,7 @@ impl<T> Service for TouchService<T> {
 		use alloc::boxed::Box;
 		// into_raw leaks, so the returned memory is valid forevermore
 		let ctx: *mut Self::Context = a.map(Box::new).map_or(core::ptr::null_mut(), Box::into_raw);
-		Self::__subscribe(f, ctx)
+		Self::__subscribe(f, ctx);
 	}
 
 	#[cfg(not(feature = "alloc"))]
@@ -538,7 +540,7 @@ macro_rules! TouchService_raw {
 	};
 }
 
-/// Requires alloc for the context storage. Ommiting or passing None to the SubscribeArg will skip
+/// Requires alloc for the context storage. Ommiting or passing None to the `SubscribeArg` will skip
 /// context alloc
 pub struct HealthService<T>(PhantomData<T>);
 impl<T> Sealed for HealthService<T> {}
@@ -554,7 +556,7 @@ impl<T> Service for HealthService<T> {
 		use alloc::boxed::Box;
 		// into_raw leaks, so the returned memory is valid forevermore
 		let ctx: *mut Self::Context = a.map(Box::new).map_or(core::ptr::null_mut(), Box::into_raw);
-		Self::__subscribe(f, ctx)
+		Self::__subscribe(f, ctx);
 	}
 
 	#[cfg(not(feature = "alloc"))]
@@ -598,7 +600,7 @@ pub struct AppMessageHandlers {
 	pub failed:   sys::AppMessageOutboxFailed,
 }
 
-/// Requires alloc for the context storage. Ommiting or passing None to the SubscribeArg will skip
+/// Requires alloc for the context storage. Ommiting or passing None to the `SubscribeArg` will skip
 /// context alloc
 pub struct AppMessageService<T>(PhantomData<T>);
 impl<T> Sealed for AppMessageService<T> {}
@@ -617,18 +619,18 @@ impl<T> Service for AppMessageService<T> {
 			a.2.take()
 				.map(Box::new)
 				.map_or(core::ptr::null_mut(), Box::into_raw);
-		Self::__subscribe(f, a, ctx)
+		Self::__subscribe(f, &a, ctx);
 	}
 
 	#[cfg(not(feature = "alloc"))]
 	fn subscribe(f: Self::RawHandler, a: Self::SubscribeArg) {
-		Self::__subscribe(f, a, core::ptr::null_mut())
+		Self::__subscribe(f, &a, core::ptr::null_mut())
 	}
 }
 impl<T> AppMessageService<T> {
 	fn __subscribe(
 		f: <Self as Service>::RawHandler,
-		a: <Self as Service>::SubscribeArg,
+		a: &<Self as Service>::SubscribeArg,
 		ctx: *mut T,
 	) {
 		crate::log::debug!("Registering AppMessageService handler;");
