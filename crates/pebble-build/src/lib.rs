@@ -41,6 +41,44 @@ pub fn platform_features() -> impl Iterator<Item = (String, Platform)> {
 	})
 }
 
+/// Whether the app's `[features]` table declares `platform` as a build target
+pub fn declares_platform(features: &BTreeMap<String, Vec<String>>, platform: Platform) -> bool {
+	let name = platform.as_str();
+	features.get(name).is_some_and(|forwards| {
+		forwards.iter().any(|forward| {
+			forward
+				.strip_suffix(name)
+				.and_then(|dep| dep.strip_suffix('/'))
+				.is_some_and(|dep| dep == "gneiss" || dep == "pebble-sys")
+		})
+	})
+}
+
+/// Every platform `pkg` declares a feature for, in [`Platform`] order.
+///
+/// # Errors
+/// If a feature named after a platform does not forward to it. Such an entry
+/// would otherwise drop that watch from the bundle silently, or worse, forward
+/// somewhere else and bundle another platform's binary under its name.
+pub fn declared_platforms(pkg: &cargo_metadata::Package) -> Result<Vec<Platform>> {
+	let (declared, misdeclared): (Vec<Platform>, Vec<Platform>) = Platform::iter()
+		.filter(|platform| pkg.features.contains_key(platform.as_str()))
+		.partition(|&platform| declares_platform(&pkg.features, platform));
+	if !misdeclared.is_empty() {
+		bail!(
+			"{} declares {} without forwarding to the matching platform: each must contain \
+			 `gneiss/<platform>` or `pebble-sys/<platform>`",
+			pkg.name,
+			misdeclared
+				.iter()
+				.map(|platform| format!("`{}`", platform.as_str()))
+				.collect::<Vec<_>>()
+				.join(", ")
+		);
+	}
+	Ok(declared)
+}
+
 /// Pick the target platform.
 /// `mutually_exclusive_features` only enforces at lib compile time — build.rs
 /// runs first, so do the check here too.
@@ -396,6 +434,7 @@ pub fn gen_includes() -> Result<()> {
 	Ok(())
 }
 
+// TODO: Emit typed decls
 pub fn gen_resource_declarations(
 	in_dir: &Path,
 	pbl_metadata: &PebbleMetadata,

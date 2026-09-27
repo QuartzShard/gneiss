@@ -5,8 +5,10 @@ use std::{
 };
 
 use cargo_metadata::{Message, PackageId, camino::Utf8PathBuf};
-use color_eyre::eyre::{OptionExt, Result};
-use pebble_build::{app_info, message_keys_json, package_platform, read_pbl_metadata};
+use color_eyre::eyre::{OptionExt, Result, bail};
+use pebble_build::{
+	app_info, declared_platforms, message_keys_json, package_platform, read_pbl_metadata,
+};
 use pebble_types::{Platform, pbpack::PbPack};
 use unix_time::Instant;
 use zip::write::FileOptions;
@@ -63,20 +65,63 @@ fn bytes_readable(val: usize) -> String {
 #[derive(Debug, Clone, clap::Parser)]
 /// Build your Pebble app project
 pub struct BuildProject {
+	/// Platforms to bundle. Defaults to every platform the crate declares a
+	/// `<platform> = ["gneiss/<platform>"]` feature for.
 	platforms: Vec<Platform>,
 }
 
 impl BuildProject {
+	/// when none named - all declared in Cargo.toml
+	fn resolve_platforms(&self, pkg: &cargo_metadata::Package) -> Result<Vec<Platform>> {
+		let declared = declared_platforms(pkg)?;
+		if self.platforms.is_empty() {
+			if declared.is_empty() {
+				bail!(
+					"{} declares no platform features; add `<platform> = \
+					 [\"gneiss/<platform>\"]` for each watch you build for",
+					pkg.name
+				);
+			}
+			return Ok(declared);
+		}
+		let undeclared: Vec<&str> = self
+			.platforms
+			.iter()
+			.filter(|platform| !declared.contains(platform))
+			.map(|platform| platform.as_str())
+			.collect();
+		if !undeclared.is_empty() {
+			bail!(
+				"{} declares no platform feature for {}; add `<platform> = \
+				 [\"gneiss/<platform>\"]`",
+				pkg.name,
+				undeclared.join(", ")
+			);
+		}
+		Ok(self.platforms.clone())
+	}
+
 	pub fn build(&self) -> Result<()> {
 		log::info!("Starting build...");
 		let timestamp = Instant::now();
 
 		let (cargo_meta, pkg, mut pbl_metadata) = read_pbl_metadata()?;
-		let triple = self.platforms[0].app_target_triple();
+		let platforms = self.resolve_platforms(&pkg)?;
+		log::info!(
+			"Building for [{}]",
+			platforms
+				.iter()
+				.map(|platform| platform.as_str())
+				.collect::<Vec<_>>()
+				.join(", ")
+		);
+
+		// The app target is the same on every platform.
+		let triple = Platform::default().app_target_triple();
 		let build_path = cargo_meta.target_directory.join(triple).join("release");
 		create_dir_all(&build_path)?;
 
-		let appinfo_json = app_info(&pkg, &mut pbl_metadata, &self.platforms)?;
+		let appinfo_json = app_info(&pkg, &mut pbl_metadata, &platforms)?;
 
 		if pbl_metadata
 			.message_keys
@@ -99,7 +144,7 @@ impl BuildProject {
 		pbw.start_file("appinfo.json", FileOptions::default())?;
 		pbw.write_all(appinfo_json.as_bytes())?;
 
-		for &platform in &self.platforms {
+		for &platform in &platforms {
 			log::info!("Building pebble-app.bin for {platform}");
 			let (elf_path, out_dir) = build_elf(platform, &pkg.id)?;
 			let elf_path =

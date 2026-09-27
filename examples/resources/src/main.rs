@@ -42,6 +42,7 @@ fn main() {
 		// DATA_RAW is NUL-terminated text: flint gets data~flint.bin, emery has no
 		// variant and falls back to data.bin, so the title differs per watch.
 		sys::text_layer_set_text(text, raw_text.as_ptr().cast());
+		sys::text_layer_set_text_color(text, sys::GColor8 { argb: 0xF5 });
 		sys::layer_add_child(root, sys::text_layer_get_layer(text));
 
 		// png / bitmap / pbi all become a GBitmap via the same call. IMAGE_PNG has
