@@ -43,7 +43,7 @@ impl GColour {
 	}
 
 	pub const fn from_rgb8(rgb: u32) -> Self {
-		Self::from_rgb8(0xFF00_0000 | rgb)
+		Self::from_argb8(0xFF00_0000 | rgb)
 	}
 }
 
