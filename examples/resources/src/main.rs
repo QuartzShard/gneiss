@@ -10,6 +10,7 @@ use alloc::{boxed::Box, vec::Vec};
 use core::mem::forget;
 
 use gneiss::{
+	alloc::PebbleAlloc,
 	resource::{
 		image::{DrawCommand, DrawCommandSequence, GBitMap},
 		raw,
@@ -34,7 +35,7 @@ fn main() {
 	}
 	let raw_text = Box::leak(bytes.into_boxed_slice());
 	// the whole thing in one call, for when it fits in the app heap
-	let _whole = raw::load_all(resources::DATA_RAW).expect("DATA_RAW loaded");
+	let _whole = raw::load_all(resources::DATA_RAW, PebbleAlloc).expect("DATA_RAW loaded");
 
 	// font: a rasterised .pbf, still loaded through `sys` (no safe wrapper yet).
 	// A pre-baked `pbf` resource loads identically.
@@ -140,7 +141,7 @@ fn main() {
 					h: SPINNER_SIZE,
 				},
 			},
-			siz_of::<Spinner>(),
+			size_of::<Spinner>(),
 		);
 		sys::layer_get_data(spinner)
 			.cast::<Spinner>()

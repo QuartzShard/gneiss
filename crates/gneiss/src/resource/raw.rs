@@ -1,8 +1,6 @@
-#[cfg(feature = "alloc")]
 extern crate alloc;
-#[cfg(feature = "alloc")]
-use alloc::{boxed::Box, vec};
-use core::ops::Deref;
+use alloc::{boxed::Box, vec::Vec};
+use core::{alloc::Allocator, ops::Deref};
 
 use crate::{resource::RawBytesKey, sys};
 
@@ -87,20 +85,29 @@ impl<const SIZE: usize> Deref for Chunk<SIZE> {
 	}
 }
 
-#[cfg(feature = "alloc")]
-/// Load an entire resource onto a heap buffer.
+/// Load an entire resource.
+///
+/// ```
+/// let res = load_all(resources::RAW_BYTES, PebbleAlloc).expect("RAW_BYTES declared");
+/// ```
 ///
 /// Beware that loading a resource larger than your available heap will hit OOM
 ///
 /// # Panics
 /// If handed an invalid `ResourceID` (but any resource type may be used as a `RawBytesKey`)
-pub fn load_all(key: RawBytesKey) -> Option<Box<[u8]>> {
+pub fn load_all<A: Allocator>(key: RawBytesKey, alloc: A) -> Option<Box<[u8], A>> {
 	let ResourceHandle { handle, len } = ResourceHandle::load(key).expect("Invalid resource id");
-	let mut buf = vec![0u8; len];
+
+	if len == 0 {
+		return None;
+	};
+
+	let mut buf = Vec::with_capacity_in(len, alloc);
 
 	if unsafe { sys::resource_load(handle, buf.as_mut_ptr(), len) } < len {
 		None
 	} else {
+		unsafe { buf.set_len(len) }
 		Some(buf.into_boxed_slice())
 	}
 }

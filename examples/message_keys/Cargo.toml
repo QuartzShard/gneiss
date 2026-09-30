@@ -18,7 +18,6 @@ message_keys = ["Command", "Status", "Uptime", "Samples[8]"]
 
 [dependencies.gneiss]
 path = "../../crates/gneiss"
-features = ["alloc"]
 
 [build-dependencies.pebble-build]
 path = "../../crates/pebble-build"

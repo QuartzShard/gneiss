@@ -496,18 +496,14 @@ impl<T> Service for TouchService<T> {
 	type RawHandler = unsafe extern "C" fn(*const sys::TouchEvent, *mut core::ffi::c_void);
 	type SubscribeArg = Option<T>;
 
-	#[cfg(feature = "alloc")]
 	fn subscribe(f: Self::RawHandler, a: Self::SubscribeArg) {
 		extern crate alloc;
 		use alloc::boxed::Box;
-		// into_raw leaks, so the returned memory is valid forevermore
-		let ctx: *mut Self::Context = a.map(Box::new).map_or(core::ptr::null_mut(), Box::into_raw);
+		// Leak to the watch's heap providing 'static independent of app's choice of alloc
+		let ctx: *mut Self::Context = a
+			.map(|c| Box::new_in(c, crate::alloc::PebbleAlloc))
+			.map_or(core::ptr::null_mut(), |b| Box::into_raw_with_allocator(b).0);
 		Self::__subscribe(f, ctx);
-	}
-
-	#[cfg(not(feature = "alloc"))]
-	fn subscribe(f: Self::RawHandler, _a: Self::SubscribeArg) {
-		Self::__subscribe(f, core::ptr::null_mut())
 	}
 }
 #[cfg(pbl_touch)]
@@ -550,18 +546,14 @@ impl<T> Service for HealthService<T> {
 	type RawHandler = unsafe extern "C" fn(u8, *mut core::ffi::c_void);
 	type SubscribeArg = Option<T>;
 
-	#[cfg(feature = "alloc")]
 	fn subscribe(f: Self::RawHandler, a: Self::SubscribeArg) {
 		extern crate alloc;
 		use alloc::boxed::Box;
-		// into_raw leaks, so the returned memory is valid forevermore
-		let ctx: *mut Self::Context = a.map(Box::new).map_or(core::ptr::null_mut(), Box::into_raw);
+		// Leak to the watch's heap providing 'static independent of app's choice of alloc
+		let ctx: *mut Self::Context = a
+			.map(|c| Box::new_in(c, crate::alloc::PebbleAlloc))
+			.map_or(core::ptr::null_mut(), |b| Box::into_raw_with_allocator(b).0);
 		Self::__subscribe(f, ctx);
-	}
-
-	#[cfg(not(feature = "alloc"))]
-	fn subscribe(f: Self::RawHandler, _a: Self::SubscribeArg) {
-		Self::__subscribe(f, core::ptr::null_mut())
 	}
 }
 
@@ -610,21 +602,15 @@ impl<T> Service for AppMessageService<T> {
 	type RawHandler = fn() -> AppMessageHandlers;
 	type SubscribeArg = (link::SubscribeTo, link::BufferSizes, Option<T>);
 
-	#[cfg(feature = "alloc")]
 	fn subscribe(f: Self::RawHandler, mut a: Self::SubscribeArg) {
 		extern crate alloc;
 		use alloc::boxed::Box;
-		// into_raw leaks, so the returned memory is valid forevermore
+		// Leak to the watch's heap providing 'static independent of app's choice of alloc
 		let ctx: *mut Self::Context =
 			a.2.take()
-				.map(Box::new)
-				.map_or(core::ptr::null_mut(), Box::into_raw);
+				.map(|c| Box::new_in(c, crate::alloc::PebbleAlloc))
+				.map_or(core::ptr::null_mut(), |b| Box::into_raw_with_allocator(b).0);
 		Self::__subscribe(f, &a, ctx);
-	}
-
-	#[cfg(not(feature = "alloc"))]
-	fn subscribe(f: Self::RawHandler, a: Self::SubscribeArg) {
-		Self::__subscribe(f, &a, core::ptr::null_mut())
 	}
 }
 impl<T> AppMessageService<T> {

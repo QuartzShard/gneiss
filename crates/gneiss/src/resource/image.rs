@@ -1,6 +1,5 @@
 use core::{cell::Cell, ptr, slice};
 
-#[cfg(feature = "alloc")]
 extern crate alloc;
 
 use crate::{
@@ -72,12 +71,12 @@ impl SharedPalette {
 		}
 	}
 
-	#[cfg(feature = "alloc")]
-	/// Construct self from an array and leak it. Convenience function for runtime-created shared
-	/// palettes
+	/// Construct self from an array and leak it onto the heap ([`PebbleAlloc`]),
+	/// yielding the `&'static` that [`GBitMap::set_shared_palette`] requires.
+	/// Convenience for runtime-created shared palettes
 	pub fn new_leak(val: [GColour; 16]) -> &'static Self {
 		use alloc::boxed::Box;
-		Box::leak(Box::new(Self::new(val)))
+		Box::leak(Box::new_in(Self::new(val), crate::alloc::PebbleAlloc))
 	}
 
 	/// For static allocations, get a pointer to Self viewed as `sys::GColor`

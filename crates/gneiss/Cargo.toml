@@ -20,9 +20,6 @@ bitflags = "2.13.2"
 pebble-build = { workspace = true }
 
 [features]
-default = ["alloc"]
-alloc   = []
-
 # Platform selection forwards to pebble-sys, where the mutually-exclusive check
 # lives. An app enables exactly one; `gneiss::sys` then resolves for that board.
 emery   = ["pebble-sys/emery"]

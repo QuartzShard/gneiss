@@ -15,9 +15,6 @@ resources = {}
 
 [dependencies.gneiss]
 path = "../../crates/gneiss"
-# `alloc` is required: the context-bearing services (Touch/Health) box their
-# context, and gneiss registers the global allocator.
-features = ["alloc"]
 
 [build-dependencies.pebble-build]
 path = "../../crates/pebble-build"

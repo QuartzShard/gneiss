@@ -6,16 +6,14 @@
 	clippy::unchecked_time_subtraction
 )]
 #![warn(clippy::unreachable, clippy::unimplemented, clippy::todo)]
-#![feature(const_array, const_trait_impl)]
+#![feature(const_array, const_trait_impl, allocator_api, ptr_cast_slice)]
 
 pub use gneiss_macros::{entry, service};
 pub use linkme;
 pub use pebble_sys as sys;
 
-#[cfg(feature = "alloc")]
 pub mod alloc;
 
-#[cfg(feature = "alloc")]
 pub mod display;
 
 pub mod log;

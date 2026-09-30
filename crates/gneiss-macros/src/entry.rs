@@ -5,7 +5,8 @@ use syn::parse_quote;
 
 #[derive(darling::FromMeta, Debug, Default)]
 struct EntryArgs {
-	panic: Option<syn::Path>,
+	panic:        Option<syn::Path>,
+	global_alloc: Option<syn::Path>,
 }
 
 pub fn entry(attr: TokenStream, item: TokenStream) -> TokenStream {
@@ -25,6 +26,17 @@ pub fn entry(attr: TokenStream, item: TokenStream) -> TokenStream {
 		parse_quote! {
 			::gneiss::sys::panic::panic_minimal
 		}
+	});
+
+	let allocator = args.global_alloc.unwrap_or_else(|| {
+		parse_quote! {
+			::gneiss::alloc::PebbleAlloc
+		}
+	});
+
+	out.extend(quote! {
+		#[global_allocator]
+		pub static ALLOC: #allocator = #allocator;
 	});
 
 	out.extend(quote! {
