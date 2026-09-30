@@ -6,6 +6,7 @@
 	clippy::unchecked_time_subtraction
 )]
 #![warn(clippy::unreachable, clippy::unimplemented, clippy::todo)]
+#![feature(const_array, const_trait_impl)]
 
 pub use gneiss_macros::{entry, service};
 pub use linkme;

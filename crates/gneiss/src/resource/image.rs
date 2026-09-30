@@ -1,7 +1,10 @@
-use core::slice;
+use core::{cell::Cell, ptr, slice};
+
+#[cfg(feature = "alloc")]
+extern crate alloc;
 
 use crate::{
-	resource::{ImageKey, PdcKey},
+	resource::{ImageKey, PdcKey, PdcSeqKey},
 	sys,
 };
 
@@ -47,69 +50,121 @@ impl GColour {
 	}
 }
 
-/// An image loaded at runtime
-pub struct GBitMap {
-	inner:   *mut sys::GBitmap,
-	bounds:  sys::GRect,
-	// Points into `inner`'s allocation, valid until gbitmap_destroy;
-	palette: Option<(*mut GColour, usize)>,
+/// Rust representation of a valid, shared, mutible palette. Long enough to account for any use,
+/// handing to a 2-bit image will just ignore the extra 12 colours.
+#[repr(transparent)]
+pub struct SharedPalette {
+	inner: [Cell<GColour>; 16],
 }
-//	sys::gbitmap_get_data(bitmap);
-//	sys::gbitmap_get_bounds(bitmap);
-//	sys::gbitmap_get_format(z);
-//	sys::gbitmap_get_palette(a);
-//	sys::gbitmap_get_bytes_per_row(bitmap);
-//	sys::gbitmap_get_data_row_info(bitmap, y);
 
-//	sys::gbitmap_set_data(bitmap, data, format, row_size_bytes, free_on_destroy);
-//	sys::gbitmap_set_bounds(bitmap, bounds);
-//	sys::gbitmap_set_palette(bitmap, palette, free_on_destroy);
-impl GBitMap {
-	pub fn load(key: ImageKey) -> Option<Self> {
-		let inner = unsafe { sys::gbitmap_create_with_resource(key.0.get()) };
-		if inner.is_null() {
-			None
-		} else {
-			unsafe {
-				let format = sys::gbitmap_get_format(inner);
-				let palette_len = match format {
-					sys::GBitmapFormat_GBitmapFormat1BitPalette => Some(2),
-					sys::GBitmapFormat_GBitmapFormat2BitPalette => Some(4),
-					sys::GBitmapFormat_GBitmapFormat4BitPalette => Some(16),
-					_ => None,
-				};
-				let palette = palette_len.map(|len| (sys::gbitmap_get_palette(inner).cast(), len));
-				let bounds = sys::gbitmap_get_bounds(inner);
+// SAFETY: Pebble apps are single-threaded - every callback runs on the app task,
+// so a shared reference never actually crosses a thread boundary.
+unsafe impl Sync for SharedPalette {}
 
-				Some(GBitMap {
-					inner,
-					bounds,
-					palette,
-				})
-			}
+impl SharedPalette {
+	/// Construct Self from an array. Usable in const context
+	/// ```
+	/// static PALETTE: SharedPalette = SharedPalette::new([GColour { argb: 0xa5 }; 16]);
+	/// ```
+	pub const fn new(val: [GColour; 16]) -> Self {
+		Self {
+			inner: val.map(Cell::new),
 		}
 	}
 
+	#[cfg(feature = "alloc")]
+	/// Construct self from an array and leak it. Convenience function for runtime-created shared
+	/// palettes
+	pub fn new_leak(val: [GColour; 16]) -> &'static Self {
+		use alloc::boxed::Box;
+		Box::leak(Box::new(Self::new(val)))
+	}
+
+	/// For static allocations, get a pointer to Self viewed as `sys::GColor`
+	/// used at FFI boundary
+	pub fn as_sys_ptr(&'static self) -> *mut sys::GColor {
+		core::ptr::from_ref(self).cast_mut().cast()
+	}
+
+	/// Set a palette entry. NOP on OOB.
+	pub fn set(&self, i: usize, val: GColour) {
+		if let Some(v) = self.inner.get(i) {
+			v.set(val);
+		}
+	}
+
+	/// Get a palette entry. NOP on OOB
+	pub fn get(&self, i: usize) -> Option<GColour> {
+		self.inner.get(i).map(Cell::get)
+	}
+}
+
+/// An image loaded at runtime
+pub struct GBitMap {
+	inner:          ptr::NonNull<sys::GBitmap>,
+	shared_palette: bool,
+}
+
+//	The following are currently absent from this type, and are either unimplemented!() or for a
+//	future `GBitMapBuilder`-type API.
+//	sys::gbitmap_get_data(bitmap);
+//	sys::gbitmap_get_bytes_per_row(bitmap);
+//	sys::gbitmap_get_data_row_info(bitmap, y);
+//	sys::gbitmap_set_data(bitmap, data, format, row_size_bytes, free_on_destroy);
+//	sys::gbitmap_set_bounds(bitmap, bounds);
+impl GBitMap {
+	pub fn load(key: ImageKey) -> Option<Self> {
+		let inner = unsafe { sys::gbitmap_create_with_resource(key.0.get()) };
+		ptr::NonNull::new(inner).map(|inner| GBitMap {
+			inner,
+			shared_palette: false,
+		})
+	}
+
 	pub fn palette(&mut self) -> Option<&mut [GColour]> {
-		self.palette
-			.map(|(ptr, len)| unsafe { slice::from_raw_parts_mut(ptr, len) })
+		let format = unsafe { sys::gbitmap_get_format(self.inner.as_ptr()) };
+		let mut palette_len = match format {
+			sys::GBitmapFormat_GBitmapFormat1BitPalette => Some(2),
+			sys::GBitmapFormat_GBitmapFormat2BitPalette => Some(4),
+			sys::GBitmapFormat_GBitmapFormat4BitPalette => Some(16),
+			_ => None,
+		};
+		palette_len
+			// SAFETY: Constructing the slice is not valid if it's pointing to shared memory
+			.take_if(|_| !self.shared_palette)
+			.map(|len| unsafe {
+				slice::from_raw_parts_mut(sys::gbitmap_get_palette(self.inner.as_ptr()).cast(), len)
+			})
 	}
 
 	pub fn origin(&self) -> sys::GPoint {
-		self.bounds.origin
+		self.bounds().origin
 	}
 
 	pub fn size(&self) -> sys::GSize {
-		self.bounds.size
+		self.bounds().size
 	}
 
 	pub fn bounds(&self) -> sys::GRect {
-		self.bounds
+		unsafe { sys::gbitmap_get_bounds(self.inner.as_ptr()) }
+	}
+
+	pub fn as_ptr(&self) -> *mut sys::GBitmap {
+		self.inner.as_ptr()
+	}
+
+	pub fn set_shared_palette(&mut self, shared: &'static SharedPalette) {
+		// SAFETY: Takes &mut self, so no ref to the current palette exists - safe to destroy it.
+		self.shared_palette = true;
+		unsafe {
+			sys::gbitmap_set_palette(self.inner.as_ptr(), shared.as_sys_ptr(), false);
+		}
 	}
 }
+
 impl Drop for GBitMap {
 	fn drop(&mut self) {
-		unsafe { sys::gbitmap_destroy(self.inner) }
+		unsafe { sys::gbitmap_destroy(self.inner.as_ptr()) }
 	}
 }
 
@@ -125,6 +180,10 @@ impl DrawCommand {
 			Some(DrawCommand { inner })
 		}
 	}
+
+	pub fn as_ptr(&self) -> *mut sys::GDrawCommandImage {
+		self.inner
+	}
 }
 impl Drop for DrawCommand {
 	fn drop(&mut self) {
@@ -136,13 +195,17 @@ pub struct DrawCommandSequence {
 	inner: *mut sys::GDrawCommandSequence,
 }
 impl DrawCommandSequence {
-	pub fn load(key: PdcKey) -> Option<Self> {
+	pub fn load(key: PdcSeqKey) -> Option<Self> {
 		let inner = unsafe { sys::gdraw_command_sequence_create_with_resource(key.0.get()) };
 		if inner.is_null() {
 			None
 		} else {
 			Some(DrawCommandSequence { inner })
 		}
+	}
+
+	pub fn as_ptr(&self) -> *mut sys::GDrawCommandSequence {
+		self.inner
 	}
 }
 impl Drop for DrawCommandSequence {

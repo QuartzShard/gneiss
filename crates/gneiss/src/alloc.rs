@@ -11,8 +11,6 @@
 //!     // ..
 //! }
 //! ```
-//! Costs 5KiB of binary size - fine in most cases, but be aware.
-//!
 //! # On Allocations of Align > 4:
 //! The `task_malloc()` provided by PebbleOS returns pointers with an Alignment of 4, so to allocate
 //! types with a larger Align, we must allocate `size + align` bytes to ensure that we can fit the
