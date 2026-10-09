@@ -5,7 +5,7 @@ members = [
     "crates/pebble-sys",
     "crates/gneiss",
     "crates/gneiss-macros",
-    "crates/cargo-pebble",
+    "crates/cargo-gneiss",
     "crates/pebble-build",
 	"xtask",
 ]
@@ -43,7 +43,7 @@ serde_json     = "1"
 uuid           = { version = "1", default-features = false }
 
 # release/dev are left at Cargo defaults — every workspace member builds for
-# the host (xtask, cargo-pebble, and library unit tests). Firmware artifacts
+# the host (xtask, cargo-gneiss, and library unit tests). Firmware artifacts
 # select `fw` explicitly via `--profile fw`.
 [profile.fw]
 inherits        = "release"

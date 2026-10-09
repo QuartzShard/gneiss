@@ -3,7 +3,7 @@
 # here (or in any subdir) build for the app target from anywhere. Launch bacon
 # in-crate: `bacon --features emery`.
 [build]
-target = "../cargo-pebble/thumbv7m-pebble.json"
+target = "../cargo-gneiss/thumbv7m-pebble.json"
 
 [unstable]
 build-std = ["core"]

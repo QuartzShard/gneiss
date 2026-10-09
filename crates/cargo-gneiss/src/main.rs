@@ -9,7 +9,7 @@ use color_eyre::eyre::Result;
 use crate::{build_project::BuildProject, template::NewProject};
 
 #[derive(Debug, clap::Parser)]
-#[command(name = "cargo pebble", about = "A build tool for Pebble apps")]
+#[command(name = "cargo gneiss", about = "A build tool for Gneiss Pebble apps")]
 struct Command {
 	#[command(subcommand)]
 	task: Task,
@@ -36,12 +36,12 @@ fn main() -> Result<()> {
 		.parse_default_env()
 		.init();
 
-	// When invoked as a cargo subcommand (`cargo pebble …`), cargo passes the
+	// When invoked as a cargo subcommand (`cargo gneiss …`), cargo passes the
 	// subcommand name as argv[1]. Strip it so clap sees the *real* subcommand,
-	// while still allowing `cargo-pebble …` to be run directly for debugging.
+	// while still allowing `cargo-gneiss …` to be run directly for debugging.
 	let args = std::env::args()
 		.enumerate()
-		.filter_map(|(i, a)| (!(i == 1 && a == "pebble")).then_some(a));
+		.filter_map(|(i, a)| (!(i == 1 && a == "gneiss")).then_some(a));
 	let cmd = Command::parse_from(args);
 
 	match cmd.task {

@@ -1,7 +1,7 @@
 # sys-only
 
 Hello world over raw `pebble-sys`, with no `gneiss` in the link
-(`src/main.rs`). Build with `cargo pebble build emery`.
+(`src/main.rs`). Build with `cargo gneiss build emery`.
 
 Two reasons it exists:
 

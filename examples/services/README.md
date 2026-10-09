@@ -2,7 +2,7 @@
 
 A gneiss app that registers every `Service` and logs whatever each hands back
 (`src/main.rs`). Companion to the `resources` example. Build with
-`cargo pebble build emery`.
+`cargo gneiss build emery`.
 
 Every distinct service slot is covered. `AccelRawDataService` is left out
 because it shares `AccelDataService`'s subscription slot: registering both is a

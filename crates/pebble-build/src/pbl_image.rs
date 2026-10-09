@@ -444,7 +444,7 @@ mod tests {
 
 	const ICON: &str = concat!(
 		env!("CARGO_MANIFEST_DIR"),
-		"/../cargo-pebble/default_icon.png"
+		"/../cargo-gneiss/default_icon.png"
 	);
 
 	/// ARGB2 -> the RGBA8 that `process_png` writes into PLTE/tRNS.

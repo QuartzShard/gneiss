@@ -59,11 +59,11 @@ fn ci() -> Result<()> {
 		"--features",
 		"gneiss/emery",
 		"--target",
-		"crates/cargo-pebble/thumbv7m-pebble.json",
+		"crates/cargo-gneiss/thumbv7m-pebble.json",
 		"-Zbuild-std=core,alloc",
 		"-Zjson-target-spec",
 	];
-	let host: &[&str] = &["-p", "cargo-pebble", "-p", "pebble-build", "-p", "xtask"];
+	let host: &[&str] = &["-p", "cargo-gneiss", "-p", "pebble-build", "-p", "xtask"];
 
 	let steps: [(&str, &str, &[&str]); 4] = [
 		("check", "watch", watch),
@@ -97,7 +97,7 @@ fn regen_sys() -> Result<()> {
 	// pebble.h #includes a libc surface plus two per-app generated headers that
 	// do not exist at SDK-snapshot time.
 	const STUBS: &[(&str, &str)] = &[
-		// per-app generated; empty at SDK time. cargo-pebble emits the real
+		// per-app generated; empty at SDK time. cargo-gneiss emits the real
 		// ones per gneiss-app, exactly as `pebble build` does for C apps.
 		("message_keys.auto.h", "#pragma once\n"),
 		("src/resource_ids.auto.h", "#pragma once\n"),

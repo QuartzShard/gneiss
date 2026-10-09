@@ -21,7 +21,7 @@ A tag the platform does not carry rules the sibling out entirely, two equally
 specific siblings are a build error, and so is a tag no platform declares (a
 typo cannot silently fall back).
 
-Build it with `cargo pebble build emery flint chalk basalt aplite`: between them
+Build it with `cargo gneiss build emery flint chalk basalt aplite`: between them
 those five cover colour and black and white, round and rect, and both SDK
 vintages. What each one resolves to:
 

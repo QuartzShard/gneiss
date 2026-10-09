@@ -6,7 +6,7 @@ Gneiss (pronounced "nice") is a collection of crates that aim to provide a "pure
 |-------|----------|
 | gneiss | Safe API over the pebble SDK. |  
 | gneiss-macros | Macros for gneiss |
-| cargo-pebble | Project templating and Build tool for producing loadable `.pbw`, like `pebble-tool` for rust | 
+| cargo-gneiss | Project templating and Build tool for producing loadable `.pbw`, like `pebble-tool` for rust | 
 | pebble-sys | FFI surface for calling pebbleOS "syscalls" without linking `pebble.a`, generated from the upstream SDK by the `xtask` | 
 | pebble-types | Shared definitions of the pebble platforms, etc. `no-std` for use in pebble-sys | 
 | pebble-build | Build-time utilities | 
@@ -15,13 +15,13 @@ Gneiss (pronounced "nice") is a collection of crates that aim to provide a "pure
 ## Usage
 
 ### Tools/Setup
-Clone the repo and build `cargo-pebble`, then stick it somewhere on your path (or add the build dir to your path) to get `cargo pebble` to work.
+Clone the repo and build `cargo-gneiss`, then stick it somewhere on your path (or add the build dir to your path) to get `cargo gneiss` to work.
 
-`cargo pebble new <name> -p emery,<other platforms> /path/to/gneiss/crates/gneiss/ [watchface|application]` to generate a template app, which you can build and run as is. See `crates/pebble-types/lib.rs` if you're not sure which platform is which watch.
+`cargo gneiss new <name> -p emery,<other platforms> /path/to/gneiss/crates/gneiss/ [watchface|application]` to generate a template app, which you can build and run as is. See `crates/pebble-types/lib.rs` if you're not sure which platform is which watch.
 
-`cargo pebble build <optional platform specifiers>` to build your application bundle, which you can use the usual `pebble install --phone <ip> ./target/thumbv7m-pebble/release/<name>.pbw` to sideload on to your watch (after enabling dev connection in the app), or `pebble install --emulator <watch> --logs ./target/thumbv7m-pebble/release/<name>.pbw` to run on emulator.
+`cargo gneiss build <optional platform specifiers>` to build your application bundle, which you can use the usual `pebble install --phone <ip> ./target/thumbv7m-pebble/release/<name>.pbw` to sideload on to your watch (after enabling dev connection in the app), or `pebble install --emulator <watch> --logs ./target/thumbv7m-pebble/release/<name>.pbw` to run on emulator.
 
-`gneiss` passes through watchface features to `pebble_sys`, which exports per-watch bindings (re-exported as `gneiss::sys`) to the upstream API. To declare your app supports a watch, add an `emery = ["gneiss/emery"]` feature-forward to your Cargo.toml. `cargo-pebble` looks for these during build. You can enable your own features with these, so long as one of the things enabled is the gneiss feature.
+`gneiss` passes through watchface features to `pebble_sys`, which exports per-watch bindings (re-exported as `gneiss::sys`) to the upstream API. To declare your app supports a watch, add an `emery = ["gneiss/emery"]` feature-forward to your Cargo.toml. `cargo-gneiss` looks for these during build. You can enable your own features with these, so long as one of the things enabled is the gneiss feature.
 
 ### Alloc
  `gneiss::entry` registers `gneiss::alloc::PebbleAlloc`, a `GlobalAlloc` over the PebbleOS `malloc`/`free`/`realloc`. You can supply `#[gneiss::entry(global_alloc = your::Allocator)]` to use your own. OOMs panic!

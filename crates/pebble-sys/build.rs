@@ -21,7 +21,7 @@ fn main() {
 		&format!("0x{:x}", cfg.max_app_memory_size),
 	);
 	// Use the conventional `pebble_app.ld` name so downstream `.cargo/config.toml`
-	// (emitted by cargo-pebble) finds it via `link-arg=-Tpebble_app.ld`.
+	// (emitted by cargo-gneiss) finds it via `link-arg=-Tpebble_app.ld`.
 	std::fs::write(out_dir.join("pebble_app.ld"), resolved)
 		.expect("Failed to write resolved linker script");
 

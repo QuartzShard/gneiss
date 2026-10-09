@@ -110,7 +110,7 @@ pub fn select_platform() -> Platform {
 		),
 	}
 }
-/// Contents of `[package.metadata.pebble]` — written by `cargo pebble new`,
+/// Contents of `[package.metadata.pebble]` — written by `cargo gneiss new`,
 /// read back at build time.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PebbleMetadata {

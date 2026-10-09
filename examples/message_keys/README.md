@@ -2,7 +2,7 @@
 
 Declares AppMessage keys in `Cargo.toml` and uses the generated
 `message_keys::<name>` consts at the AppMessage boundary (`src/main.rs`).
-Build with `cargo pebble build emery`.
+Build with `cargo gneiss build emery`.
 
 Keys are declared with the upstream name DSL: a bare `"Name"` is one key,
 `"Name[N]"` reserves `N` consecutive keys addressed as `message_keys::Name + i`.

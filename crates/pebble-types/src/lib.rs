@@ -78,7 +78,7 @@ pub enum Platform {
 
 impl Platform {
 	/// Name of the custom `rustc` target spec for compiling Pebble *app* code,
-	/// i.e. the stem of the vendored `thumbv7m-pebble.json` (which `cargo-pebble
+	/// i.e. the stem of the vendored `thumbv7m-pebble.json` (which `cargo-gneiss
 	/// new` drops into the app root). Universal across all platforms: apps run
 	/// inside the OS sandbox and only ever see the cortex-m3/thumbv7m ABI,
 	/// regardless of the underlying SoC (the new SF32LB52x-based boards still

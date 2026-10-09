@@ -7,8 +7,8 @@ gen-sys = "run --package xtask --release -- regen-sys"
 ci      = "run --package xtask --release -- ci"
 
 # On-watch crates need the app target; the workspace default stays host for
-# xtask/cargo-pebble/pebble-build. Run from the workspace root: the --target
+# xtask/cargo-gneiss/pebble-build. Run from the workspace root: the --target
 # path is resolved against cwd.
-check-sys  = ["check",  "-p", "pebble-sys", "--features", "emery", "--target", "crates/cargo-pebble/thumbv7m-pebble.json", "-Zbuild-std=core", "-Zjson-target-spec"]
-clippy-sys = ["clippy", "-p", "pebble-sys", "--features", "emery", "--target", "crates/cargo-pebble/thumbv7m-pebble.json", "-Zbuild-std=core", "-Zjson-target-spec"]
-doc-sys    = ["doc",    "-p", "pebble-sys", "-p", "pebble-types", "-p", "gneiss", "--features", "pebble-sys/emery", "--target", "crates/cargo-pebble/thumbv7m-pebble.json", "-Zbuild-std=core", "-Zjson-target-spec"]
+check-sys  = ["check",  "-p", "pebble-sys", "--features", "emery", "--target", "crates/cargo-gneiss/thumbv7m-pebble.json", "-Zbuild-std=core", "-Zjson-target-spec"]
+clippy-sys = ["clippy", "-p", "pebble-sys", "--features", "emery", "--target", "crates/cargo-gneiss/thumbv7m-pebble.json", "-Zbuild-std=core", "-Zjson-target-spec"]
+doc-sys    = ["doc",    "-p", "pebble-sys", "-p", "pebble-types", "-p", "gneiss", "--features", "pebble-sys/emery", "--target", "crates/cargo-gneiss/thumbv7m-pebble.json", "-Zbuild-std=core", "-Zjson-target-spec"]
