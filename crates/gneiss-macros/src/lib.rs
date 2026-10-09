@@ -5,7 +5,7 @@ mod service;
 
 use proc_macro::TokenStream;
 #[proc_macro_attribute]
-/// Takes a `fn main() {}` and wraps it in the required ceremony to be a valid entry for the watch,
+/// Takes a `fn main() {}` or `fn main(&mut UiGuard) {}` and wraps it in the required ceremony to be a valid entry for the watch,
 /// as well as assigning a panic handler.
 ///
 /// Your main fn MUST return or the `sys::app_event_loop` call after it in init is unreachable. You build

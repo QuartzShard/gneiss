@@ -1,3 +1,4 @@
+//! Types for touch service events
 use crate::sys;
 
 pub struct Event {

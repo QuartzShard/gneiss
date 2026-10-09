@@ -44,11 +44,13 @@ pub fn entry(attr: TokenStream, item: TokenStream) -> TokenStream {
 		fn __gneiss_panic_handler(info: &::core::panic::PanicInfo) -> ! { #handler(info) }
 
 		#[doc = " Generated consts naming each bundled resource by index"]
+		#[allow(unused)]
 		mod resources {
 			include!(concat!(env!("OUT_DIR"), "/resources.rs"));
 		}
 
 		#[doc = " Generated consts naming each declared message key"]
+		#[allow(unused)]
 		mod message_keys {
 			include!(concat!(env!("OUT_DIR"), "/message_keys.rs"));
 		}
@@ -57,6 +59,15 @@ pub fn entry(attr: TokenStream, item: TokenStream) -> TokenStream {
 	if let Some(input) = input {
 		validate_entry(&input, &mut errs);
 		let fn_name = input.sig.ident;
+		// The guard drops before services register: their handlers can fire synchronously
+		let call = if input.sig.inputs.is_empty() {
+			quote! { #fn_name(); }
+		} else {
+			quote! {
+				let mut ui = ::gneiss::ui::UiGuard::enter();
+				#fn_name(&mut ui);
+			}
+		};
 
 		out.extend(quote! {
 			#[unsafe(export_name = "main")]
@@ -67,7 +78,7 @@ pub fn entry(attr: TokenStream, item: TokenStream) -> TokenStream {
                 ::gneiss::log::verbose!("If handlers fail to register next, check your main() returns.");
                 ::gneiss::log::verbose!("Don't call `app_event_loop()`, that's handled by gneiss");
                 // User code constructs UI and state
-				#fn_name();
+				{ #call }
 
                 ::gneiss::log::debug!("Registering handlers...");
                 // Handlers may run sync when hardware missing - require UI/State exists.
@@ -99,8 +110,8 @@ pub fn entry(attr: TokenStream, item: TokenStream) -> TokenStream {
 }
 
 /// Push a spanned error for every way `func` fails to qualify as an entry fn:
-/// must be safe, non-async, non-variadic, non-generic, take no arguments,
-/// return `()`, and carry no symbol-export attributes.
+/// must be safe, non-async, non-variadic, non-generic, take no arguments or a
+/// single `&mut UiGuard`, return `()`, and carry no symbol-export attributes.
 fn validate_entry(func: &syn::ItemFn, errs: &mut darling::error::Accumulator) {
 	let sig = &func.sig;
 	if let syn::Safety::Unsafe(unsafety) = &sig.safety {
@@ -123,8 +134,11 @@ fn validate_entry(func: &syn::ItemFn, errs: &mut darling::error::Accumulator) {
 				.with_span(&sig.generics),
 		);
 	}
-	if !sig.inputs.is_empty() {
-		errs.push(darling::Error::custom("entry fn takes no arguments").with_span(&sig.inputs));
+	if sig.inputs.len() > 1 {
+		errs.push(
+			darling::Error::custom("entry fn takes no arguments, or a single `&mut UiGuard`")
+				.with_span(&sig.inputs),
+		);
 	}
 	if let syn::ReturnType::Type(_, ty) = &sig.output {
 		let is_unit = matches!(&**ty, syn::Type::Tuple(t) if t.elems.is_empty());
@@ -162,6 +176,19 @@ fn validate_entry(func: &syn::ItemFn, errs: &mut darling::error::Accumulator) {
 mod test {
 	use super::*;
 	#[test]
+	fn expands_main_with_ui() {
+		let out = entry(
+			quote!(),
+			quote!(
+				fn main(ui: &mut ::gneiss::ui::UiGuard) {}
+			),
+		);
+		let out = out.to_string();
+		assert!(out.contains("UiGuard :: enter ()"), "{out}");
+		assert!(out.contains("main (& mut ui)"), "{out}");
+	}
+
+	#[test]
 	fn expands_trivial_main() {
 		let out = entry(
 			quote!(),
@@ -169,11 +196,15 @@ mod test {
 				fn main() {}
 			),
 		);
-		println!(
-			"{}",
-			prettyplease::unparse(
-				&syn::parse2(out.clone()).unwrap_or_else(|e| panic!("{e}\n{out}"))
-			)
-		);
+		let file: syn::File = syn::parse2(out.clone()).unwrap_or_else(|e| panic!("{e}\n{out}"));
+		// prettyplease can't print the initializer-less `distributed_slice` statics, which syn
+		// only parses as verbatim tokens
+		for item in file.items {
+			if let syn::Item::Verbatim(tokens) = item {
+				println!("{tokens}");
+			} else {
+				println!("{}", prettyplease::unparse(&parse_quote!(#item)));
+			}
+		}
 	}
 }

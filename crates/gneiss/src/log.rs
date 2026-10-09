@@ -1,3 +1,4 @@
+//! Logging macros writing to the watch's app log.
 use crate::sys;
 
 #[repr(u8)]

@@ -1,3 +1,4 @@
+//! Raw byte resources, read whole or streamed in chunks.
 extern crate alloc;
 use alloc::{boxed::Box, vec::Vec};
 use core::{alloc::Allocator, ops::Deref};
@@ -100,7 +101,7 @@ pub fn load_all<A: Allocator>(key: RawBytesKey, alloc: A) -> Option<Box<[u8], A>
 
 	if len == 0 {
 		return None;
-	};
+	}
 
 	let mut buf = Vec::with_capacity_in(len, alloc);
 

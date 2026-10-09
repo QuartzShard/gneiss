@@ -1,3 +1,4 @@
+//! Types for health service events
 use crate::sys;
 
 #[repr(u8)]

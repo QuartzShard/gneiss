@@ -462,6 +462,8 @@ macro_rules! WakeupService_raw {
 			)
 		}
 
+		#[::gneiss::linkme::distributed_slice(GNEISS_LAUNCH_HOOKS)]
+		#[linkme(crate = ::gneiss::linkme)]
 		fn __gneiss_wakeup_launch() {
 			unsafe {
 				let (mut id, mut cookie) = (0, 0);
@@ -474,10 +476,6 @@ macro_rules! WakeupService_raw {
 				}
 			}
 		}
-
-		#[::gneiss::linkme::distributed_slice(GNEISS_LAUNCH_HOOKS)]
-		#[linkme(crate = ::gneiss::linkme)]
-		static WAKEUP_LAUNCH_HOOK: fn() = __gneiss_wakeup_launch;
 	};
 }
 

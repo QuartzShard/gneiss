@@ -12,11 +12,11 @@ extern crate alloc;
 use alloc::format;
 
 use gneiss::{
-	display::SimpleTextDisplay,
 	link::{AppMessageEvent, BufferSizes, Outbox, SubscribeTo},
 	service::*,
 	sys,
 	time::{TickTime, TimeUnits},
+	ui::{Nav, StatusBoard, UiGuard},
 };
 
 #[repr(usize)]
@@ -25,7 +25,7 @@ enum Slot {
 	Recv,
 	Event,
 }
-static BOARD: SimpleTextDisplay<3> = SimpleTextDisplay::new();
+static BOARD: StatusBoard<3> = StatusBoard::new();
 
 /// Context threaded through the AppMessage handler, to show the `Option<&mut T>`
 /// context surviving between callbacks.
@@ -35,22 +35,10 @@ struct MsgCtx {
 }
 
 #[gneiss::entry]
-fn main() {
-	unsafe {
-		let window = sys::window_create();
-		let root = sys::window_get_root_layer(window);
-		let bounds = sys::layer_get_bounds(root);
-		let text = sys::text_layer_create(bounds);
-		sys::text_layer_set_text_alignment(text, sys::GTextAlignment_GTextAlignmentCenter);
-		sys::text_layer_set_font(
-			text,
-			sys::fonts_get_system_font(sys::FONT_KEY_GOTHIC_18.as_ptr()),
-		);
-		sys::text_layer_set_text(text, c"messageKeys demo".as_ptr());
-		sys::layer_add_child(root, sys::text_layer_get_layer(text));
-		sys::window_stack_push(window, false);
-		BOARD.attach(text);
-	}
+fn main(ui: &mut UiGuard) {
+	BOARD.init();
+	BOARD.set_line(ui, 0, "messageKeys demo");
+	Nav::new(ui).push(&BOARD, false);
 }
 
 // --- read side: keys drive get / get_array_slot / iter on the inbox handle ---
@@ -64,6 +52,7 @@ fn main() {
 	)
 )]
 fn on_message(event: AppMessageEvent, ctx: Option<&mut MsgCtx>) {
+	let mut guard = UiGuard::enter();
 	match event {
 		AppMessageEvent::Recieved { inbox } => {
 			let n = ctx.map_or(0, |c| {
@@ -73,7 +62,8 @@ fn on_message(event: AppMessageEvent, ctx: Option<&mut MsgCtx>) {
 			let cmd = inbox.get::<u8>(message_keys::Command).ok();
 			let first_sample = inbox.get_array_slot::<i32>(message_keys::Samples, 0).ok();
 			let tuples = inbox.iter().count();
-			BOARD.set(
+			BOARD.set_line(
+				&mut guard,
 				Slot::Recv as usize,
 				format!("Recv #{n}: cmd={cmd:?} s0={first_sample:?} tuples={tuples}"),
 			);
@@ -83,16 +73,22 @@ fn on_message(event: AppMessageEvent, ctx: Option<&mut MsgCtx>) {
 				c.sent += 1;
 				c.sent
 			});
-			BOARD.set(Slot::Event as usize, format!("Event: sent {n} ok"));
+			BOARD.set_line(
+				&mut guard,
+				Slot::Event as usize,
+				format!("Event: sent {n} ok"),
+			);
 		}
 		AppMessageEvent::Failed { reason, .. } => {
-			BOARD.set(
+			BOARD.set_line(
+				&mut guard,
 				Slot::Event as usize,
 				format!("Event: send failed {reason:#x}"),
 			);
 		}
 		AppMessageEvent::Dropped { reason } => {
-			BOARD.set(
+			BOARD.set_line(
+				&mut guard,
 				Slot::Event as usize,
 				format!("Event: inbox dropped {reason:#x}"),
 			);
@@ -107,7 +103,11 @@ fn on_tick(time: TickTime, _changed: TimeUnits) {
 	// SAFETY: no DictHandle view is live here; the buffers are open (the
 	// AppMessage service opened them at registration).
 	let Some(mut outbox) = (unsafe { Outbox::open() }) else {
-		BOARD.set(Slot::Sent as usize, "Sent: outbox busy");
+		BOARD.set_line(
+			&mut UiGuard::enter(),
+			Slot::Sent as usize,
+			"Sent: outbox busy",
+		);
 		return;
 	};
 	let _ = outbox.set(message_keys::Status, c"tick");
@@ -117,7 +117,8 @@ fn on_tick(time: TickTime, _changed: TimeUnits) {
 			let _ = outbox.set(slot, &(i as i32));
 		}
 	}
-	BOARD.set(
+	BOARD.set_line(
+		&mut UiGuard::enter(),
 		Slot::Sent as usize,
 		format!("Sent: uptime={}s + 8 samples", time.tm_sec),
 	);

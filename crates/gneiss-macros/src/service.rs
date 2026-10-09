@@ -69,12 +69,11 @@ pub fn service(
 			#handler_check
 			#config_fn
 			::gneiss::#m!(handler: #fn_ident, raw_handler: #raw_fn_ident, service: #service);
+			#[::gneiss::linkme::distributed_slice(GNEISS_SERVICES)]
+			#[linkme(crate = ::gneiss::linkme)]
 			fn #init_fn_ident() {
 				<#service as ::gneiss::service::Service>::subscribe(#raw_fn_ident, #cfg_fn_ident())
 			}
-			#[::gneiss::linkme::distributed_slice(GNEISS_SERVICES)]
-			#[linkme(crate = ::gneiss::linkme)]
-			static #static_ident: fn() = #init_fn_ident;
 		});
 	}
 

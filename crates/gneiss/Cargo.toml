@@ -15,6 +15,7 @@ pebble-sys    = { workspace = true }
 gneiss-macros = { workspace = true }
 linkme        = { workspace = true }
 bitflags = "2.13.2"
+embedded-graphics-core = "0.4"
 
 [build-dependencies]
 pebble-build = { workspace = true }
