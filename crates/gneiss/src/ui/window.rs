@@ -59,6 +59,40 @@ pub(super) struct Header {
 	pub(super) clicks: ClickHandlers,
 }
 
+/// A firmware window with `handlers` installed. `None` if the firmware is out of memory.
+fn create(handlers: sys::WindowHandlers) -> Option<*mut sys::Window> {
+	// SAFETY: plain firmware calls on the window just created
+	unsafe {
+		let raw = sys::window_create();
+		if raw.is_null() {
+			return None;
+		}
+		sys::window_set_window_handlers(raw, handlers);
+		Some(raw)
+	}
+}
+
+/// Take `window` off the stack and destroy it, returning its user data.
+///
+/// # Safety
+/// `window` must be a live window, not used again.
+///
+/// # Panics
+/// If the window is loaded.
+unsafe fn destroy(window: *mut sys::Window) -> *mut core::ffi::c_void {
+	// SAFETY: window is live until window_destroy, as the caller guarantees
+	unsafe {
+		let user_data = sys::window_get_user_data(window);
+		assert!(
+			!sys::window_is_loaded(window),
+			"Currently invalid to drop a loaded window"
+		);
+		sys::window_stack_remove(window, false);
+		sys::window_destroy(window);
+		user_data
+	}
+}
+
 /// # Safety
 /// `window` must be a live window created by [`Window::new`].
 pub(super) unsafe fn header(window: *mut sys::Window) -> *mut Header {
@@ -101,30 +135,28 @@ pub trait Layout<D = ()>: NoWindow + Sized {
 impl<C: Layout<D>, D> Window<C, D> {
 	/// Create a window with persistent data `data`. `None` if the firmware is out of memory.
 	pub fn new(data: Option<D>) -> Option<Self> {
-		let raw = unsafe { sys::window_create().as_mut() }?;
-		unsafe {
-			sys::window_set_window_handlers(raw, sys::WindowHandlers {
-				load:      Some(Self::__load),
-				appear:    Some(Self::__appear),
-				disappear: Some(Self::__disappear),
-				unload:    Some(Self::__unload),
-			});
-			let data = Box::new_in(
-				WindowData::<C, D> {
-					header: Header {
-						tag:    TypeId::of::<WindowData<C, D>>(),
-						clicks: ClickHandlers::new(),
-					},
-					layout: None,
-					data,
-					pending: None,
+		let ptr = create(sys::WindowHandlers {
+			load:      Some(Self::__load),
+			appear:    Some(Self::__appear),
+			disappear: Some(Self::__disappear),
+			unload:    Some(Self::__unload),
+		})?;
+		let data = Box::new_in(
+			WindowData::<C, D> {
+				header: Header {
+					tag:    TypeId::of::<WindowData<C, D>>(),
+					clicks: ClickHandlers::new(),
 				},
-				PebbleAlloc,
-			);
-			sys::window_set_user_data(raw, Box::into_raw_with_allocator(data).0.cast());
-		}
+				layout: None,
+				data,
+				pending: None,
+			},
+			PebbleAlloc,
+		);
+		// SAFETY: ptr was just created
+		unsafe { sys::window_set_user_data(ptr, Box::into_raw_with_allocator(data).0.cast()) };
 		Some(Self {
-			ptr:  raw,
+			ptr,
 			data: PhantomData,
 		})
 	}
@@ -190,7 +222,7 @@ impl<C: Layout<D>, D> Window<C, D> {
 		let _ui = UiGuard::enter();
 		let WindowData { layout, data, .. } = unsafe { Self::window_data(window) };
 		debug_assert!(layout.is_none());
-		*layout = Some(C::load(&mut WindowCtx::new(window, data)));
+		layout.get_or_insert_with(|| C::load(&mut WindowCtx::new(window, data)));
 	}
 
 	unsafe extern "C" fn __appear(window: *mut sys::Window) {
@@ -225,22 +257,10 @@ impl<C: Layout<D>, D> Window<C, D> {
 
 impl<C: Layout<D>, D> Drop for Window<C, D> {
 	fn drop(&mut self) {
-		// SAFETY: ptr invalidated beyond this point, we're in Drop. If there's data, re-assemble
-		// the box so it's dropped too
+		// SAFETY: self.ptr is live until here and dropped with it; destroy hands back the user data
+		// new() installed, re-assembled so it drops too
 		unsafe {
-			// First, get the data ptr before we kill the window (and therefore leak it)
-			let data_ptr = sys::window_get_user_data(self.ptr).cast::<WindowData<C, D>>();
-
-			assert!(
-				!sys::window_is_loaded(self.ptr),
-				"Currently invalid to drop a loaded window"
-			);
-
-			// make sure we're not destroying something on the stack
-			sys::window_stack_remove(self.ptr, false);
-			sys::window_destroy(self.ptr);
-
-			// Now: data dealloced
+			let data_ptr = destroy(self.ptr).cast::<WindowData<C, D>>();
 			let _ = Box::from_raw_in(data_ptr, PebbleAlloc);
 		}
 	}
@@ -371,8 +391,7 @@ impl<C: Layout<D>, D> StaticWindow<C, D> {
 	/// # Panics
 	/// If the slot is already set.
 	pub fn set(&self, window: Window<C, D>) {
-		assert!(self.inner.get().is_none(), "StaticWindow set twice");
-		self.inner.set(Some(window.leak()));
+		slot_set(&self.inner, window.leak());
 	}
 
 	/// The slot's window, to navigate to.
@@ -380,7 +399,7 @@ impl<C: Layout<D>, D> StaticWindow<C, D> {
 	/// # Panics
 	/// If the slot has not been set.
 	pub fn get(&self) -> AnyWindow<'static> {
-		self.inner.get().expect("StaticWindow used before set")
+		slot_get(&self.inner)
 	}
 
 	/// Shared access to the window's layout and data. `None` while it is unloaded.
@@ -407,6 +426,15 @@ impl<C: Layout<D>, D> StaticWindow<C, D> {
 		let WindowData { layout, data, .. } = unsafe { Window::<C, D>::window_data(ptr) };
 		f(layout.as_mut(), &mut WindowCtx::new(ptr, data))
 	}
+}
+
+fn slot_set(slot: &Cell<Option<AnyWindow<'static>>>, window: AnyWindow<'static>) {
+	assert!(slot.get().is_none(), "StaticWindow set twice");
+	slot.set(Some(window));
+}
+
+fn slot_get(slot: &Cell<Option<AnyWindow<'static>>>) -> AnyWindow<'static> {
+	slot.get().expect("StaticWindow used before set")
 }
 
 impl<C: Layout<D>, D> Default for StaticWindow<C, D> {

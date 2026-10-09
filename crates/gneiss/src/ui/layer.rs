@@ -65,6 +65,9 @@ impl<T: AsLayer> Layer for T {
 /// Draws a [`DataLayer`]'s contents, given its data and bounds.
 pub type DrawFn<T> = fn(&T, Rectangle, &mut GContext<'_>);
 
+// A DrawFn<T> with its data pointer erased
+type ErasedDrawFn = fn(*const (), Rectangle, &mut GContext<'_>);
+
 /// A window's root layer.
 pub struct RootLayer {
 	ptr: *mut sys::Layer,
@@ -76,10 +79,14 @@ pub struct DataLayer<T> {
 	_data: PhantomData<Box<LayerData<T>, PebbleAlloc>>,
 }
 
+#[repr(C)]
 struct LayerData<T> {
-	draw: Option<DrawFn<T>>,
+	draw: Option<ErasedDrawFn>,
 	val:  T,
 }
+
+/// Where `val` sits in every `LayerData<T>`, so one draw trampoline serves them all.
+const VAL_OFFSET: usize = size_of::<Option<ErasedDrawFn>>();
 
 impl RootLayer {
 	/// The root layer of `win`.
@@ -113,6 +120,7 @@ impl<T> DataLayer<T> {
 		// SAFETY: LayerData<T> must be align <= 4 or we can't be sure the layer alloc is correctly
 		// aligned
 		let _: () = const { assert!(align_of::<LayerData<T>>() <= 4) };
+		let _: () = const { assert!(core::mem::offset_of!(LayerData<T>, val) == VAL_OFFSET) };
 		let ptr = unsafe {
 			sys::layer_create_with_data(grect(frame), size_of::<LayerData<T>>()).as_mut()?
 		};
@@ -146,8 +154,11 @@ impl<T> DataLayer<T> {
 
 	/// Draw this layer's contents with `draw` from now on.
 	pub fn set_draw(&mut self, draw: DrawFn<T>) {
-		self.layer_data().draw = Some(draw);
-		unsafe { sys::layer_set_update_proc(self.ptr, Some(Self::__draw)) };
+		// SAFETY: &T and *const () are ABI-compatible for a sized T, and the trampoline only calls
+		// this with a pointer to this layer's T
+		self.layer_data().draw =
+			Some(unsafe { core::mem::transmute::<DrawFn<T>, ErasedDrawFn>(draw) });
+		unsafe { sys::layer_set_update_proc(self.ptr, Some(draw_trampoline)) };
 		self.mark_dirty();
 	}
 
@@ -157,25 +168,27 @@ impl<T> DataLayer<T> {
 		unsafe { sys::layer_set_update_proc(self.ptr, None) };
 		self.mark_dirty();
 	}
+}
 
-	unsafe extern "C" fn __draw(layer: *mut sys::Layer, ctx: *mut sys::GContext) {
-		let _ui = UiGuard::enter();
-		// SAFETY: only registered on DataLayer<T> layers, whose data is a LayerData<T>; render
-		// never overlaps a &mut from layer_data
-		let data = unsafe { sys::layer_get_data(layer).cast::<LayerData<T>>().as_ref() };
-		let Some(LayerData {
-			draw: Some(draw),
-			val,
-		}) = data
-		else {
-			return;
-		};
-		// SAFETY: these are this update proc call's arguments, and ctx doesn't escape it
-		let mut ctx = unsafe { GContext::new(ctx, layer) };
-		// SAFETY: the layer is live while it renders
-		let bounds = rect(unsafe { sys::layer_get_bounds(layer) });
-		draw(val, bounds, &mut ctx);
-	}
+unsafe extern "C" fn draw_trampoline(layer: *mut sys::Layer, ctx: *mut sys::GContext) {
+	let _ui = UiGuard::enter();
+	// SAFETY: only registered on DataLayer layers, whose data is a repr(C) LayerData<T> with draw at
+	// offset 0 and val at VAL_OFFSET; render never overlaps a &mut from layer_data
+	let (draw, val) = unsafe {
+		let data = sys::layer_get_data(layer);
+		(
+			*data.cast::<Option<ErasedDrawFn>>(),
+			data.byte_add(VAL_OFFSET).cast::<()>(),
+		)
+	};
+	let Some(draw) = draw else {
+		return;
+	};
+	// SAFETY: these are this update proc call's arguments, and ctx doesn't escape it
+	let mut ctx = unsafe { GContext::new(ctx, layer) };
+	// SAFETY: the layer is live while it renders
+	let bounds = rect(unsafe { sys::layer_get_bounds(layer) });
+	draw(val, bounds, &mut ctx);
 }
 
 impl DataLayer<()> {

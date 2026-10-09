@@ -42,6 +42,13 @@ SECTIONS
 			  *(.data.*)
 	} > APP
 
+	/* Before .bss: anything file-backed after it makes the loaded image carry .bss as zeros */
+	.got :
+	{
+		*(.got)
+		*(.got.*)
+	} > APP
+
 	.bss :
 	{
 		*(.bss)

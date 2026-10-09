@@ -1,9 +1,5 @@
 //! Deferred window stack navigation.
-extern crate alloc;
-use alloc::vec::Vec;
-
 use crate::{
-	alloc::PebbleAlloc,
 	sys,
 	ui::{AnyWindow, Layout, TypedWindow, UiGuard, window::WindowData},
 };
@@ -20,23 +16,39 @@ pub enum NavAction<'n> {
 /// Navigation queue. Actions run in the order they were queued when the `Nav` is dropped, which in
 /// a window callback is once the handler has returned. Handlers fired by an action run their own
 /// queue at that point, before the next action.
+///
+/// Holds up to [`Nav::CAPACITY`] actions; queuing more logs a warning and drops the new action.
 pub struct Nav<'n> {
-	actions: Vec<NavAction<'n>, PebbleAlloc>,
+	actions: [Option<NavAction<'n>>; Nav::CAPACITY],
+	len:     usize,
 	ui:      &'n mut UiGuard,
 }
 
 impl<'n> Nav<'n> {
+	/// How many actions one `Nav` can queue.
+	pub const CAPACITY: usize = 16;
+
 	/// An empty queue. It holds `ui` until it drops and runs its actions.
 	pub fn new(ui: &'n mut UiGuard) -> Self {
 		Self {
-			actions: Vec::new_in(PebbleAlloc),
+			actions: [None; Self::CAPACITY],
+			len: 0,
 			ui,
 		}
 	}
 
+	fn queue(&mut self, action: NavAction<'n>) {
+		let Some(slot) = self.actions.get_mut(self.len) else {
+			crate::log::warn!("Nav queue full, dropping action");
+			return;
+		};
+		*slot = Some(action);
+		self.len += 1;
+	}
+
 	/// Push `window` onto the window stack.
 	pub fn push(&mut self, window: impl Into<AnyWindow<'n>>, animated: bool) {
-		self.actions.push(NavAction::Push(window.into(), animated));
+		self.queue(NavAction::Push(window.into(), animated));
 	}
 
 	/// Push `window`, handing `arg` to its next [`appear`](Layout::appear): straight after this push,
@@ -58,31 +70,30 @@ impl<'n> Nav<'n> {
 				sys::window_get_user_data(window.ptr).cast::<WindowData<W::Layout, W::Data>>();
 			drop((&raw mut (*data).pending).replace(Some(arg)));
 		}
-		self.actions.push(NavAction::Push(window, animated));
+		self.queue(NavAction::Push(window, animated));
 	}
 
 	/// Pop whichever window is on top of the stack when this action runs.
 	pub fn pop(&mut self, animated: bool) {
-		self.actions.push(NavAction::Pop(animated));
+		self.queue(NavAction::Pop(animated));
 	}
 
 	/// Pop every window on the stack when this action runs.
 	pub fn pop_all(&mut self, animated: bool) {
-		self.actions.push(NavAction::PopAll(animated));
+		self.queue(NavAction::PopAll(animated));
 	}
 
 	/// Remove `window` from the window stack, wherever it is when this action runs.
 	pub fn remove(&mut self, window: impl Into<AnyWindow<'n>>, animated: bool) {
-		self.actions
-			.push(NavAction::Remove(window.into(), animated));
+		self.queue(NavAction::Remove(window.into(), animated));
 	}
 }
 
 impl Drop for Nav<'_> {
 	fn drop(&mut self) {
-		let actions = &mut self.actions;
+		let actions = &self.actions;
 		self.ui.os_lend(|| {
-			for action in actions.drain(..) {
+			for &action in actions.iter().flatten() {
 				// SAFETY: every AnyWindow borrows a Window that outlives 'n, and no layout can own a
 				// Window (NoWindow), so no earlier action can have destroyed a later target
 				unsafe {

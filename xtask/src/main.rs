@@ -117,7 +117,15 @@ fn regen_sys() -> Result<()> {
 			 void *malloc(size_t);\nvoid free(void *);\nvoid *realloc(void *, size_t);\n",
 		),
 		("stdio.h", "#pragma once\n"),
-		("string.h", "#pragma once\n"),
+		// Like the allocator family, mem* is `skipDefinition` but exported; gneiss routes
+		// compiler_builtins' mem* through these
+		(
+			"string.h",
+			"#pragma once\n#include <stddef.h>\n\
+			 void *memcpy(void *, const void *, size_t);\n\
+			 void *memmove(void *, const void *, size_t);\n\
+			 void *memset(void *, int, size_t);\n",
+		),
 		("locale.h", "#pragma once\n"),
 	];
 	let vendor = workspace_root().join("crates/pebble-sys/vendor");

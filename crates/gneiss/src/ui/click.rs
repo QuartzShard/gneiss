@@ -1,4 +1,14 @@
 //! Per-button click handlers for a window.
+//!
+//! # Binary size
+//!
+//! A [`ClickHandler`] stores its closure as a raw pointer plus `call` and `drop` function pointers,
+//! not as a `Box<dyn FnMut>`. A trait object's vtable sits in `.data`, needs a load-time relocation
+//! per function pointer, and brings a `call_once` shim that is never called: measured at about 52
+//! bytes per registered handler. Function pointers written at runtime need no relocation.
+//!
+//! The click trampolines are generic over the click kind only, not the window type, so an app has
+//! one set however many windows it has.
 extern crate alloc;
 use alloc::boxed::Box;
 use core::ffi;
@@ -58,7 +68,13 @@ impl Button {
 	const ALL: [Self; 4] = [Self::Back, Self::Up, Self::Select, Self::Down];
 
 	fn from_raw(id: sys::ButtonId) -> Option<Self> {
-		Self::ALL.into_iter().find(|b| *b as sys::ButtonId == id)
+		match id {
+			sys::ButtonId_BUTTON_ID_BACK => Some(Self::Back),
+			sys::ButtonId_BUTTON_ID_UP => Some(Self::Up),
+			sys::ButtonId_BUTTON_ID_SELECT => Some(Self::Select),
+			sys::ButtonId_BUTTON_ID_DOWN => Some(Self::Down),
+			_ => None,
+		}
 	}
 }
 
@@ -88,10 +104,55 @@ pub enum Click {
 	RawUp,
 }
 
+// Not a Box<dyn FnMut> on purpose: see the module docs, "Binary size"
 /// One button's handler, and the clicks it is subscribed to.
 pub struct ClickHandler {
 	subscribed: ClickKinds,
-	fun:        Box<dyn for<'n> FnMut(*mut Header, Click, &mut Nav<'n>) + NoWindow, PebbleAlloc>,
+	// A boxed closure, reached only through `call` and `drop`, which know its type
+	closure:    *mut (),
+	call:       for<'n> unsafe fn(*mut (), *mut Header, Click, &mut Nav<'n>),
+	// None when dropping the box is a no-op
+	drop:       Option<unsafe fn(*mut ())>,
+}
+
+impl ClickHandler {
+	fn new<F: for<'n> FnMut(*mut Header, Click, &mut Nav<'n>) + 'static>(
+		subscribed: ClickKinds,
+		closure: F,
+	) -> Self {
+		unsafe fn call<F: for<'n> FnMut(*mut Header, Click, &mut Nav<'n>)>(
+			closure: *mut (),
+			header: *mut Header,
+			click: Click,
+			nav: &mut Nav<'_>,
+		) {
+			// SAFETY: closure is the Box<F> made in new, live until drop
+			unsafe { (*closure.cast::<F>())(header, click, nav) }
+		}
+		unsafe fn drop_box<F>(closure: *mut ()) {
+			// SAFETY: closure is the Box<F> made in new, dropped once
+			drop(unsafe { Box::from_raw_in(closure.cast::<F>(), PebbleAlloc) });
+		}
+		Self {
+			subscribed,
+			// no alloc for fn items, ZST
+			closure: Box::into_raw_with_allocator(Box::new_in(closure, PebbleAlloc))
+				.0
+				.cast(),
+			call: call::<F>,
+			drop: (size_of::<F>() != 0 || core::mem::needs_drop::<F>())
+				.then_some(drop_box::<F> as unsafe fn(*mut ())),
+		}
+	}
+}
+
+impl Drop for ClickHandler {
+	fn drop(&mut self) {
+		if let Some(drop) = self.drop {
+			// SAFETY: closure and drop were paired in new, and this is the only drop
+			unsafe { drop(self.closure) };
+		}
+	}
 }
 
 impl<C: Layout<D>, D> Window<C, D> {
@@ -107,28 +168,21 @@ impl<C: Layout<D>, D> Window<C, D> {
 		+ 'static,
 	) {
 		// Internally tracks C,D while not carrying that on the handler's type
-		let fun = handle_type_erase(move |header, click, nav| {
-			let window = header.cast::<WindowData<C, D>>();
-			// SAFETY: the header is the start of this window's WindowData<C, D>. The trampoline
-			// borrows only the header's handlers, so these field borrows are the only others, and its
-			// UiGuard excludes every other borrow into the window
-			let (layout, data) = unsafe { (&mut (*window).layout, &mut (*window).data) };
-			if let Some(layout) = layout {
-				handler(layout, data.as_mut(), click, nav);
-			}
-		});
+		let erased = ClickHandler::new(
+			kinds,
+			move |header: *mut Header, click, nav: &mut Nav<'_>| {
+				let window = header.cast::<WindowData<C, D>>();
+				// SAFETY: the header is the start of this window's WindowData<C, D>. The trampoline
+				// borrows only the header's handlers, so these field borrows are the only others, and its
+				// UiGuard excludes every other borrow into the window
+				let (layout, data) = unsafe { (&mut (*window).layout, &mut (*window).data) };
+				if let Some(layout) = layout {
+					handler(layout, data.as_mut(), click, nav);
+				}
+			},
+		);
 		// SAFETY: &mut self keeps the window alive
-		unsafe {
-			replace(
-				self.ptr,
-				ui,
-				button,
-				Some(ClickHandler {
-					subscribed: kinds,
-					fun,
-				}),
-			);
-		}
+		unsafe { replace(self.ptr, ui, button, Some(erased)) };
 	}
 
 	/// Remove `button`'s click handler.
@@ -136,14 +190,6 @@ impl<C: Layout<D>, D> Window<C, D> {
 		// SAFETY: &mut self keeps the window alive
 		unsafe { replace(self.ptr, ui, button, None) };
 	}
-}
-
-/// Take any handler fn (internally knows C,D) and `Box` it to erase the type
-fn handle_type_erase(
-	fun: impl for<'n> FnMut(*mut Header, Click, &mut Nav<'n>) + NoWindow + 'static,
-) -> Box<dyn for<'n> FnMut(*mut Header, Click, &mut Nav<'n>) + NoWindow, PebbleAlloc> {
-	// no alloc for fn items, ZST
-	Box::new_in(fun, PebbleAlloc)
 }
 
 /// # Safety
@@ -237,8 +283,8 @@ unsafe extern "C" fn click_config(context: *mut ffi::c_void) {
 
 /// Pops the window, as the firmware's own Back handling does until Back is first subscribed.
 unsafe extern "C" fn back_pop(_recognizer: sys::ClickRecognizerRef, _context: *mut ffi::c_void) {
-	let mut ui = UiGuard::enter();
-	Nav::new(&mut ui).pop(true);
+	// SAFETY: popping fires this window's callbacks synchronously, so the guard is lent for it
+	UiGuard::enter().os_lend(|| unsafe { sys::window_stack_pop(true) });
 }
 
 unsafe extern "C" fn click<const KIND: u8>(
@@ -279,5 +325,6 @@ unsafe extern "C" fn click<const KIND: u8>(
 		}
 	};
 	let mut nav = Nav::new(&mut ui);
-	(handler.fun)(header, click, &mut nav);
+	// SAFETY: closure and call were paired in ClickHandler::new
+	unsafe { (handler.call)(handler.closure, header, click, &mut nav) };
 }

@@ -84,7 +84,7 @@ impl NewProject {
 	fn toolchain(path: &Path) -> Result<()> {
 		std::fs::write(
 			path.join("rust-toolchain.toml"),
-			"[toolchain]\nchannel = \"nightly\"\ncomponents = [\"rust-src\"]\n",
+			"[toolchain]\nchannel = \"nightly-2026-10-09\"\ncomponents = [\"rust-src\"]\n",
 		)
 		.wrap_err("Can't write toolchain file")
 	}

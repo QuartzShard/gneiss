@@ -10,7 +10,6 @@
 #![feature(
 	const_array,
 	const_trait_impl,
-	allocator_api,
 	ptr_cast_slice,
 	auto_traits,
 	negative_impls,

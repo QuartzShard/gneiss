@@ -16,6 +16,7 @@ mutually_exclusive_features::exactly_one_of!(
 	"emery", "flint", "gabbro", "aplite", "basalt", "chalk", "diorite"
 );
 
+mod mem;
 pub mod panic;
 mod shim;
 

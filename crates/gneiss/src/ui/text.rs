@@ -49,11 +49,11 @@ impl TextBuf {
 	}
 
 	/// Append `s`, dropping any NUL bytes.
+	#[inline(never)]
 	pub fn push_str(&mut self, s: &str) {
 		self.bytes.pop();
-		for part in s.as_bytes().split(|&b| b == 0) {
-			self.bytes.extend_from_slice(part);
-		}
+		self.bytes.reserve(s.len() + 1);
+		self.bytes.extend(s.bytes().filter(|&b| b != 0));
 		self.bytes.push(0);
 	}
 

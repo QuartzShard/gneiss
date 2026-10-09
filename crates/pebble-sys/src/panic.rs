@@ -33,6 +33,7 @@ struct LogBuf {
 }
 
 impl Write for LogBuf {
+	#[inline(never)]
 	fn write_str(&mut self, s: &str) -> fmt::Result {
 		let free = &mut self.buf[self.len.min(LOG_MSG_LEN)..];
 		let n = s.len().min(free.len());

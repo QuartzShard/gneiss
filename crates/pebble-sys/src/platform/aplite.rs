@@ -701,6 +701,51 @@ pub type int_fast8_t = i8;
 pub type uint_fast8_t = u8;
 pub type intmax_t = ::core::ffi::c_longlong;
 pub type uintmax_t = ::core::ffi::c_ulonglong;
+/** memcpy
+  -> Added in 0
+gneiss: Vtable Slot 162, Offset 648*/
+#[unsafe(naked)]
+#[unsafe(link_section = ".text.memcpy")]
+pub unsafe extern "C" fn memcpy(
+	arg1: *mut ::core::ffi::c_void,
+	arg2: *const ::core::ffi::c_void,
+	arg3: ::core::ffi::c_uint,
+) -> *mut ::core::ffi::c_void {
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =648", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
+}
+/** memmove
+  -> Added in 0
+gneiss: Vtable Slot 163, Offset 652*/
+#[unsafe(naked)]
+#[unsafe(link_section = ".text.memmove")]
+pub unsafe extern "C" fn memmove(
+	arg1: *mut ::core::ffi::c_void,
+	arg2: *const ::core::ffi::c_void,
+	arg3: ::core::ffi::c_uint,
+) -> *mut ::core::ffi::c_void {
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =652", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
+}
+/** memset
+  -> Added in 0
+gneiss: Vtable Slot 164, Offset 656*/
+#[unsafe(naked)]
+#[unsafe(link_section = ".text.memset")]
+pub unsafe extern "C" fn memset(
+	arg1: *mut ::core::ffi::c_void,
+	arg2: ::core::ffi::c_int,
+	arg3: ::core::ffi::c_uint,
+) -> *mut ::core::ffi::c_void {
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =656", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
+}
 pub type time_t = ::core::ffi::c_long;
 ///! Back button
 pub const ButtonId_BUTTON_ID_BACK: ButtonId = 0;
