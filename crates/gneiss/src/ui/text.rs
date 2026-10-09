@@ -22,7 +22,8 @@ pub enum TextAlignment {
 }
 
 /// Growable text for a [`TextLayer`] whose text changes: edit it in place through
-/// [`TextLayer::text_mut`], e.g. with `write!`. NUL bytes are dropped.
+/// [`TextLayer::text_mut`], e.g. with `write!`. NUL bytes are dropped. With
+/// `-Cpanic=immediate-abort` it is also a `ufmt::uWrite`, for `uwrite!` without `core::fmt`.
 #[derive(Default)]
 pub struct TextBuf {
 	// empty, or NUL-terminated with no interior NUL
@@ -77,6 +78,16 @@ impl Deref for TextBuf {
 
 impl fmt::Write for TextBuf {
 	fn write_str(&mut self, s: &str) -> fmt::Result {
+		self.push_str(s);
+		Ok(())
+	}
+}
+
+#[cfg(panic = "immediate-abort")]
+impl ufmt::uWrite for TextBuf {
+	type Error = core::convert::Infallible;
+
+	fn write_str(&mut self, s: &str) -> Result<(), Self::Error> {
 		self.push_str(s);
 		Ok(())
 	}

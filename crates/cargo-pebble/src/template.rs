@@ -110,6 +110,7 @@ impl NewProject {
 		]
 		.into_iter()
 		.flat_map(|f| ["-C", f])
+		.chain(["-Zfmt-debug=none"])
 		.map(String::from)
 		.collect();
 		let target = BTreeMap::from_iter(vec![(
@@ -124,8 +125,17 @@ impl NewProject {
 				// core's str/slice comparisons lower to C `memcmp`, which nothing
 				// on the bare-metal link provides unless compiler_builtins is
 				// built with its `mem` feature.
-				build_std_features: vec!["compiler-builtins-mem".to_string()],
+				build_std_features: vec![
+					"compiler-builtins-mem".to_string(),
+					"optimize_for_size".to_string(),
+				],
 				json_target_spec:   true,
+				trim_paths:         true,
+			},
+			profile: ConfigProfiles {
+				release: ConfigProfile {
+					trim_paths: "all".to_string(),
+				},
 			},
 		};
 		std::fs::write(path.join(".cargo/config.toml"), &toml::to_string(&conf)?)?;
@@ -262,6 +272,7 @@ pub struct PebbleCargoConfig {
 	build:    PebbleBuild,
 	target:   BTreeMap<String, BTreeMap<String, Vec<String>>>,
 	unstable: Unstable,
+	profile:  ConfigProfiles,
 }
 
 /// `[unstable]` table. Heterogeneous value types (arrays + a bool), so it can't
@@ -272,6 +283,20 @@ pub struct Unstable {
 	build_std:          Vec<String>,
 	build_std_features: Vec<String>,
 	json_target_spec:   bool,
+	trim_paths:         bool,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct ConfigProfiles {
+	release: ConfigProfile,
+}
+
+/// Profile settings that need `[unstable]` flags, so they live in the cargo config rather than the
+/// manifest.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "kebab-case")]
+pub struct ConfigProfile {
+	trim_paths: String,
 }
 
 #[derive(Debug, Clone, Serialize)]

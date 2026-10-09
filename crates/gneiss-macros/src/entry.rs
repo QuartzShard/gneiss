@@ -24,7 +24,7 @@ pub fn entry(attr: TokenStream, item: TokenStream) -> TokenStream {
 
 	let handler = args.panic.unwrap_or_else(|| {
 		parse_quote! {
-			::gneiss::sys::panic::panic_minimal
+			::gneiss::sys::panic::panic_fmt
 		}
 	});
 

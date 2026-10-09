@@ -10,6 +10,9 @@ pub enum LogLevel {
 	Verbose = sys::AppLogLevel_APP_LOG_LEVEL_DEBUG_VERBOSE,
 }
 
+/// Whether [`debug!`] and [`verbose!`] log, from gneiss's `debug-logs` feature (on by default).
+pub const DEBUG: bool = cfg!(feature = "debug-logs");
+
 #[doc(hidden)]
 pub const fn __macro_check_log_level(l: LogLevel) -> u8 {
 	l as u8
@@ -70,20 +73,26 @@ macro_rules! error {
 }
 pub use error;
 
-/// Log a `&str` at [`LogLevel::Debug`].
+/// Log a `&str` at [`LogLevel::Debug`]. Without gneiss's `debug-logs` feature, does nothing and
+/// does not evaluate `$msg`.
 #[macro_export]
 macro_rules! debug {
 	($msg:expr $(,)?) => {
-		$crate::log!($crate::log::LogLevel::Debug, $msg)
+		if $crate::log::DEBUG {
+			$crate::log!($crate::log::LogLevel::Debug, $msg)
+		}
 	};
 }
 pub use debug;
 
-/// Log a `&str` at [`LogLevel::Verbose`].
+/// Log a `&str` at [`LogLevel::Verbose`]. Without gneiss's `debug-logs` feature, does nothing and
+/// does not evaluate `$msg`.
 #[macro_export]
 macro_rules! verbose {
 	($msg:expr $(,)?) => {
-		$crate::log!($crate::log::LogLevel::Verbose, $msg)
+		if $crate::log::DEBUG {
+			$crate::log!($crate::log::LogLevel::Verbose, $msg)
+		}
 	};
 }
 pub use verbose;

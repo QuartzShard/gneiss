@@ -43,13 +43,27 @@ pub struct AnyWindow<'w> {
 #[repr(C)]
 pub(super) struct WindowData<C: Layout<D> + 'static, D: 'static = ()> {
 	// read at offset 0 through type-erased pointers: must stay the first field
-	pub(super) tag:            TypeId,
+	pub(super) header:  Header,
 	// Some while loaded
-	pub(super) layout:         Option<C>,
-	pub(super) data:           Option<D>,
-	pub(super) click_handlers: ClickHandlers<C, D>,
+	pub(super) layout:  Option<C>,
+	pub(super) data:    Option<D>,
 	// from Nav::push_with, taken by the next appear
-	pub(super) pending:        Option<C::Arg>,
+	pub(super) pending: Option<C::Arg>,
+}
+
+/// The part of a window's user data that doesn't depend on its types.
+#[repr(C)]
+pub(super) struct Header {
+	// read at offset 0 through type-erased pointers: must stay the first field
+	pub(super) tag:    TypeId,
+	pub(super) clicks: ClickHandlers,
+}
+
+/// # Safety
+/// `window` must be a live window created by [`Window::new`].
+pub(super) unsafe fn header(window: *mut sys::Window) -> *mut Header {
+	// SAFETY: user_data is the repr(C) WindowData installed in new(), which starts with its Header
+	unsafe { sys::window_get_user_data(window).cast() }
 }
 
 /// Implemented for every type that does not contain a [`Window`], directly or behind any pointer.
@@ -97,16 +111,17 @@ impl<C: Layout<D>, D> Window<C, D> {
 			});
 			let data = Box::new_in(
 				WindowData::<C, D> {
-					tag: TypeId::of::<WindowData<C, D>>(),
+					header: Header {
+						tag:    TypeId::of::<WindowData<C, D>>(),
+						clicks: ClickHandlers::new(),
+					},
 					layout: None,
 					data,
-					click_handlers: ClickHandlers::new(),
 					pending: None,
 				},
 				PebbleAlloc,
 			);
 			sys::window_set_user_data(raw, Box::into_raw_with_allocator(data).0.cast());
-			sys::window_set_click_config_provider(raw, Some(Self::__click_config));
 		}
 		Some(Self {
 			ptr:  raw,

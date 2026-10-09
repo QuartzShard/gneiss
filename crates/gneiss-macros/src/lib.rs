@@ -12,7 +12,7 @@ use proc_macro::TokenStream;
 /// your UI and state here, you don't drive execution.
 ///
 /// Takes the following optional arguments:
-/// - panic: path to a `fn(&core::panic::PanicInfo) -> !`, defaults to `::gneiss::sys::panic::panic_minimal`
+/// - panic: path to a `fn(&core::panic::PanicInfo) -> !`, defaults to `::gneiss::sys::panic::panic_fmt`
 /// - `global_alloc`: path to a unit-struct `GlobalAlloc` to register as the global allocator,
 ///   defaults to `::gneiss::alloc::PebbleAlloc`.
 pub fn entry(attr: TokenStream, item: TokenStream) -> TokenStream {

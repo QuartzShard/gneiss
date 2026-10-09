@@ -15,7 +15,7 @@ use pebble_sys::*;
 /// See `pebble_sys::panic` for options
 #[panic_handler]
 fn pbl_panic(info: &core::panic::PanicInfo<'_>) -> ! {
-	pebble_sys::panic::panic_minimal(info)
+	pebble_sys::panic::panic_fmt(info)
 }
 
 mod resources {

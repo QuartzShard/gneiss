@@ -17,10 +17,17 @@ linkme        = { workspace = true }
 bitflags = "2.13.2"
 embedded-graphics-core = "0.4"
 
+# Only with -Cpanic=immediate-abort
+[target.'cfg(panic = "immediate-abort")'.dependencies]
+ufmt = "0.2"
+
 [build-dependencies]
 pebble-build = { workspace = true }
 
 [features]
+default    = ["debug-logs"]
+# Without it, `debug!`/`verbose!` (including gneiss's own) compile to nothing
+debug-logs = []
 # Platform selection forwards to pebble-sys, where the mutually-exclusive check
 # lives. An app enables exactly one; `gneiss::sys` then resolves for that board.
 emery   = ["pebble-sys/emery"]

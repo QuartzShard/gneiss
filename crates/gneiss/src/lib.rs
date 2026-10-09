@@ -20,6 +20,10 @@
 pub use gneiss_macros::{entry, service};
 pub use linkme;
 pub use pebble_sys as sys;
+/// Present when building with `-Cpanic=immediate-abort`. `use gneiss::ufmt;` puts it in scope for
+/// `ufmt`'s macros.
+#[cfg(panic = "immediate-abort")]
+pub use ufmt;
 
 pub mod alloc;
 

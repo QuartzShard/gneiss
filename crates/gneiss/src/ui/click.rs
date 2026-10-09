@@ -6,28 +6,35 @@ use core::ffi;
 use crate::{
 	alloc::PebbleAlloc,
 	sys,
-	ui::{Layout, Nav, NoWindow, UiGuard, Window, window::WindowData},
+	ui::{
+		Layout, Nav, NoWindow, UiGuard, Window,
+		window::{Header, WindowData, header},
+	},
 };
 
 /// A window's click handler for each button.
-pub struct ClickHandlers<C, D> {
-	up:     Option<ClickHandler<C, D>>,
-	select: Option<ClickHandler<C, D>>,
-	down:   Option<ClickHandler<C, D>>,
-	back:   Option<ClickHandler<C, D>>,
+pub struct ClickHandlers {
+	up:              Option<ClickHandler>,
+	select:          Option<ClickHandler>,
+	down:            Option<ClickHandler>,
+	back:            Option<ClickHandler>,
+	// Back has been subscribed to SINGLE or MULTI at some point: the firmware's default Back pop
+	// never comes back after that
+	back_overridden: bool,
 }
 
-impl<C, D> ClickHandlers<C, D> {
+impl ClickHandlers {
 	pub(super) const fn new() -> Self {
 		Self {
-			up:     None,
-			select: None,
-			down:   None,
-			back:   None,
+			up:              None,
+			select:          None,
+			down:            None,
+			back:            None,
+			back_overridden: false,
 		}
 	}
 
-	fn get_mut(&mut self, button: Button) -> &mut Option<ClickHandler<C, D>> {
+	fn get_mut(&mut self, button: Button) -> &mut Option<ClickHandler> {
 		match button {
 			Button::Back => &mut self.back,
 			Button::Up => &mut self.up,
@@ -82,168 +89,195 @@ pub enum Click {
 }
 
 /// One button's handler, and the clicks it is subscribed to.
-pub struct ClickHandler<C, D> {
+pub struct ClickHandler {
 	subscribed: ClickKinds,
-	fun: Box<
-		dyn for<'n> FnMut(&'n mut C, Option<&'n mut D>, Click, &mut Nav<'n>) + NoWindow,
-		PebbleAlloc,
-	>,
+	fun:        Box<dyn for<'n> FnMut(*mut Header, Click, &mut Nav<'n>) + NoWindow, PebbleAlloc>,
 }
 
 impl<C: Layout<D>, D> Window<C, D> {
 	/// Replace `button`'s click handler, subscribed to `kinds`. Takes effect immediately if the
-	/// window is on screen. Takes effect immediately if the
 	/// window is on screen.
 	pub fn set_click_handler(
 		&mut self,
 		ui: &mut UiGuard,
 		button: Button,
 		kinds: ClickKinds,
-		handler: impl for<'n> FnMut(&'n mut C, Option<&'n mut D>, Click, &mut Nav<'n>)
+		mut handler: impl for<'n> FnMut(&'n mut C, Option<&'n mut D>, Click, &mut Nav<'n>)
 		+ NoWindow
 		+ 'static,
 	) {
-		self.replace_click_handler(
-			ui,
-			button,
-			Some(ClickHandler {
-				subscribed: kinds,
-				// no alloc for fn items, ZST
-				fun:        Box::new_in(handler, PebbleAlloc),
-			}),
-		);
+		// Internally tracks C,D while not carrying that on the handler's type
+		let fun = handle_type_erase(move |header, click, nav| {
+			let window = header.cast::<WindowData<C, D>>();
+			// SAFETY: the header is the start of this window's WindowData<C, D>. The trampoline
+			// borrows only the header's handlers, so these field borrows are the only others, and its
+			// UiGuard excludes every other borrow into the window
+			let (layout, data) = unsafe { (&mut (*window).layout, &mut (*window).data) };
+			if let Some(layout) = layout {
+				handler(layout, data.as_mut(), click, nav);
+			}
+		});
+		// SAFETY: &mut self keeps the window alive
+		unsafe {
+			replace(
+				self.ptr,
+				ui,
+				button,
+				Some(ClickHandler {
+					subscribed: kinds,
+					fun,
+				}),
+			);
+		}
 	}
 
 	/// Remove `button`'s click handler.
 	pub fn clear_click_handler(&mut self, ui: &mut UiGuard, button: Button) {
-		self.replace_click_handler(ui, button, None);
-	}
-
-	fn replace_click_handler(
-		&mut self,
-		ui: &mut UiGuard,
-		button: Button,
-		handler: Option<ClickHandler<C, D>>,
-	) {
-		// SAFETY: &mut self excludes any other borrow of the WindowData, and holding a UiGuard
-		// excludes a running handler whose box this could drop
-		*unsafe { Self::window_data(self.ptr) }
-			.click_handlers
-			.get_mut(button) = handler;
-		let ptr = self.ptr;
-		// SAFETY: ptr is valid. Reruns the provider immediately if the window is on screen
-		ui.os_lend(|| unsafe {
-			sys::window_set_click_config_provider(ptr, Some(Self::__click_config));
-		});
+		// SAFETY: &mut self keeps the window alive
+		unsafe { replace(self.ptr, ui, button, None) };
 	}
 }
 
-impl<C: Layout<D>, D> Window<C, D> {
-	pub(super) unsafe extern "C" fn __click_config(context: *mut ffi::c_void) {
-		let _ui = UiGuard::enter();
-		// SAFETY: we never set a click context, so the firmware passes the window
-		let WindowData { click_handlers, .. } = unsafe { Self::window_data(context.cast()) };
-		for button in Button::ALL {
-			let Some(handler) = click_handlers.get_mut(button) else {
-				continue;
-			};
-			let kinds = &handler.subscribed;
-			let id = button as sys::ButtonId;
-			let slot = |kind: ClickKinds, f: sys::ClickHandler| {
-				kinds.contains(kind).then_some(f).flatten()
-			};
-			// SAFETY: subscriptions are only valid inside the click config provider, which is here
-			unsafe {
-				if kinds.contains(ClickKinds::SINGLE) {
-					sys::window_single_click_subscribe(
-						id,
-						Some(Self::__click::<{ ClickKinds::SINGLE.bits() }>),
-					);
-				}
-				if kinds.contains(ClickKinds::MULTI) {
-					sys::window_multi_click_subscribe(
-						id,
-						2,
-						0,
-						0,
-						false,
-						Some(Self::__click::<{ ClickKinds::MULTI.bits() }>),
-					);
-				}
-				if kinds.intersects(ClickKinds::LONG | ClickKinds::LONG_RELEASE) {
-					sys::window_long_click_subscribe(
-						id,
-						0,
-						slot(
-							ClickKinds::LONG,
-							Some(Self::__click::<{ ClickKinds::LONG.bits() }>),
-						),
-						slot(
-							ClickKinds::LONG_RELEASE,
-							Some(Self::__click::<{ ClickKinds::LONG_RELEASE.bits() }>),
-						),
-					);
-				}
-				if kinds.intersects(ClickKinds::RAW_DOWN | ClickKinds::RAW_UP) {
-					sys::window_raw_click_subscribe(
-						id,
-						slot(
-							ClickKinds::RAW_DOWN,
-							Some(Self::__click::<{ ClickKinds::RAW_DOWN.bits() }>),
-						),
-						slot(
-							ClickKinds::RAW_UP,
-							Some(Self::__click::<{ ClickKinds::RAW_UP.bits() }>),
-						),
-						core::ptr::null_mut(),
-					);
-				}
+/// Take any handler fn (internally knows C,D) and `Box` it to erase the type
+fn handle_type_erase(
+	fun: impl for<'n> FnMut(*mut Header, Click, &mut Nav<'n>) + NoWindow + 'static,
+) -> Box<dyn for<'n> FnMut(*mut Header, Click, &mut Nav<'n>) + NoWindow, PebbleAlloc> {
+	// no alloc for fn items, ZST
+	Box::new_in(fun, PebbleAlloc)
+}
+
+/// # Safety
+/// `window` must be a live window created by [`Window::new`], with no borrow into it live.
+unsafe fn replace(
+	window: *mut sys::Window,
+	ui: &mut UiGuard,
+	button: Button,
+	handler: Option<ClickHandler>,
+) {
+	// SAFETY: no other borrow into the window is live, and holding a UiGuard excludes a running
+	// handler whose box this could drop
+	*unsafe { &mut (*header(window)).clicks }.get_mut(button) = handler;
+	// SAFETY: window is live. Reruns the provider immediately if the window is on screen
+	ui.os_lend(|| unsafe {
+		sys::window_set_click_config_provider(window, Some(click_config));
+	});
+}
+
+unsafe extern "C" fn click_config(context: *mut ffi::c_void) {
+	let _ui = UiGuard::enter();
+	// SAFETY: we never set a click context, so the firmware passes the window
+	let clicks = unsafe { &mut (*header(context.cast())).clicks };
+	let mut back_overridden = clicks.back_overridden;
+	for button in Button::ALL {
+		let Some(handler) = clicks.get_mut(button) else {
+			continue;
+		};
+		let kinds = &handler.subscribed;
+		let id = button as sys::ButtonId;
+		if matches!(button, Button::Back)
+			&& kinds.intersects(ClickKinds::SINGLE | ClickKinds::MULTI)
+		{
+			back_overridden = true;
+		}
+		let slot =
+			|kind: ClickKinds, f: sys::ClickHandler| kinds.contains(kind).then_some(f).flatten();
+		// SAFETY: subscriptions are only valid inside the click config provider, which is here
+		unsafe {
+			if kinds.contains(ClickKinds::SINGLE) {
+				sys::window_single_click_subscribe(
+					id,
+					Some(click::<{ ClickKinds::SINGLE.bits() }>),
+				);
+			}
+			if kinds.contains(ClickKinds::MULTI) {
+				sys::window_multi_click_subscribe(
+					id,
+					2,
+					0,
+					0,
+					false,
+					Some(click::<{ ClickKinds::MULTI.bits() }>),
+				);
+			}
+			if kinds.intersects(ClickKinds::LONG | ClickKinds::LONG_RELEASE) {
+				sys::window_long_click_subscribe(
+					id,
+					0,
+					slot(ClickKinds::LONG, Some(click::<{ ClickKinds::LONG.bits() }>)),
+					slot(
+						ClickKinds::LONG_RELEASE,
+						Some(click::<{ ClickKinds::LONG_RELEASE.bits() }>),
+					),
+				);
+			}
+			if kinds.intersects(ClickKinds::RAW_DOWN | ClickKinds::RAW_UP) {
+				sys::window_raw_click_subscribe(
+					id,
+					slot(
+						ClickKinds::RAW_DOWN,
+						Some(click::<{ ClickKinds::RAW_DOWN.bits() }>),
+					),
+					slot(
+						ClickKinds::RAW_UP,
+						Some(click::<{ ClickKinds::RAW_UP.bits() }>),
+					),
+					core::ptr::null_mut(),
+				);
 			}
 		}
 	}
-
-	unsafe extern "C" fn __click<const KIND: u8>(
-		recognizer: sys::ClickRecognizerRef,
-		context: *mut ffi::c_void,
-	) {
-		let mut ui = UiGuard::enter();
-		// SAFETY: recognizer is valid for the duration of the handler
-		let id = unsafe { sys::click_recognizer_get_button_id(recognizer) };
-		let Some(button) = Button::from_raw(id) else {
-			return;
-		};
-		// SAFETY: we never set a click context, so the firmware passes the window
-		let WindowData {
-			layout,
-			data,
-			click_handlers,
-			..
-		} = unsafe { Self::window_data(context.cast()) };
-		let (Some(layout), Some(handler)) = (layout, click_handlers.get_mut(button)) else {
-			return;
-		};
-		let kind = ClickKinds::from_bits_retain(KIND);
-		// SAFETY: recognizer is valid for the duration of the handler
-		let click = unsafe {
-			if kind.contains(ClickKinds::SINGLE) {
-				Click::Single {
-					repeating: sys::click_recognizer_is_repeating(recognizer),
-				}
-			} else if kind.contains(ClickKinds::MULTI) {
-				Click::Multi {
-					count: sys::click_number_of_clicks_counted(recognizer),
-				}
-			} else if kind.contains(ClickKinds::LONG) {
-				Click::Long
-			} else if kind.contains(ClickKinds::LONG_RELEASE) {
-				Click::LongRelease
-			} else if kind.contains(ClickKinds::RAW_DOWN) {
-				Click::RawDown
-			} else {
-				Click::RawUp
-			}
-		};
-		let mut nav = Nav::new(&mut ui);
-		(handler.fun)(layout, data.as_mut(), click, &mut nav);
+	clicks.back_overridden = back_overridden;
+	if back_overridden && clicks.back.is_none() {
+		// SAFETY: subscriptions are only valid inside the click config provider, which is here
+		unsafe {
+			sys::window_single_click_subscribe(sys::ButtonId_BUTTON_ID_BACK, Some(back_pop));
+		}
 	}
+}
+
+/// Pops the window, as the firmware's own Back handling does until Back is first subscribed.
+unsafe extern "C" fn back_pop(_recognizer: sys::ClickRecognizerRef, _context: *mut ffi::c_void) {
+	let mut ui = UiGuard::enter();
+	Nav::new(&mut ui).pop(true);
+}
+
+unsafe extern "C" fn click<const KIND: u8>(
+	recognizer: sys::ClickRecognizerRef,
+	context: *mut ffi::c_void,
+) {
+	let mut ui = UiGuard::enter();
+	// SAFETY: recognizer is valid for the duration of the handler
+	let id = unsafe { sys::click_recognizer_get_button_id(recognizer) };
+	let Some(button) = Button::from_raw(id) else {
+		return;
+	};
+	// SAFETY: we never set a click context, so the firmware passes the window. Only the header's
+	// handlers are borrowed here; the handler reaches the rest through the raw pointer
+	let header = unsafe { header(context.cast()) };
+	let Some(handler) = unsafe { &mut (*header).clicks }.get_mut(button) else {
+		return;
+	};
+	let kind = ClickKinds::from_bits_retain(KIND);
+	// SAFETY: recognizer is valid for the duration of the handler
+	let click = unsafe {
+		if kind.contains(ClickKinds::SINGLE) {
+			Click::Single {
+				repeating: sys::click_recognizer_is_repeating(recognizer),
+			}
+		} else if kind.contains(ClickKinds::MULTI) {
+			Click::Multi {
+				count: sys::click_number_of_clicks_counted(recognizer),
+			}
+		} else if kind.contains(ClickKinds::LONG) {
+			Click::Long
+		} else if kind.contains(ClickKinds::LONG_RELEASE) {
+			Click::LongRelease
+		} else if kind.contains(ClickKinds::RAW_DOWN) {
+			Click::RawDown
+		} else {
+			Click::RawUp
+		}
+	};
+	let mut nav = Nav::new(&mut ui);
+	(handler.fun)(header, click, &mut nav);
 }
