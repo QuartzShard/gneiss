@@ -5,6 +5,7 @@ extern crate alloc;
 use alloc::string::String;
 
 use crate::{
+	resource::font::Font,
 	sys,
 	ui::{
 		Layer, Layout, StaticWindow, TextAlignment, TextBuf, TextLayer, UiGuard, Window, WindowCtx,
@@ -46,9 +47,8 @@ impl<const SLOTS: usize> Layout<BoardLines<SLOTS>> for BoardLayout<SLOTS> {
 	fn load(ctx: &mut WindowCtx<'_, Self, BoardLines<SLOTS>>) -> Self {
 		let mut root = ctx.root();
 		let mut text = TextLayer::new(root.bounds()).expect("board text layer");
-		text.set_alignment(TextAlignment::Center);
-		// SAFETY: system fonts are never unloaded
-		unsafe { text.set_font(sys::fonts_get_system_font(sys::FONT_KEY_GOTHIC_18.as_ptr())) };
+		text.set_alignment(TextAlignment::Center)
+			.set_font(Font::system(sys::FONT_KEY_GOTHIC_18));
 		root.add_child(&mut text);
 		let mut board = Self { text };
 		if let Some(lines) = ctx.data() {

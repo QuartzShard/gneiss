@@ -16,6 +16,7 @@ use core::{
 use gneiss::{
 	alloc::PebbleAlloc,
 	resource::{
+		font::Font,
 		image::{DrawCommand, DrawCommandSequence, GBitMap},
 		raw,
 	},
@@ -40,12 +41,11 @@ static SPINNER_TIMER: AtomicPtr<sys::AppTimer> = AtomicPtr::new(ptr::null_mut())
 /// Everything on screen, created when the window loads and dropped when it unloads. Each layer owns
 /// the resource it shows, so nothing needs leaking.
 struct Resources {
-	title:    TextLayer<CString>,
+	_title:   TextLayer<CString>,
 	_image:   BitmapLayer,
 	_pbi:     BitmapLayer,
 	_ferris:  DataLayer<DrawCommand>,
 	_spinner: DataLayer<DrawCommandSequence>,
-	font:     sys::GFont,
 }
 
 impl Layout for Resources {
@@ -71,16 +71,11 @@ impl Layout for Resources {
 		bytes.truncate(nul + 1);
 		let text = CString::from_vec_with_nul(bytes).expect("one NUL, at the end");
 
-		// font: a rasterised .pbf, still loaded through `sys` (no safe wrapper yet).
-		// A pre-baked `pbf` resource loads identically.
-		let font = unsafe {
-			sys::fonts_load_custom_font(sys::resource_get_handle(resources::FONT_ROBOTO_18.0.get()))
-		};
-		unsafe {
-			let font_from_pbf =
-				sys::fonts_load_custom_font(sys::resource_get_handle(resources::FONT_PBF.0.get()));
-			sys::fonts_unload_custom_font(font_from_pbf);
-		}
+		// font: a rasterised .pbf. The title owns it below, and unloads it when it drops.
+		let font = Font::load(resources::FONT_ROBOTO_18);
+		// a pre-baked `pbf` resource loads identically; nothing keeps this one, so it unloads at
+		// the end of `load`
+		let _from_pbf = Font::load(resources::FONT_PBF);
 
 		// A round screen clips its corners; `pbl_round` is one of the cfg flags
 		// the build script sets from the platform's tags
@@ -90,10 +85,10 @@ impl Layout for Resources {
 			Size::new(width - 2 * inset, 38),
 		))
 		.expect("title layer");
-		// SAFETY: the font stays loaded until unload, after the title is dropped
-		unsafe { title.set_font(font) };
-		title.set_text(text);
-		title.set_text_color(Colour { argb: 0xF5 });
+		title
+			.set_font(font)
+			.set_text(text)
+			.set_text_color(Colour { argb: 0xF5 });
 		root.add_child(&mut title);
 
 		// png / bitmap / pbi all become a GBitMap via the same loader. IMAGE_PNG
@@ -168,12 +163,11 @@ impl Layout for Resources {
 		// packaging time. (`resources::APP_ICON` still exists if you want it.)
 
 		Self {
-			title,
+			_title: title,
 			_image: image,
 			_pbi: pbi,
 			_ferris: ferris_layer,
 			_spinner: spinner,
-			font,
 		}
 	}
 
@@ -182,10 +176,6 @@ impl Layout for Resources {
 		let timer = SPINNER_TIMER.load(Ordering::Relaxed);
 		SPINNER_TIMER.store(ptr::null_mut(), Ordering::Relaxed);
 		unsafe { sys::app_timer_cancel(timer) };
-		// The title points at the font, so it goes first
-		let Self { title, font, .. } = self;
-		drop(title);
-		unsafe { sys::fonts_unload_custom_font(font) };
 	}
 }
 

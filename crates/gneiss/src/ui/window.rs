@@ -368,7 +368,7 @@ impl<'w, C: Layout<D>, D> From<&'w Window<C, D>> for AnyWindow<'w> {
 }
 
 /// A set-once global slot for a leaked [`Window`], pushable from anywhere as `&SLOT`.
-pub struct StaticWindow<C: Layout<D> + 'static, D: 'static> {
+pub struct StaticWindow<C: Layout<D> + 'static, D: 'static = ()> {
 	inner: Cell<Option<AnyWindow<'static>>>,
 	// This can be used to obtain references to C and D
 	_win:  PhantomData<fn() -> (C, D)>,

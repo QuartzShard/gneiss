@@ -31,9 +31,9 @@ pub trait Layer: AsLayer {
 	/// The layer's position and size in its parent.
 	fn frame(&self) -> Rectangle;
 	/// Move or resize the layer within its parent.
-	fn set_frame(&mut self, frame: Rectangle);
+	fn set_frame(&mut self, frame: Rectangle) -> &mut Self;
 	/// Hide or show the layer and its children.
-	fn set_hidden(&mut self, hidden: bool);
+	fn set_hidden(&mut self, hidden: bool) -> &mut Self;
 }
 
 impl<T: AsLayer> Layer for T {
@@ -53,12 +53,14 @@ impl<T: AsLayer> Layer for T {
 		rect(unsafe { sys::layer_get_frame(self.as_ptr()) })
 	}
 
-	fn set_frame(&mut self, frame: Rectangle) {
+	fn set_frame(&mut self, frame: Rectangle) -> &mut Self {
 		unsafe { sys::layer_set_frame(self.as_ptr(), grect(frame)) };
+		self
 	}
 
-	fn set_hidden(&mut self, hidden: bool) {
+	fn set_hidden(&mut self, hidden: bool) -> &mut Self {
 		unsafe { sys::layer_set_hidden(self.as_ptr(), hidden) };
+		self
 	}
 }
 
@@ -153,20 +155,22 @@ impl<T> DataLayer<T> {
 	}
 
 	/// Draw this layer's contents with `draw` from now on.
-	pub fn set_draw(&mut self, draw: DrawFn<T>) {
+	pub fn set_draw(&mut self, draw: DrawFn<T>) -> &mut Self {
 		// SAFETY: &T and *const () are ABI-compatible for a sized T, and the trampoline only calls
 		// this with a pointer to this layer's T
 		self.layer_data().draw =
 			Some(unsafe { core::mem::transmute::<DrawFn<T>, ErasedDrawFn>(draw) });
 		unsafe { sys::layer_set_update_proc(self.ptr, Some(draw_trampoline)) };
 		self.mark_dirty();
+		self
 	}
 
 	/// Stop drawing this layer's contents.
-	pub fn clear_draw(&mut self) {
+	pub fn clear_draw(&mut self) -> &mut Self {
 		self.layer_data().draw = None;
 		unsafe { sys::layer_set_update_proc(self.ptr, None) };
 		self.mark_dirty();
+		self
 	}
 }
 

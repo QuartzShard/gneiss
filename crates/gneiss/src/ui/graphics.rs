@@ -18,7 +18,10 @@ pub use embedded_graphics_core::{
 };
 
 use crate::{
-	resource::image::{DrawCommand, DrawCommandSequence, GBitMap},
+	resource::{
+		font::Font,
+		image::{DrawCommand, DrawCommandSequence, GBitMap},
+	},
 	sys,
 	ui::TextAlignment,
 };
@@ -334,22 +337,20 @@ impl GContext<'_> {
 	}
 
 	/// Draw `text` in `rect`.
-	///
-	/// # Safety
-	/// `font` must be a loaded font.
-	pub unsafe fn draw_text(
+	pub fn draw_text(
 		&mut self,
 		text: &CStr,
-		font: sys::GFont,
+		font: &Font,
 		rect: Rectangle,
 		overflow: TextOverflow,
 		alignment: TextAlignment,
 	) {
+		// SAFETY: text and font are borrowed for the call, and the firmware doesn't keep either
 		unsafe {
 			sys::graphics_draw_text(
 				self.as_ptr(),
 				text.as_ptr(),
-				font,
+				font.as_ptr(),
 				grect(rect),
 				overflow as u8,
 				alignment as u8,

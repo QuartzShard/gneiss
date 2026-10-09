@@ -1,10 +1,11 @@
 //! Text layers, and growable text for them to own.
 extern crate alloc;
 use alloc::{boxed::Box, string::String, vec::Vec};
-use core::{ffi::CStr, fmt, ops::Deref};
+use core::{borrow::Borrow, ffi::CStr, fmt, ops::Deref};
 
 use crate::{
 	alloc::PebbleAlloc,
+	resource::font::Font,
 	sys,
 	ui::{
 		AsLayer,
@@ -111,29 +112,38 @@ impl From<String> for TextBuf {
 	}
 }
 
-/// A layer that draws text it owns. The firmware keeps a pointer to the text and reads it at render
-/// time; the text is boxed so moving the layer doesn't move it.
-pub struct TextLayer<S: Deref<Target = CStr> = &'static CStr> {
+/// A layer that draws text it owns, in a font it holds. The firmware keeps pointers to both and
+/// reads them at render time; the text is boxed so moving the layer doesn't move it.
+///
+/// `F` holds the font: a [`Font`], or e.g. an `Rc<Font>` to share one font resource between
+/// layers.
+pub struct TextLayer<S: Deref<Target = CStr> = &'static CStr, F: Borrow<Font> = Font> {
 	ptr:  *mut sys::TextLayer,
 	text: Option<Box<S, PebbleAlloc>>,
+	font: Option<F>,
 }
 
-impl<S: Deref<Target = CStr>> TextLayer<S> {
+impl<S: Deref<Target = CStr>, F: Borrow<Font>> TextLayer<S, F> {
 	/// Create a text layer with no text. `None` if the firmware is out of memory.
 	pub fn new(frame: Rectangle) -> Option<Self> {
 		// SAFETY: no preconditions; NULL on OOM
 		let ptr = unsafe { sys::text_layer_create(grect(frame)).as_mut()? };
-		Some(Self { ptr, text: None })
+		Some(Self {
+			ptr,
+			text: None,
+			font: None,
+		})
 	}
 
 	/// Replace the text.
-	pub fn set_text(&mut self, text: impl Into<S>) {
+	pub fn set_text(&mut self, text: impl Into<S>) -> &mut Self {
 		let text = text.into();
 		match &mut self.text {
 			Some(boxed) => **boxed = text,
 			None => self.text = Some(Box::new_in(text, PebbleAlloc)),
 		}
 		self.repoint();
+		self
 	}
 
 	/// Edit the text in place. `None` if no text has been set.
@@ -158,27 +168,31 @@ impl<S: Deref<Target = CStr>> TextLayer<S> {
 		}
 	}
 
-	/// Set the font.
-	///
-	/// # Safety
-	/// `font` must stay loaded for as long as this layer exists.
-	pub unsafe fn set_font(&mut self, font: sys::GFont) {
-		unsafe { sys::text_layer_set_font(self.ptr, font) };
+	/// Draw the text in `font`, dropping the old font once the layer no longer points at it.
+	pub fn set_font(&mut self, font: F) -> &mut Self {
+		// SAFETY: the font lives as long as the Font, which self.font keeps alive; moving the
+		// handle doesn't move it
+		unsafe { sys::text_layer_set_font(self.ptr, font.borrow().as_ptr()) };
+		self.font = Some(font);
+		self
 	}
 
 	/// Set the text's colour.
-	pub fn set_text_color(&mut self, colour: Colour) {
+	pub fn set_text_color(&mut self, colour: Colour) -> &mut Self {
 		unsafe { sys::text_layer_set_text_color(self.ptr, colour.into()) };
+		self
 	}
 
 	/// Set the colour behind the text.
-	pub fn set_background_color(&mut self, colour: Colour) {
+	pub fn set_background_color(&mut self, colour: Colour) -> &mut Self {
 		unsafe { sys::text_layer_set_background_color(self.ptr, colour.into()) };
+		self
 	}
 
 	/// Set how lines align within the layer.
-	pub fn set_alignment(&mut self, alignment: TextAlignment) {
+	pub fn set_alignment(&mut self, alignment: TextAlignment) -> &mut Self {
 		unsafe { sys::text_layer_set_text_alignment(self.ptr, alignment as u8) };
+		self
 	}
 
 	/// The size the current text takes up when rendered.
@@ -187,15 +201,16 @@ impl<S: Deref<Target = CStr>> TextLayer<S> {
 	}
 }
 
-unsafe impl<S: Deref<Target = CStr>> AsLayer for TextLayer<S> {
+unsafe impl<S: Deref<Target = CStr>, F: Borrow<Font>> AsLayer for TextLayer<S, F> {
 	fn as_ptr(&self) -> *mut sys::Layer {
 		unsafe { sys::text_layer_get_layer(self.ptr) }
 	}
 }
 
-impl<S: Deref<Target = CStr>> Drop for TextLayer<S> {
+impl<S: Deref<Target = CStr>, F: Borrow<Font>> Drop for TextLayer<S, F> {
 	fn drop(&mut self) {
-		// SAFETY: destroyed before the text field drops, so the firmware never reads freed text
+		// SAFETY: destroyed before the text and font fields drop, so the firmware never reads a
+		// freed one
 		unsafe {
 			sys::layer_remove_child_layers(self.as_ptr());
 			sys::text_layer_destroy(self.ptr);

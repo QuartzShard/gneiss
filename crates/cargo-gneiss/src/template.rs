@@ -130,12 +130,6 @@ impl NewProject {
 					"optimize_for_size".to_string(),
 				],
 				json_target_spec:   true,
-				trim_paths:         true,
-			},
-			profile: ConfigProfiles {
-				release: ConfigProfile {
-					trim_paths: "all".to_string(),
-				},
 			},
 		};
 		std::fs::write(path.join(".cargo/config.toml"), &toml::to_string(&conf)?)?;
@@ -272,7 +266,6 @@ pub struct PebbleCargoConfig {
 	build:    PebbleBuild,
 	target:   BTreeMap<String, BTreeMap<String, Vec<String>>>,
 	unstable: Unstable,
-	profile:  ConfigProfiles,
 }
 
 /// `[unstable]` table. Heterogeneous value types (arrays + a bool), so it can't
@@ -283,20 +276,6 @@ pub struct Unstable {
 	build_std:          Vec<String>,
 	build_std_features: Vec<String>,
 	json_target_spec:   bool,
-	trim_paths:         bool,
-}
-
-#[derive(Debug, Clone, Serialize)]
-pub struct ConfigProfiles {
-	release: ConfigProfile,
-}
-
-/// Profile settings that need `[unstable]` flags, so they live in the cargo config rather than the
-/// manifest.
-#[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "kebab-case")]
-pub struct ConfigProfile {
-	trim_paths: String,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -376,6 +355,7 @@ pub struct Profile {
 	pub panic:           String,
 	pub strip:           String,
 	pub overflow_checks: bool,
+	pub trim_paths:      String,
 }
 
 impl Default for Profile {
@@ -391,6 +371,7 @@ impl Default for Profile {
 			// `--emit-relocs`. The shipped `.bin` carries no symbols regardless.
 			strip:           "none".into(),
 			overflow_checks: false,
+			trim_paths:      "all".into(),
 		}
 	}
 }

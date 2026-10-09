@@ -33,3 +33,4 @@ codegen-units = 1
 panic = "abort"
 strip = "none"
 overflow-checks = false
+trim-paths = "all"

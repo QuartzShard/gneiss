@@ -41,11 +41,12 @@ impl<B: Borrow<GBitMap>> BitmapLayer<B> {
 	}
 
 	/// Replace the bitmap, dropping the old one once the layer no longer points at it.
-	pub fn set_bitmap(&mut self, bitmap: B) {
+	pub fn set_bitmap(&mut self, bitmap: B) -> &mut Self {
 		// SAFETY: the firmware bitmap lives as long as the GBitMap, which self.bitmap keeps alive;
 		// moving the handle doesn't move it
 		unsafe { sys::bitmap_layer_set_bitmap(self.ptr, bitmap.borrow().as_ptr()) };
 		self.bitmap = Some(bitmap);
+		self
 	}
 
 	/// The current bitmap, if any.
@@ -54,13 +55,15 @@ impl<B: Borrow<GBitMap>> BitmapLayer<B> {
 	}
 
 	/// Set where the bitmap sits within the layer.
-	pub fn set_alignment(&mut self, alignment: Align) {
+	pub fn set_alignment(&mut self, alignment: Align) -> &mut Self {
 		unsafe { sys::bitmap_layer_set_alignment(self.ptr, alignment as u8) };
+		self
 	}
 
 	/// Set the colour behind the bitmap.
-	pub fn set_background_color(&mut self, colour: Colour) {
+	pub fn set_background_color(&mut self, colour: Colour) -> &mut Self {
 		unsafe { sys::bitmap_layer_set_background_color(self.ptr, colour.into()) };
+		self
 	}
 }
 
