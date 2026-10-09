@@ -1,12 +1,13 @@
 //! A cargo-subcommand utility for building and packaging rust binaries using `pebble-sys`.
 #![allow(incomplete_features)]
 pub mod build_project;
+pub mod install;
 pub mod template;
 
 use clap::Parser;
 use color_eyre::eyre::Result;
 
-use crate::{build_project::BuildProject, template::NewProject};
+use crate::{build_project::BuildProject, install::Install, template::NewProject};
 
 #[derive(Debug, clap::Parser)]
 #[command(name = "cargo gneiss", about = "A build tool for Gneiss Pebble apps")]
@@ -19,6 +20,7 @@ struct Command {
 enum Task {
 	New(NewProject),
 	Build(BuildProject),
+	Install(Install),
 }
 
 fn main() -> Result<()> {
@@ -47,6 +49,7 @@ fn main() -> Result<()> {
 	match cmd.task {
 		Task::New(project) => project.create(),
 		Task::Build(project) => project.build(),
+		Task::Install(install) => install.install(),
 	}?;
 
 	Ok(())

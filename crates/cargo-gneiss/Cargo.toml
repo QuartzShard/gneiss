@@ -29,3 +29,6 @@ prettyplease = { workspace = true }
 cargo_metadata = { workspace = true }
 toml_edit = { version = "0.25.12", features = ["serde"] }
 proc-macro2.workspace = true
+serde_json = { workspace = true }
+tungstenite = { version = "0.30.0", default-features = false, features = ["handshake"] }
+ctrlc = "3.5.2"
