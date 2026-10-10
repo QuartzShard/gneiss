@@ -1,10 +1,10 @@
 [package]
-name              = "pebble-types"
-version.workspace = true
+name              = "gneiss-types"
+version           = "0.1.0"
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
-description       = "Shared types across the pebble-sys / cargo-gneiss / xtask crates"
+description       = "Shared types across the gneiss-sys / cargo-gneiss / xtask crates"
 
 [lints]
 workspace = true

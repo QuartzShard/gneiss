@@ -1,6 +1,6 @@
 use std::{env::var, path::PathBuf};
 
-use pebble_build::{emit_platform_cfgs, platform_features, select_platform};
+use gneiss_build::{emit_platform_cfgs, platform_features, select_platform};
 
 fn main() {
 	let in_dir = PathBuf::from(var("CARGO_MANIFEST_DIR").expect("No in dir"));
@@ -8,11 +8,14 @@ fn main() {
 
 	let platform = select_platform();
 	let cfg = platform.config();
-	assert_eq!(
-		var("TARGET").expect("No target"),
-		platform.app_target_triple(),
-		"pebble apps must build against the v7m ABI"
-	);
+	// docs.rs documents on a built-in target; nothing it builds is ever linked into an app
+	if var("DOCS_RS").is_err() {
+		assert_eq!(
+			var("TARGET").expect("No target"),
+			platform.app_target_triple(),
+			"pebble apps must build against the v7m ABI"
+		);
+	}
 
 	let template = std::fs::read_to_string(in_dir.join("pebble_app_rs.ld.template"))
 		.expect("Cannot read linker template");

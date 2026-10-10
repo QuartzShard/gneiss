@@ -6,10 +6,10 @@ use std::{
 
 use cargo_metadata::{Message, PackageId, camino::Utf8PathBuf};
 use color_eyre::eyre::{OptionExt, Result, bail};
-use pebble_build::{
+use gneiss_build::{
 	app_info, declared_platforms, message_keys_json, package_platform, read_pbl_metadata,
 };
-use pebble_types::{Platform, pbpack::PbPack};
+use gneiss_types::{Platform, pbpack::PbPack};
 use unix_time::Instant;
 use zip::write::FileOptions;
 

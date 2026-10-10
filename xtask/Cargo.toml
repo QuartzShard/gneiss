@@ -9,7 +9,7 @@ workspace = true
 
 [dependencies]
 bindgen      = "0.73"
-pebble-types = { workspace = true, features = ["clap"] }
+gneiss-types = { workspace = true, features = ["clap"] }
 syn          = { workspace = true }
 quote        = { workspace = true }
 proc-macro2  = { workspace = true }

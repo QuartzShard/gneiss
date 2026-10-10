@@ -1,4 +1,4 @@
-//! A cargo-subcommand utility for building and packaging rust binaries using `pebble-sys`.
+//! A cargo-subcommand utility for building and packaging rust binaries using `gneiss-sys`.
 #![allow(incomplete_features)]
 pub mod build_project;
 pub mod install;

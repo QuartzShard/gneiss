@@ -2,14 +2,14 @@ use core::mem::size_of;
 use std::collections::BTreeMap;
 
 use color_eyre::eyre::{Context, OptionExt, Result, bail, eyre};
-use object::{Object, ObjectSection, ObjectSymbol, SectionKind, elf::SHF_ALLOC};
-use pebble_types::{
+use gneiss_types::{
 	Platform,
 	header::{PebbleProcessInfo, Version},
 	manifest::{PebbleAppInfo, PebbleAppManifest},
 	pbpack::PbPack,
 	stm_crc32::crc,
 };
+use object::{Object, ObjectSection, ObjectSymbol, SectionKind, elf::SHF_ALLOC};
 use unix_time::Instant;
 
 use crate::{MessageKey, PebbleMetadata};

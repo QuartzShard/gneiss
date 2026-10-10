@@ -1,6 +1,5 @@
 //! Host-side build logic for Pebble apps: turn a compiled app ELF into its
 //! per-platform `.bin` + `manifest.json`, and assemble the bundle's `appinfo`.
-#![feature(iter_array_chunks)]
 use std::{
 	borrow::Borrow,
 	cmp,
@@ -16,10 +15,18 @@ use std::{
 use cargo_metadata::MetadataCommand;
 pub use color_eyre;
 use color_eyre::eyre::{Context, OptionExt, Result, bail};
-use pebble_types::{Platform, pbpack::PbPack};
+use gneiss_types::{Platform, pbpack::PbPack};
 use quote::quote;
 use serde::{Deserialize, Serialize};
 use strum::IntoEnumIterator;
+
+/// The `major.minor` the gneiss library crates are released in step on: gneiss, gneiss-macros,
+/// gneiss-sys, gneiss-types and this crate share it, while their patch versions move independently.
+pub const RELEASE_TRAIN: &str = concat!(
+	env!("CARGO_PKG_VERSION_MAJOR"),
+	".",
+	env!("CARGO_PKG_VERSION_MINOR")
+);
 use uuid::Uuid;
 
 mod build_pbw;
@@ -50,7 +57,7 @@ pub fn declares_platform(features: &BTreeMap<String, Vec<String>>, platform: Pla
 			forward
 				.strip_suffix(name)
 				.and_then(|dep| dep.strip_suffix('/'))
-				.is_some_and(|dep| dep == "gneiss" || dep == "pebble-sys")
+				.is_some_and(|dep| dep == "gneiss" || dep == "gneiss-sys")
 		})
 	})
 }
@@ -68,7 +75,7 @@ pub fn declared_platforms(pkg: &cargo_metadata::Package) -> Result<Vec<Platform>
 	if !misdeclared.is_empty() {
 		bail!(
 			"{} declares {} without forwarding to the matching platform: each must contain \
-			 `gneiss/<platform>` or `pebble-sys/<platform>`",
+			 `gneiss/<platform>` or `gneiss-sys/<platform>`",
 			pkg.name,
 			misdeclared
 				.iter()
@@ -126,7 +133,7 @@ pub struct Resource {
 	/// The untagged source file. Siblings named `<stem>~<tag>…<ext>` override it
 	/// on the platforms carrying those tags, so one declaration can carry a
 	/// different file per watch, colour depth, shape or screen size. The tags
-	/// are listed per platform in [`pebble_types::PlatformConfig`].
+	/// are listed per platform in [`gneiss_types::PlatformConfig`].
 	pub file:             PathBuf,
 	pub target_platforms: Vec<Platform>,
 	#[serde(flatten)]
@@ -425,7 +432,7 @@ pub fn read_pbl_metadata() -> Result<
 /// A build script's cfgs reach only its own crate, so every crate that gates
 /// on them calls this.
 pub fn emit_platform_cfgs(platform: Platform) {
-	for flag in pebble_types::ALL_CFGS {
+	for flag in gneiss_types::ALL_CFGS {
 		println!("cargo::rustc-check-cfg=cfg({flag})");
 	}
 	for flag in platform.config().cfgs {

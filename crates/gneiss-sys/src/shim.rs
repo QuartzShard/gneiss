@@ -20,7 +20,7 @@ pub(crate) static mut PBL_TABLE_ADDR: u32 = 0xA8A8_A8A8;
 
 #[unsafe(naked)]
 #[unsafe(link_section = ".pbl_dispatch.code")]
-/// Call a pebble-sys function. Requires the index of the fn ptr to be in r1, which is
+/// Call a gneiss-sys function. Requires the index of the fn ptr to be in r1, which is
 /// handled by the per-fn shim. Don't call directly unless you really know what you're doing
 pub(crate) unsafe extern "C" fn jump_to_pbl_function() {
 	core::arch::naked_asm!(

@@ -1,9 +1,20 @@
 [package]
 name              = "gneiss"
-version.workspace = true
+version           = "0.1.0"
+description       = "Safe Rust SDK for Pebble watchapps and watchfaces"
+keywords          = ["pebble", "pebbleos", "smartwatch", "watchface"]
+categories        = ["embedded", "no-std"]
+readme            = "../../README.md"
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
+# Points at the watch target spec in a sibling crate, which doesn't ship
+exclude = ["/.cargo"]
+
+[package.metadata.docs.rs]
+# Watch crates document as emery, on the built-in target with the same ABI
+features = ["emery"]
+targets  = ["thumbv7m-none-eabi"]
 
 [lints]
 workspace = true
@@ -11,7 +22,7 @@ workspace = true
 [lib]
 
 [dependencies]
-pebble-sys    = { workspace = true }
+gneiss-sys    = { workspace = true }
 gneiss-macros = { workspace = true }
 linkme        = { workspace = true }
 bitflags = "2.13.2"
@@ -22,18 +33,18 @@ embedded-graphics-core = "0.4"
 ufmt = "0.2"
 
 [build-dependencies]
-pebble-build = { workspace = true }
+gneiss-build = { workspace = true }
 
 [features]
 default    = ["debug-logs"]
 # Without it, `debug!`/`verbose!` (including gneiss's own) compile to nothing
 debug-logs = []
-# Platform selection forwards to pebble-sys, where the mutually-exclusive check
+# Platform selection forwards to gneiss-sys, where the mutually-exclusive check
 # lives. An app enables exactly one; `gneiss::sys` then resolves for that board.
-emery   = ["pebble-sys/emery"]
-flint   = ["pebble-sys/flint"]
-gabbro  = ["pebble-sys/gabbro"]
-aplite  = ["pebble-sys/aplite"]
-basalt  = ["pebble-sys/basalt"]
-chalk   = ["pebble-sys/chalk"]
-diorite = ["pebble-sys/diorite"]
+emery   = ["gneiss-sys/emery"]
+flint   = ["gneiss-sys/flint"]
+gabbro  = ["gneiss-sys/gabbro"]
+aplite  = ["gneiss-sys/aplite"]
+basalt  = ["gneiss-sys/basalt"]
+chalk   = ["gneiss-sys/chalk"]
+diorite = ["gneiss-sys/diorite"]

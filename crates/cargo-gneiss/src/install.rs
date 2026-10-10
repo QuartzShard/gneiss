@@ -18,7 +18,7 @@ use color_eyre::{
 	Result,
 	eyre::{Context, OptionExt, bail, eyre},
 };
-use pebble_types::Platform;
+use gneiss_types::Platform;
 use tungstenite::{Message, WebSocket};
 
 /// Developer connection endpoints
@@ -151,7 +151,7 @@ impl Install {
 
 /// Where `cargo gneiss build` puts this project's bundle.
 fn default_pbw() -> Result<PathBuf> {
-	let (meta, pkg, _) = pebble_build::read_pbl_metadata()?;
+	let (meta, pkg, _) = gneiss_build::read_pbl_metadata()?;
 	let path = meta
 		.target_directory
 		.join(Platform::default().app_target_triple())

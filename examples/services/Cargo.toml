@@ -16,8 +16,8 @@ resources = {}
 [dependencies.gneiss]
 path = "../../crates/gneiss"
 
-[build-dependencies.pebble-build]
-path = "../../crates/pebble-build"
+[build-dependencies.gneiss-build]
+path = "../../crates/gneiss-build"
 features = []
 
 [features]

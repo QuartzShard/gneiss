@@ -9,7 +9,7 @@ use color_eyre::{
 	eyre::{Context, OptionExt, bail},
 };
 use freetype::face::LoadFlag;
-use pebble_types::Platform;
+use gneiss_types::Platform;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;

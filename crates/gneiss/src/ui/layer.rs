@@ -99,7 +99,7 @@ impl RootLayer {
 }
 
 unsafe impl AsLayer for RootLayer {
-	fn as_ptr(&self) -> *mut pebble_sys::Layer {
+	fn as_ptr(&self) -> *mut gneiss_sys::Layer {
 		self.ptr
 	}
 }

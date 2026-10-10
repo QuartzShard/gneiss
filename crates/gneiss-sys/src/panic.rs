@@ -43,7 +43,7 @@ impl Write for LogBuf {
 	}
 }
 
-/// Log "Panic! <message>" at the panic's `file:line`, formatting the message, and halt. The
+/// Log `"Panic! <message>"` at the panic's `file:line`, formatting the message, and halt. The
 /// default for `#[gneiss::entry]`. The firmware shows the last 15 characters of the file's name,
 /// and messages are cut at 88 bytes.
 pub fn panic_fmt(info: &PanicInfo) -> ! {

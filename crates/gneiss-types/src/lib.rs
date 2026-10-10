@@ -1,7 +1,7 @@
 // `clap`'s derive macro emits `::std::...` paths, so the `clap` feature forces std.
 // `serde` is no_std-friendly when its default `std` feature is disabled; we leave
 // `serde` defaults on for the host consumers and don't try to thread that needle.
-// pebble-sys and other no_std consumers should depend on pebble-types without
+// gneiss-sys and other no_std consumers should depend on gneiss-types without
 // features — that path stays no_std.
 #![cfg_attr(not(feature = "std"), no_std)]
 #![deny(
@@ -93,7 +93,7 @@ impl Platform {
 	/// stays `thumbv7m-none-eabi`, so this is the same ABI, not a new one.
 	///
 	/// Build scripts see this exact string in `$TARGET` (cargo uses the JSON
-	/// file stem), which `pebble-sys/build.rs` asserts against.
+	/// file stem), which `gneiss-sys/build.rs` asserts against.
 	pub const fn app_target_triple(self) -> &'static str {
 		"thumbv7m-pebble"
 	}
@@ -136,7 +136,7 @@ impl core::str::FromStr for Platform {
 	fn from_str(s: &str) -> Result<Self, Self::Err> {
 		// Match the canonical lowercase names and the clap-side hardware aliases
 		// so a single source of truth covers both `clap` arg parsing and any
-		// ad-hoc `s.parse()` callers (e.g. pebble-sys's build script).
+		// ad-hoc `s.parse()` callers (e.g. gneiss-sys's build script).
 		match s {
 			"emery" | "obelix" => Ok(Self::Emery),
 			"flint" | "asterix" => Ok(Self::Flint),

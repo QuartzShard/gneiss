@@ -1,0 +1,50 @@
+[package]
+name              = "gneiss-sys"
+# Defines memcpy, the syscall table pointer and the app header: two copies can never link
+links             = "gneiss-sys"
+version           = "0.1.0"
+description       = "Raw PebbleOS app syscall bindings for gneiss"
+keywords          = ["pebble", "pebbleos", "ffi"]
+categories        = ["external-ffi-bindings", "embedded", "no-std"]
+edition.workspace = true
+# Own code is MPL-2.0 (workspace default); the vendored PebbleOS headers in
+# vendor/ and the bindgen output derived from them are Apache-2.0. See NOTICE.
+license = "MPL-2.0 AND Apache-2.0"
+repository.workspace = true
+# The headers are only for `cargo xtask regen-sys`; the bindings ship, with the Apache licence
+# they're under
+include = [
+	"/Cargo.toml",
+	"/NOTICE",
+	"/build.rs",
+	"/pebble_app_rs.ld.template",
+	"/src/**",
+	"/vendor/LICENSE.apache-2.0",
+	"/vendor/UPSTREAM",
+]
+
+[package.metadata.docs.rs]
+# Watch crates document as emery, on the built-in target with the same ABI
+features = ["emery"]
+targets  = ["thumbv7m-none-eabi"]
+
+[lints]
+workspace = true
+
+[build-dependencies]
+gneiss-types = { workspace = true }
+gneiss-build = { workspace = true }
+
+[dependencies]
+gneiss-types = { workspace = true }
+mutually_exclusive_features = "0.1.0"
+
+[features]
+# Platforms, made mutually explusive via macro
+emery = []
+flint = []
+gabbro = []
+aplite = []
+basalt = []
+chalk = []
+diorite = []

@@ -50,7 +50,7 @@ pub enum FetchError {
 }
 
 bitflags::bitflags! {
-	/// e.is_empty() -> DICT_OK
+	/// Empty means `DICT_OK`.
 	pub struct DictionaryError : u8 {
 		const NOT_ENOUGH_STORAGE = sys::DictionaryResult_DICT_NOT_ENOUGH_STORAGE;
 		const INVALID_ARGS = sys::DictionaryResult_DICT_INVALID_ARGS;

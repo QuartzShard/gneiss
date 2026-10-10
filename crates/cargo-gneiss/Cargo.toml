@@ -1,6 +1,10 @@
 [package]
 name              = "cargo-gneiss"
-version.workspace = true
+version           = "0.1.0"
+description       = "Create, build and install gneiss Pebble apps"
+rust-version      = "1.98"
+keywords          = ["pebble", "pebbleos", "cargo"]
+categories        = ["development-tools::cargo-plugins", "embedded"]
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
@@ -13,8 +17,8 @@ name = "cargo-gneiss"
 path = "src/main.rs"
 
 [dependencies]
-pebble-types = { workspace = true, features = ["manifest_types"] }
-pebble-build = { workspace = true }
+gneiss-types = { workspace = true, features = ["manifest_types"] }
+gneiss-build = { workspace = true }
 unix-time = { workspace = true, default-features = true }
 clap       = { workspace = true }
 color-eyre = { workspace = true }

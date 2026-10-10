@@ -5,8 +5,8 @@ use std::{
 
 use bytemuck::{Pod, Zeroable, pod_read_unaligned};
 use color_eyre::eyre::{OptionExt, Result, bail};
+use gneiss_types::Platform;
 use image::EncodableLayout;
-use pebble_types::Platform;
 
 #[derive(Debug, Clone, Copy, Pod, Zeroable)]
 #[repr(C, packed)]
@@ -104,17 +104,16 @@ fn quantise_image(file: &Path, platform: Platform) -> Result<QuantisedImage> {
 
 	let mut palette = BTreeSet::new();
 	Ok(if platform.config().capabilities.color {
-		let bytes = img
-			.to_rgba8()
-			.as_bytes()
+		let rgba = img.to_rgba8();
+		// RGBA8: px = [u8;4]; divides clean
+		let (pixels, _) = rgba.as_bytes().as_chunks::<4>();
+		let bytes = pixels
 			.iter()
-			.map(|px_component| (u16::from(*px_component) + 42) / 85)
-			// RGBA8: px = [u8;4]; divides clean
-			.array_chunks::<4>()
 			.map(|px| {
+				let [r, g, b, a] = px.map(|component| (u16::from(component) + 42) / 85);
 				// Zero-out transparent pixels
-				if px[3] != 0 {
-					(px[3] << 6 | px[0] << 4 | px[1] << 2 | px[2]) as u8
+				if a != 0 {
+					(a << 6 | r << 4 | g << 2 | b) as u8
 				} else {
 					0
 				}

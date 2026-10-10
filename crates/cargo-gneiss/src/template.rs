@@ -4,12 +4,9 @@ use std::{
 	process::Command,
 };
 
-use color_eyre::{
-	Result,
-	eyre::{Context, OptionExt},
-};
-use pebble_build::{MessageKey, PebbleMetadata, Resource, ResourceType};
-use pebble_types::Platform;
+use color_eyre::{Result, eyre::Context};
+use gneiss_build::{MessageKey, PebbleMetadata, Resource, ResourceType};
+use gneiss_types::Platform;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -40,9 +37,6 @@ pub struct NewProject {
 	/// Watch(es) to target — repeat (`-p emery -p basalt`) or comma-separate.
 	#[arg(short = 'p', long = "platform", required = true, value_delimiter = ',')]
 	platform: Vec<Platform>,
-	/// Path to gneiss
-	/// TODO: Extend to allow git and cargo-version
-	dep_path: PathBuf,
 	/// Watchface or App?
 	app_type: AppType,
 	#[arg(long)]
@@ -164,18 +158,12 @@ impl NewProject {
 			edition: String::from("2024"),
 			metadata,
 		};
-		let dep_path = self.dep_path.canonicalize()?;
-		let crates_dir = dep_path.parent().ok_or_eyre("no parent")?;
-		let mut dependencies = BTreeMap::new();
-		dependencies.insert("gneiss".to_string(), Dependency::Path {
-			path:     crates_dir.join("gneiss"),
+		let gneiss_dep = Dependency::Version {
+			version:  gneiss_build::RELEASE_TRAIN.to_string(),
 			features: vec![],
-		});
-		let build_dependencies =
-			BTreeMap::from_iter([("pebble-build".to_string(), Dependency::Path {
-				path:     crates_dir.join("pebble-build"),
-				features: vec![],
-			})]);
+		};
+		let dependencies = BTreeMap::from_iter([("gneiss".to_string(), gneiss_dep.clone())]);
+		let build_dependencies = BTreeMap::from_iter([("gneiss-build".to_string(), gneiss_dep)]);
 		let features: BTreeMap<String, Vec<String>> = self
 			.platform
 			.iter()
@@ -246,8 +234,8 @@ impl NewProject {
 	fn build_rs(path: &Path) -> Result<()> {
 		let build: syn::File = syn::parse_quote! {
 
-			fn main() -> pebble_build::color_eyre::eyre::Result<()> {
-				pebble_build::gen_includes()
+			fn main() -> gneiss_build::color_eyre::eyre::Result<()> {
+				gneiss_build::gen_includes()
 			}
 		};
 		std::fs::write(path.join("build.rs"), prettyplease::unparse(&build))
@@ -318,7 +306,7 @@ pub struct Metadata {
 pub enum Dependency {
 	/// `dep = "1.2.3"`
 	Version {
-		verison:  String,
+		version:  String,
 		features: Vec<String>,
 	},
 	/// `dep = { path = "..." }`

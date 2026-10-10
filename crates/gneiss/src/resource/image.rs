@@ -31,7 +31,7 @@ impl SharedPalette {
 		}
 	}
 
-	/// Construct self from an array and leak it onto the heap ([`PebbleAlloc`]),
+	/// Construct self from an array and leak it onto the heap ([`PebbleAlloc`](crate::alloc::PebbleAlloc)),
 	/// yielding the `&'static` that [`GBitMap::set_shared_palette`] requires.
 	/// Convenience for runtime-created shared palettes
 	pub fn new_leak(val: [Colour; 16]) -> &'static Self {

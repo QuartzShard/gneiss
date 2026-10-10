@@ -7,7 +7,7 @@
 )]
 #![warn(clippy::unreachable, clippy::unimplemented, clippy::todo)]
 
-use pebble_types::{
+use gneiss_types::{
 	self,
 	header::{DEFAULT_HEADER, PebbleProcessInfo},
 };

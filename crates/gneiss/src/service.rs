@@ -1,4 +1,5 @@
-//! ISR-Like services for watchapps to subscribe to with the #[`gneiss::service`] macro
+//! ISR-Like services for watchapps to subscribe to with the
+//! [`#[gneiss::service]`](macro@crate::service) macro
 use core::{marker::PhantomData, mem::MaybeUninit, ptr};
 
 #[cfg(pbl_touch)]

@@ -31,9 +31,8 @@ pub fn service(
 	let fn_item: Option<ItemFn> = errs.handle(syn::parse2(item).map_err(DarlingError::from));
 	let attr_args: Option<ServiceArgs> = errs.handle(syn::parse2(attr).map_err(DarlingError::from));
 	let mut service: Option<Path> = attr_args.clone().map(|a| a.service);
-	let mut config: Vec<Expr> = attr_args
-		.map(|a| a.config.iter().cloned().collect())
-		.unwrap_or_default();
+	let mut config: Vec<Expr> =
+		attr_args.map_or_else(Vec::new, |a| a.config.iter().cloned().collect());
 
 	if let (Some(fn_item), Some(service)) = (fn_item, service) {
 		let fn_ident = fn_item.sig.ident;

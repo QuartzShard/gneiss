@@ -11,19 +11,19 @@ watchface = false
 # No resources. The table must still be present, just empty.
 resources = {}
 
-[dependencies.pebble-sys]
-path = "../../crates/pebble-sys"
+[dependencies.gneiss-sys]
+path = "../../crates/gneiss-sys"
 features = []
 
-[build-dependencies.pebble-build]
-path = "../../crates/pebble-build"
+[build-dependencies.gneiss-build]
+path = "../../crates/gneiss-build"
 features = []
 
 [features]
 # Default platform, so a bare `cargo check` (rust-analyzer) builds + runs codegen.
 default = ["emery"]
-emery = ["pebble-sys/emery"]
-basalt = ["pebble-sys/basalt"]
+emery = ["gneiss-sys/emery"]
+basalt = ["gneiss-sys/basalt"]
 
 [profile.release]
 opt-level = "z"

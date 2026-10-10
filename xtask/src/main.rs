@@ -5,7 +5,7 @@ use std::{
 
 use clap::Parser;
 use color_eyre::{Result, eyre::bail};
-use pebble_types::Platform;
+use gneiss_types::Platform;
 use strum::IntoEnumIterator;
 use tempfile::TempDir;
 
@@ -22,7 +22,7 @@ enum TaskArgs {
 		repo: PathBuf,
 	},
 	/// Check + clippy across the workspace: watch crates on the app target
-	/// (emery), host crates on the host.
+	/// (emery), host crates on the host. Also checks the library crates share a release train.
 	Ci,
 }
 
@@ -51,9 +51,9 @@ fn ci() -> Result<()> {
 	let root = workspace_root();
 	let watch: &[&str] = &[
 		"-p",
-		"pebble-types",
+		"gneiss-types",
 		"-p",
-		"pebble-sys",
+		"gneiss-sys",
 		"-p",
 		"gneiss",
 		"--features",
@@ -63,7 +63,7 @@ fn ci() -> Result<()> {
 		"-Zbuild-std=core,alloc",
 		"-Zjson-target-spec",
 	];
-	let host: &[&str] = &["-p", "cargo-gneiss", "-p", "pebble-build", "-p", "xtask"];
+	let host: &[&str] = &["-p", "cargo-gneiss", "-p", "gneiss-build", "-p", "xtask"];
 
 	let steps: [(&str, &str, &[&str]); 4] = [
 		("check", "watch", watch),
@@ -73,12 +73,17 @@ fn ci() -> Result<()> {
 	];
 
 	let mut failed = Vec::new();
+	log::info!("release train");
+	if let Err(e) = check_release_train(root) {
+		log::error!("{e}");
+		failed.push("release train".to_string());
+	}
 	for (cmd, side, args) in steps {
 		log::info!("cargo {cmd} ({side})");
 		let ok = Command::new("cargo")
 			.arg(cmd)
 			.args(args)
-			.current_dir(&root)
+			.current_dir(root)
 			.status()?
 			.success();
 		if !ok {
@@ -88,6 +93,55 @@ fn ci() -> Result<()> {
 
 	if !failed.is_empty() {
 		bail!("ci failed: {}", failed.join(", "));
+	}
+	Ok(())
+}
+
+/// The library crates released in step on one major.minor (`gneiss_build::RELEASE_TRAIN`).
+/// cargo-gneiss is versioned on its own.
+const RELEASE_TRAIN: [&str; 5] = [
+	"gneiss",
+	"gneiss-macros",
+	"gneiss-sys",
+	"gneiss-types",
+	"gneiss-build",
+];
+
+/// Fail unless every crate in [`RELEASE_TRAIN`] is on the same major.minor.
+fn check_release_train(root: &Path) -> Result<()> {
+	let out = Command::new("cargo")
+		.args(["metadata", "--no-deps", "--format-version", "1"])
+		.current_dir(root)
+		.output()?;
+	if !out.status.success() {
+		bail!("cargo metadata failed");
+	}
+	let meta: serde_json::Value = serde_json::from_slice(&out.stdout)?;
+	let trains: Vec<(&str, String)> = meta["packages"]
+		.as_array()
+		.into_iter()
+		.flatten()
+		.filter_map(|pkg| {
+			let name = pkg["name"].as_str()?;
+			let version = pkg["version"].as_str()?;
+			RELEASE_TRAIN.contains(&name).then(|| {
+				let train = version.split('.').take(2).collect::<Vec<_>>().join(".");
+				(name, train)
+			})
+		})
+		.collect();
+	if trains.len() != RELEASE_TRAIN.len() {
+		bail!("release train: expected {RELEASE_TRAIN:?} in the workspace, found {trains:?}");
+	}
+	if trains.iter().any(|(_, train)| *train != trains[0].1) {
+		let listed: Vec<String> = trains
+			.iter()
+			.map(|(name, train)| format!("{name} {train}"))
+			.collect();
+		bail!(
+			"release train: library crates must share a major.minor, found {}",
+			listed.join(", ")
+		);
 	}
 	Ok(())
 }
@@ -128,7 +182,7 @@ fn regen_sys() -> Result<()> {
 		),
 		("locale.h", "#pragma once\n"),
 	];
-	let vendor = workspace_root().join("crates/pebble-sys/vendor");
+	let vendor = workspace_root().join("crates/gneiss-sys/vendor");
 	// Check we have a vendor snapshot
 	if !std::fs::exists(vendor.join("UPSTREAM"))? {
 		bail!("No vendor snapshot, run `cargo xtask snapshot-vendor` to generate one")
@@ -187,7 +241,7 @@ fn regen_sys() -> Result<()> {
 		// lib.rs uses `#[cfg_attr(feature = "<plat>", path = "<plat>.rs")]` to
 		// select the per-platform snapshot at compile time. Each platform gets its
 		// own checked-in file so multiple platforms can coexist in the tree.
-		let out = workspace_root().join(format!("crates/pebble-sys/src/platform/{platform}.rs"));
+		let out = workspace_root().join(format!("crates/gneiss-sys/src/platform/{platform}.rs"));
 		std::fs::write(&out, prettyplease::unparse(&mapped))?;
 		rustfmt(&out)?;
 	}
@@ -214,13 +268,13 @@ fn regen_sys() -> Result<()> {
 		"#[derive(Debug, Copy, Clone)]",
 		"#[derive(Debug, Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]\n#[cfg_attr(feature = \"serde\", derive(serde::Serialize, serde::Deserialize))]",
 	);
-	let process_info = workspace_root().join("crates/pebble-types/src/pebble_process_info.rs");
+	let process_info = workspace_root().join("crates/gneiss-types/src/pebble_process_info.rs");
 	std::fs::write(&process_info, &bindings)?;
 	rustfmt(&process_info)?;
 
 	let bits = platform_table::process_info_bits(&bindings)?;
 	let sdk = platform_table::sdk_versions(&vendor)?;
-	let config = workspace_root().join("crates/pebble-types/src/config.rs");
+	let config = workspace_root().join("crates/gneiss-types/src/config.rs");
 	std::fs::write(&config, platform_table::render(&platforms, &bits, &sdk)?)?;
 	rustfmt(&config)?;
 	Ok(())
@@ -250,7 +304,7 @@ fn snapshot_vendor(repo: &Path) -> Result<()> {
 	let config: PathBuf = repo.join("tools/generate_native_sdk/exported_symbols.json");
 	let tmp = TempDir::new_in(".")?;
 	log::info!("Generating pebble.h in {}...", tmp.path().display());
-	let vendor = workspace_root().join("crates/pebble-sys/vendor");
+	let vendor = workspace_root().join("crates/gneiss-sys/vendor");
 	std::fs::create_dir_all(&vendor)?;
 
 	log::info!("Looking for `uv`...");
@@ -289,7 +343,7 @@ fn snapshot_vendor(repo: &Path) -> Result<()> {
 	std::fs::copy(config, vendor.join("exported_symbols.json"))?;
 
 	// `tools/pebble_sdk_platform.py` imports nothing, so python can dump it as
-	// JSON; `regen-sys` reads that into `pebble-types`'s config table
+	// JSON; `regen-sys` reads that into `gneiss-types`'s config table
 	log::info!("Dumping upstream's platform table...");
 	let dump = Command::new("uv")
 		.current_dir(repo)
@@ -328,7 +382,7 @@ fn snapshot_vendor(repo: &Path) -> Result<()> {
 			now
 		),
 	)?;
-	log::info!("Done! See crates/pebble-sys/vendor");
+	log::info!("Done! See crates/gneiss-sys/vendor");
 	Ok(())
 }
 

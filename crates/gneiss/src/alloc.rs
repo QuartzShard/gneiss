@@ -27,7 +27,7 @@ use core::{
 	ptr::{self, NonNull},
 };
 
-use pebble_sys::{free, malloc, realloc};
+use gneiss_sys::{free, malloc, realloc};
 
 /// On Cortex-M, this address is Forbidden (Private Peripheral Bus), touching it will cause a
 /// `BusFault` - `PebbleOS` then kills the app. Used as the ZST sentinel. If you see this in a log,

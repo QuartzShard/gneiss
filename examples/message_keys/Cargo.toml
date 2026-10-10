@@ -19,8 +19,8 @@ message_keys = ["Command", "Status", "Uptime", "Samples[8]"]
 [dependencies.gneiss]
 path = "../../crates/gneiss"
 
-[build-dependencies.pebble-build]
-path = "../../crates/pebble-build"
+[build-dependencies.gneiss-build]
+path = "../../crates/gneiss-build"
 features = []
 
 [features]

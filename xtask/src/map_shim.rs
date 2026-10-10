@@ -1,7 +1,7 @@
 use std::{collections::HashMap, path::Path};
 
 use color_eyre::{Result, eyre::bail};
-use pebble_types::Platform;
+use gneiss_types::Platform;
 use quote::quote;
 
 use crate::exported_symbols::{Export, ExportedSymbols, Flag, Function};
@@ -86,7 +86,7 @@ fn build_syscall_vtable_map(
 	let slot_count = exported_fns.len();
 	let to_skip = |func: &Function| -> bool {
 		// The allocator family and mem* are `skipDefinition` in the SDK but we still want shims
-		// for them: gneiss's GlobalAlloc binds the former, pebble-sys's mem module the latter.
+		// for them: gneiss's GlobalAlloc binds the former, gneiss-sys's mem module the latter.
 		const FORCE_EMIT: &[&str] = &["malloc", "free", "realloc", "memcpy", "memmove", "memset"];
 		func.removed.is_set()
 			|| func.deprecated.is_set()

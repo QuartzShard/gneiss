@@ -1,4 +1,4 @@
-//! Type-aware resource handles, generated per-app by pebble-build::gen_resource_delarations.
+//! Type-aware resource handles, generated per-app by gneiss-build::gen_resource_delarations.
 use core::num::NonZeroU32;
 
 pub mod font;

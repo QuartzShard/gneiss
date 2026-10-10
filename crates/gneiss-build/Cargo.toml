@@ -1,6 +1,7 @@
 [package]
-name = "pebble-build"
-version.workspace = true
+name = "gneiss-build"
+version = "0.1.0"
+description = "Build-time resource compiling and bundling for gneiss apps"
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
@@ -9,7 +10,7 @@ repository.workspace = true
 workspace = true
 
 [dependencies]
-pebble-types = { workspace = true, features = ["manifest_types"] }
+gneiss-types = { workspace = true, features = ["manifest_types"] }
 bytemuck = { workspace = true }
 unix-time = { workspace = true, default-features = true }
 color-eyre = { workspace = true }

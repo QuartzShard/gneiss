@@ -412,9 +412,9 @@ dependencies = [
  "color-eyre",
  "ctrlc",
  "env_logger",
+ "gneiss-build",
+ "gneiss-types",
  "log",
- "pebble-build",
- "pebble-types",
  "prettyplease",
  "proc-macro2",
  "serde",
@@ -1095,11 +1095,38 @@ version = "0.1.0"
 dependencies = [
  "bitflags 2.13.2",
  "embedded-graphics-core",
+ "gneiss-build",
  "gneiss-macros",
+ "gneiss-sys",
  "linkme",
- "pebble-build",
- "pebble-sys",
  "ufmt",
+]
+
+[[package]]
+name = "gneiss-build"
+version = "0.1.0"
+dependencies = [
+ "bytemuck",
+ "cargo_metadata",
+ "color-eyre",
+ "freetype-rs",
+ "gneiss-types",
+ "image",
+ "log",
+ "object 0.32.2",
+ "png",
+ "prettyplease",
+ "proc-macro2",
+ "quote",
+ "regex",
+ "roxmltree",
+ "serde",
+ "serde_json",
+ "strum",
+ "svgtypes",
+ "syn 3.0.5",
+ "unix-time",
+ "uuid",
 ]
 
 [[package]]
@@ -1111,6 +1138,27 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 3.0.5",
+]
+
+[[package]]
+name = "gneiss-sys"
+version = "0.1.0"
+dependencies = [
+ "gneiss-build",
+ "gneiss-types",
+ "mutually_exclusive_features",
+]
+
+[[package]]
+name = "gneiss-types"
+version = "0.1.0"
+dependencies = [
+ "bytemuck",
+ "clap",
+ "serde",
+ "strum",
+ "unix-time",
+ "uuid",
 ]
 
 [[package]]
@@ -1746,54 +1794,6 @@ dependencies = [
  "hmac",
  "password-hash",
  "sha2",
-]
-
-[[package]]
-name = "pebble-build"
-version = "0.1.0"
-dependencies = [
- "bytemuck",
- "cargo_metadata",
- "color-eyre",
- "freetype-rs",
- "image",
- "log",
- "object 0.32.2",
- "pebble-types",
- "png",
- "prettyplease",
- "proc-macro2",
- "quote",
- "regex",
- "roxmltree",
- "serde",
- "serde_json",
- "strum",
- "svgtypes",
- "syn 3.0.5",
- "unix-time",
- "uuid",
-]
-
-[[package]]
-name = "pebble-sys"
-version = "0.1.0"
-dependencies = [
- "mutually_exclusive_features",
- "pebble-build",
- "pebble-types",
-]
-
-[[package]]
-name = "pebble-types"
-version = "0.1.0"
-dependencies = [
- "bytemuck",
- "clap",
- "serde",
- "strum",
- "unix-time",
- "uuid",
 ]
 
 [[package]]
@@ -2941,9 +2941,9 @@ dependencies = [
  "clap",
  "color-eyre",
  "env_logger",
+ "gneiss-types",
  "itertools",
  "log",
- "pebble-types",
  "prettyplease",
  "proc-macro2",
  "quote",

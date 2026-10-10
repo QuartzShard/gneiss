@@ -39,7 +39,7 @@ impl From<sys::AppMessageResult> for AppMessageError {
 }
 
 bitflags::bitflags! {
-	/// e.is_empty() -> APP_MSG_OK
+	/// Empty means `APP_MSG_OK`.
 	pub struct AppMessageError : u16 {
 		const SEND_TIMEOUT = sys::AppMessageResult_APP_MSG_SEND_TIMEOUT;
 		const SEND_REJECTED = sys::AppMessageResult_APP_MSG_SEND_REJECTED;

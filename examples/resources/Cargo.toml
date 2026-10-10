@@ -122,8 +122,8 @@ target_platforms = ["emery", "flint", "chalk", "basalt", "aplite"]
 path = "../../crates/gneiss"
 features = []
 
-[build-dependencies.pebble-build]
-path = "../../crates/pebble-build"
+[build-dependencies.gneiss-build]
+path = "../../crates/gneiss-build"
 features = []
 
 [features]

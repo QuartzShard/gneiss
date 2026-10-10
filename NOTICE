@@ -11,9 +11,9 @@ This product includes interface headers from PebbleOS
   Copyright Google LLC
   Licensed under the Apache License, Version 2.0.
 
-The vendored headers under crates/pebble-sys/vendor/ are snapshotted, unmodified,
-from PebbleOS at the commit recorded in crates/pebble-sys/vendor/UPSTREAM. The
+The vendored headers under crates/gneiss-sys/vendor/ are snapshotted, unmodified,
+from PebbleOS at the commit recorded in crates/gneiss-sys/vendor/UPSTREAM. The
 FFI bindings generated from those headers (the bindgen output checked into
-crates/pebble-sys/src/) are derivative works of those Apache-2.0 headers and are
+crates/gneiss-sys/src/) are derivative works of those Apache-2.0 headers and are
 likewise distributed under the Apache License, Version 2.0. A copy of that
-license is at crates/pebble-sys/vendor/LICENSE.apache-2.0.
+license is at crates/gneiss-sys/vendor/LICENSE.apache-2.0.

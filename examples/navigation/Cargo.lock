@@ -617,11 +617,38 @@ version = "0.1.0"
 dependencies = [
  "bitflags",
  "embedded-graphics-core",
+ "gneiss-build",
  "gneiss-macros",
+ "gneiss-sys",
  "linkme",
- "pebble-build",
- "pebble-sys",
  "ufmt",
+]
+
+[[package]]
+name = "gneiss-build"
+version = "0.1.0"
+dependencies = [
+ "bytemuck",
+ "cargo_metadata",
+ "color-eyre",
+ "freetype-rs",
+ "gneiss-types",
+ "image",
+ "log",
+ "object 0.32.2",
+ "png",
+ "prettyplease",
+ "proc-macro2",
+ "quote",
+ "regex",
+ "roxmltree",
+ "serde",
+ "serde_json",
+ "strum",
+ "svgtypes",
+ "syn 3.0.6",
+ "unix-time",
+ "uuid",
 ]
 
 [[package]]
@@ -632,6 +659,26 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 3.0.6",
+]
+
+[[package]]
+name = "gneiss-sys"
+version = "0.1.0"
+dependencies = [
+ "gneiss-build",
+ "gneiss-types",
+ "mutually_exclusive_features",
+]
+
+[[package]]
+name = "gneiss-types"
+version = "0.1.0"
+dependencies = [
+ "bytemuck",
+ "serde",
+ "strum",
+ "unix-time",
+ "uuid",
 ]
 
 [[package]]
@@ -936,7 +983,7 @@ name = "navigation"
 version = "0.1.0"
 dependencies = [
  "gneiss",
- "pebble-build",
+ "gneiss-build",
 ]
 
 [[package]]
@@ -1072,53 +1119,6 @@ name = "pastey"
 version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "35fb2e5f958ec131621fdd531e9fc186ed768cbe395337403ae56c17a74c68ec"
-
-[[package]]
-name = "pebble-build"
-version = "0.1.0"
-dependencies = [
- "bytemuck",
- "cargo_metadata",
- "color-eyre",
- "freetype-rs",
- "image",
- "log",
- "object 0.32.2",
- "pebble-types",
- "png",
- "prettyplease",
- "proc-macro2",
- "quote",
- "regex",
- "roxmltree",
- "serde",
- "serde_json",
- "strum",
- "svgtypes",
- "syn 3.0.6",
- "unix-time",
- "uuid",
-]
-
-[[package]]
-name = "pebble-sys"
-version = "0.1.0"
-dependencies = [
- "mutually_exclusive_features",
- "pebble-build",
- "pebble-types",
-]
-
-[[package]]
-name = "pebble-types"
-version = "0.1.0"
-dependencies = [
- "bytemuck",
- "serde",
- "strum",
- "unix-time",
- "uuid",
-]
 
 [[package]]
 name = "pin-project-lite"

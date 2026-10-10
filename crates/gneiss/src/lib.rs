@@ -1,4 +1,4 @@
-//! A safe Rust SDK for Pebble watchapps and watchfaces, built on [`pebble_sys`].
+//! A safe Rust SDK for Pebble watchapps and watchfaces, built on [`gneiss_sys`].
 #![no_std]
 #![deny(
 	clippy::panic,
@@ -17,8 +17,8 @@
 )]
 
 pub use gneiss_macros::{entry, service};
+pub use gneiss_sys as sys;
 pub use linkme;
-pub use pebble_sys as sys;
 /// Present when building with `-Cpanic=immediate-abort`. `use gneiss::ufmt;` puts it in scope for
 /// `ufmt`'s macros.
 #[cfg(panic = "immediate-abort")]
