@@ -15,6 +15,7 @@ repository.workspace = true
 # they're under
 include = [
 	"/Cargo.toml",
+	"/LICENSE",
 	"/NOTICE",
 	"/build.rs",
 	"/pebble_app_rs.ld.template",
