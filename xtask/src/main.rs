@@ -11,6 +11,7 @@ use tempfile::TempDir;
 
 use crate::{map_shim::map_bindgen_to_shimmed, platform_table::PlatformTable};
 
+mod doxygen;
 mod exported_symbols;
 mod map_shim;
 mod platform_table;
@@ -22,7 +23,8 @@ enum TaskArgs {
 		repo: PathBuf,
 	},
 	/// Check + clippy across the workspace: watch crates on the app target
-	/// (emery), host crates on the host. Also checks the library crates share a release train.
+	/// (emery), host crates on the host. Also compiles gneiss's doc examples, and checks the
+	/// library crates share a release train.
 	Ci,
 }
 
@@ -64,12 +66,24 @@ fn ci() -> Result<()> {
 		"-Zjson-target-spec",
 	];
 	let host: &[&str] = &["-p", "cargo-gneiss", "-p", "gneiss-build", "-p", "xtask"];
+	let doctests: &[&str] = &[
+		"--doc",
+		"-p",
+		"gneiss",
+		"--features",
+		"gneiss/emery,gneiss/__doctest",
+		"--target",
+		"crates/cargo-gneiss/thumbv7m-pebble.json",
+		"-Zbuild-std=core,alloc",
+		"-Zjson-target-spec",
+	];
 
-	let steps: [(&str, &str, &[&str]); 4] = [
+	let steps: [(&str, &str, &[&str]); 5] = [
 		("check", "watch", watch),
 		("check", "host", host),
 		("clippy", "watch", watch),
 		("clippy", "host", host),
+		("test", "doctests", doctests),
 	];
 
 	let mut failed = Vec::new();
@@ -231,6 +245,7 @@ fn regen_sys() -> Result<()> {
 			.use_core()
 			.generate_cstr(true)
 			.clang_args(clang_args)
+			.parse_callbacks(Box::new(doxygen::DoxygenComments))
 			.generate()?;
 
 		let mut mapped = map_bindgen_to_shimmed(&bindings, &vendor, platform)?;
@@ -259,6 +274,7 @@ fn regen_sys() -> Result<()> {
 		.clang_args(clang_args)
 		.generate_cstr(true)
 		.blocklist_function("version_compare")
+		.parse_callbacks(Box::new(doxygen::DoxygenComments))
 		.generate()?
 		.to_string();
 	bindings = format!(

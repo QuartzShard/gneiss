@@ -1,9 +1,11 @@
-//! Types for comminicating about time with PebbleOS
+//! Time, for [`TickService`](crate::service::TickService).
 
 use crate::sys;
+#[doc(inline)]
 pub use crate::sys::tm as TickTime;
 
 bitflags::bitflags! {
+	/// Which units of the time changing should fire a tick.
 	pub struct TimeUnits: u8 {
 		const SECONDS   = sys::TimeUnits_SECOND_UNIT;
 		const MINUTES   = sys::TimeUnits_MINUTE_UNIT;

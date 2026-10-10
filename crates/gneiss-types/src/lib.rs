@@ -1,6 +1,8 @@
+//! Definitions shared by the gneiss crates and tools: each platform's configuration, the app
+//! header, and, with features, bundle manifests and resource packs. Apps don't use it directly.
 // `clap`'s derive macro emits `::std::...` paths, so the `clap` feature forces std.
 // `serde` is no_std-friendly when its default `std` feature is disabled; we leave
-// `serde` defaults on for the host consumers and don't try to thread that needle.
+// `serde` defaults on for the host consumers.
 // gneiss-sys and other no_std consumers should depend on gneiss-types without
 // features — that path stays no_std.
 #![cfg_attr(not(feature = "std"), no_std)]
@@ -85,11 +87,11 @@ impl Platform {
 	/// expose a thumbv7m app ABI through the syscall trampoline).
 	///
 	/// It is a custom spec rather than the stock `thumbv7m-none-eabi` so that
-	/// `relocation-model = pic` is baked into the target itself — that way
+	/// `relocation-model = pic` is baked into the target itself. That way
 	/// `-Zbuild-std` rebuilds `core`/`alloc` PIC too, not just app crates. A
 	/// non-PIC `core` would materialise absolute addresses inline in `.text`
-	/// (via `movw`/`movt`), which the loader's reloc table — harvested only
-	/// from `.rel.data` + `.got` — cannot fix up at load time. The LLVM target
+	/// (via `movw`/`movt`), which the loader's reloc table (harvested only
+	/// from `.rel.data` + `.got`) cannot fix up at load time. The LLVM target
 	/// stays `thumbv7m-none-eabi`, so this is the same ABI, not a new one.
 	///
 	/// Build scripts see this exact string in `$TARGET` (cargo uses the JSON

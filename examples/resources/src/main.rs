@@ -88,7 +88,7 @@ impl Layout for Resources {
 		title
 			.set_font(font)
 			.set_text(text)
-			.set_text_color(Colour { argb: 0xF5 });
+			.set_text_colour(Colour { argb: 0xF5 });
 		root.add_child(&mut title);
 
 		// png / bitmap / pbi all become a GBitMap via the same loader. IMAGE_PNG

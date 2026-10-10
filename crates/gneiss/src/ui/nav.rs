@@ -39,7 +39,7 @@ impl<'n> Nav<'n> {
 
 	fn queue(&mut self, action: NavAction<'n>) {
 		let Some(slot) = self.actions.get_mut(self.len) else {
-			crate::log::warn!("Nav queue full, dropping action");
+			crate::log::warn!("queue full");
 			return;
 		};
 		*slot = Some(action);

@@ -54,7 +54,6 @@ impl ClickHandlers {
 	}
 }
 
-/// A watch button.
 #[derive(Clone, Copy)]
 #[repr(u8)]
 pub enum Button {
@@ -96,8 +95,14 @@ bitflags::bitflags! {
 
 /// A recognized click on a button, delivered to that button's handler.
 pub enum Click {
-	Single { repeating: bool },
-	Multi { count: u8 },
+	Single {
+		/// Fired by holding the button down, not by a press.
+		repeating: bool,
+	},
+	Multi {
+		/// How many presses were counted.
+		count: u8,
+	},
 	Long,
 	LongRelease,
 	RawDown,

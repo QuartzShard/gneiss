@@ -1,11 +1,28 @@
-//! `AppMessage` dictionary layer: keys, a read/write dictionary handle, tuple
-//! iteration, and conversion of tuples to and from Rust values.
+//! The dictionaries AppMessage carries: keys, reading, writing, and the value types they hold.
+//!
+//! A dictionary is a list of tuples, each a key and a typed value. Keys come from the
+//! `message_keys` module the build generates (see [`link`](crate::link)): a [`SingleKey`] per name,
+//! and an [`ArrayKey`] for each `Name[N]`, which [`ArrayKey::get`] indexes into.
+//!
+//! [`DictHandle::get`] reads a value as any type implementing [`FromTuple`], and
+//! [`DictHandle::get_array_slot`] reads one slot of an array key. Writing happens through
+//! [`Outbox::set`](crate::link::Outbox::set), for any [`ToTuple`] value.
+//!
+//! | Rust type | On the wire |
+//! |---|---|
+//! | `u8`, `u16`, `u32`, `i8`, `i16`, `i32` | integer of that width |
+//! | `bool` | `u8`, 0 or 1 |
+//! | `&[u8]` | byte array |
+//! | `&CStr`, `&str` | NUL-terminated string |
+//!
+//! Byte arrays and strings borrow the message buffer, so they live only as long as the
+//! [`DictHandle`].
 
 use core::{ffi::CStr, marker::PhantomData, ptr};
 
 use crate::sys;
 
-/// From name declarations, or a specific index into a `name[N]` declaration.
+/// One key: a plain `message_keys` name, or one slot of an [`ArrayKey`].
 #[derive(Clone, Copy, Debug)]
 pub struct SingleKey {
 	index: u32,
@@ -18,7 +35,7 @@ impl SingleKey {
 	}
 }
 
-/// From `name[N]` declarations.
+/// `N` consecutive keys, from a `Name[N]` declaration.
 #[derive(Clone, Copy, Debug)]
 pub struct ArrayKey {
 	base: u32,
@@ -31,6 +48,7 @@ impl ArrayKey {
 		Self { base, len }
 	}
 
+	/// The key for slot `i`. `None` past the end.
 	pub fn get(&self, i: u32) -> Option<SingleKey> {
 		if i < self.len {
 			Some(SingleKey {
@@ -46,11 +64,12 @@ impl ArrayKey {
 pub enum FetchError {
 	Missing,
 	WrongType,
+	/// The array slot is past the end of the [`ArrayKey`].
 	OutOfBounds,
 }
 
 bitflags::bitflags! {
-	/// Empty means `DICT_OK`.
+	/// Why a dictionary write failed. Empty means `DICT_OK`.
 	pub struct DictionaryError : u8 {
 		const NOT_ENOUGH_STORAGE = sys::DictionaryResult_DICT_NOT_ENOUGH_STORAGE;
 		const INVALID_ARGS = sys::DictionaryResult_DICT_INVALID_ARGS;
@@ -243,11 +262,13 @@ impl TupleValue<'_> {
 
 /// Build a value from a decoded [`TupleValue`]; `None` on a tag/width mismatch.
 pub trait FromTuple<'a>: Sized {
+	/// `None` if `v` holds another type or width.
 	fn from_tuple(v: TupleValue<'a>) -> Option<Self>;
 }
 
 /// Describe a value as a [`TupleValue`] ready to write.
 pub trait ToTuple {
+	/// The tuple value to write for `self`.
 	fn to_tuple(&self) -> TupleValue<'_>;
 }
 

@@ -1,6 +1,9 @@
-//! Types for health service events
+//! Health tracker events, for [`HealthService`](crate::service::HealthService).
+//!
+//! TODO: Health system API, service does not cut it
 use crate::sys;
 
+/// Which kind of health data has new values.
 #[repr(u8)]
 pub enum Event {
 	Significant = sys::HealthEventType_HealthEventSignificantUpdate,

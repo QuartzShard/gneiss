@@ -1,13 +1,18 @@
-//! Types for touch service events
+//! Touch screen events, for [`TouchService`](crate::service::TouchService).
 use crate::sys;
 
+/// One touch event, at `x`, `y`.
 pub struct Event {
+	/// What happened.
 	pub event_type:       EventType,
+	/// The touch began while the watch was idle, such as a stray contact on the watchface, so it
+	/// shouldn't drive navigation. Set at touchdown and kept for the whole gesture.
 	pub non_navigational: bool,
 	pub x:                i16,
 	pub y:                i16,
 }
 
+/// A finger landing, lifting, or moving.
 #[repr(u8)]
 #[derive(Clone, Copy)]
 pub enum EventType {

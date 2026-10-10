@@ -1,5 +1,6 @@
 //! Typed versions of the data the firmware hands to service handlers.
 pub mod accel;
+pub mod battery;
 pub mod compass;
 pub mod connection;
 pub mod dict;

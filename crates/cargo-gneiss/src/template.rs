@@ -203,32 +203,52 @@ impl NewProject {
 
 			extern crate alloc;
 
-			use gneiss::sys;
+			use gneiss::ui::{
+				Layer, Layout, Nav, StaticWindow, TextAlignment, TextLayer, UiGuard, Window, WindowCtx,
+				graphics::{Point, Rectangle, Size},
+			};
 
-			#[gneiss::entry]
-			fn main() {
-				unsafe {
-					let window = sys::window_create();
-					let root = sys::window_get_root_layer(window);
-					let bounds = sys::layer_get_bounds(root);
+			static MAIN: StaticWindow<Main, ()> = StaticWindow::new();
 
-					let text_layer = sys::text_layer_create(sys::GRect {
-						origin: sys::GPoint { x: 0, y: (bounds.size.h - 40) / 2 },
-						size:   sys::GSize { w: bounds.size.w, h: 40 },
-					});
-					sys::text_layer_set_text(text_layer, c"Write a cool watch app!".as_ptr());
-					sys::text_layer_set_text_alignment(
-						text_layer,
-						sys::GTextAlignment_GTextAlignmentCenter,
-					);
-					sys::layer_add_child(root, sys::text_layer_get_layer(text_layer));
+			struct Main {
+				_text: TextLayer,
+			}
 
-					sys::window_stack_push(window, false);
+			impl Layout for Main {
+				fn load(ctx: &mut WindowCtx<'_, Self>) -> Self {
+					let mut root = ctx.root();
+					let bounds = root.bounds();
+					let mut text = TextLayer::new(Rectangle::new(
+						Point::new(0, (bounds.size.height as i32 - 40) / 2),
+						Size::new(bounds.size.width, 40),
+					))
+					.expect("text layer");
+					text.set_text(c"Write a cool watch app!")
+						.set_alignment(TextAlignment::Center);
+					root.add_child(&mut text);
+					Self { _text: text }
 				}
 			}
+
+			#[gneiss::entry]
+			fn main(ui: &mut UiGuard) {
+				MAIN.set(Window::new(None).expect("main window"));
+				Nav::new(ui).push(&MAIN, false);
+			}
 		};
-		std::fs::write(path.join("src/main.rs"), prettyplease::unparse(&main))
-			.wrap_err("Cannot write main.rs")
+		// prettyplease drops the blank lines between items
+		let mut source = prettyplease::unparse(&main);
+		for item in [
+			"extern ",
+			"use ",
+			"static ",
+			"struct ",
+			"impl ",
+			"#[gneiss::entry]",
+		] {
+			source = source.replace(&format!("\n{item}"), &format!("\n\n{item}"));
+		}
+		std::fs::write(path.join("src/main.rs"), source).wrap_err("Cannot write main.rs")
 	}
 
 	fn build_rs(path: &Path) -> Result<()> {

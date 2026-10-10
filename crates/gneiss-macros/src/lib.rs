@@ -1,3 +1,4 @@
+//! The `#[entry]` and `#[service]` attribute macros, used as `gneiss::entry` and `gneiss::service`.
 #![allow(unused)]
 #![allow(clippy::needless_pass_by_value)]
 mod entry;
@@ -20,7 +21,16 @@ pub fn entry(attr: TokenStream, item: TokenStream) -> TokenStream {
 }
 
 #[proc_macro_attribute]
-/// Register a freestanding fn as a service handler
+/// Subscribe a free function to a gneiss service, once `main` has returned.
+///
+/// ```ignore
+/// #[gneiss::service(TickService, time::TimeUnits::MINUTES)]
+/// fn on_minute(time: time::TickTime, _changed: time::TimeUnits) {}
+/// ```
+///
+/// The first argument names the service; anything after it becomes the service's subscribe
+/// argument, listed separated by commas and passed as a tuple when there are several. The function must have the service's handler
+/// signature. Subscribing the same service twice in one app is a link error.
 pub fn service(attr: TokenStream, item: TokenStream) -> TokenStream {
 	service::service(attr.into(), item.into()).into()
 }

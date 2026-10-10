@@ -6,6 +6,7 @@ use core::{alloc::Allocator, ops::Deref};
 use crate::{resource::RawBytesKey, sys};
 
 #[derive(Clone, Copy)]
+/// A raw bytes resource, opened for reading.
 pub struct ResourceHandle {
 	handle: *mut core::ffi::c_void,
 	len:    usize,
@@ -34,6 +35,7 @@ impl ResourceHandle {
 		}
 	}
 
+	/// The resource's size in bytes.
 	pub fn len(&self) -> usize {
 		self.len
 	}
@@ -68,11 +70,13 @@ impl ResourceHandle {
 	}
 }
 
+/// A resource read in [`Chunk`]s of `SIZE` bytes, from [`ResourceHandle::iter`].
 pub struct ResourceIter<const SIZE: usize> {
 	handle: ResourceHandle,
 	offset: usize,
 }
 
+/// Up to `SIZE` bytes of a resource; only the last chunk is short. Derefs to its bytes.
 pub struct Chunk<const SIZE: usize> {
 	inner: [u8; SIZE],
 	len:   usize,
@@ -88,8 +92,12 @@ impl<const SIZE: usize> Deref for Chunk<SIZE> {
 
 /// Load an entire resource.
 ///
-/// ```
+/// ```no_run
+/// # fn _example() {
+/// # use gneiss::{alloc::PebbleAlloc, resource::raw::load_all};
+/// # mod resources { use gneiss::resource::*; use core::num::NonZeroU32; pub const RAW_BYTES: RawBytesKey = RawBytesKey(NonZeroU32::new(1).unwrap()); }
 /// let res = load_all(resources::RAW_BYTES, PebbleAlloc).expect("RAW_BYTES declared");
+/// # }
 /// ```
 ///
 /// Beware that loading a resource larger than your available heap will hit OOM

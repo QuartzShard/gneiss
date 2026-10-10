@@ -10,7 +10,7 @@ use alloc::format;
 #[cfg(pbl_touch)]
 use gneiss::touch;
 use gneiss::{
-	accel, compass, connection, focus, health,
+	accel, battery, compass, connection, focus, health,
 	link::{self, AppMessageEvent},
 	service::*,
 	sys,
@@ -92,7 +92,7 @@ fn on_compass(heading: compass::HeadingData) {
 // --- handler only ---
 
 #[gneiss::service(BatteryService)]
-fn on_battery(charge: sys::BatteryChargeState) {
+fn on_battery(charge: battery::BatteryChargeState) {
 	let tag = if charge.is_charging {
 		" chg"
 	} else if charge.is_plugged {
@@ -219,9 +219,9 @@ fn on_health(event: health::Event, ctx: Option<&mut HealthCtx>) {
 	);
 }
 
-#[gneiss::service(AppMessageService<()>, link::SubscribeTo::RECIEVED, link::BufferSizes::default(), None)]
+#[gneiss::service(AppMessageService<()>, link::SubscribeTo::RECEIVED, link::BufferSizes::default(), None)]
 fn on_message(event: AppMessageEvent<'_>, _ctx: Option<&mut ()>) {
-	if let AppMessageEvent::Recieved { inbox } = event {
+	if let AppMessageEvent::Received { inbox } = event {
 		BOARD.set_line(
 			&mut UiGuard::enter(),
 			Slot::Message as usize,

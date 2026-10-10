@@ -146,13 +146,6 @@ impl<S: Deref<Target = CStr>, F: Borrow<Font>> TextLayer<S, F> {
 		self
 	}
 
-	/// Edit the text in place. `None` if no text has been set.
-	pub fn text_mut<R>(&mut self, f: impl FnOnce(&mut S) -> R) -> Option<R> {
-		let result = f(self.text.as_deref_mut()?);
-		self.repoint();
-		Some(result)
-	}
-
 	/// The current text, if any.
 	pub fn text(&self) -> Option<&CStr> {
 		self.text.as_deref().map(Deref::deref)
@@ -178,13 +171,13 @@ impl<S: Deref<Target = CStr>, F: Borrow<Font>> TextLayer<S, F> {
 	}
 
 	/// Set the text's colour.
-	pub fn set_text_color(&mut self, colour: Colour) -> &mut Self {
+	pub fn set_text_colour(&mut self, colour: Colour) -> &mut Self {
 		unsafe { sys::text_layer_set_text_color(self.ptr, colour.into()) };
 		self
 	}
 
 	/// Set the colour behind the text.
-	pub fn set_background_color(&mut self, colour: Colour) -> &mut Self {
+	pub fn set_background_colour(&mut self, colour: Colour) -> &mut Self {
 		unsafe { sys::text_layer_set_background_color(self.ptr, colour.into()) };
 		self
 	}
@@ -201,6 +194,17 @@ impl<S: Deref<Target = CStr>, F: Borrow<Font>> TextLayer<S, F> {
 	}
 }
 
+impl<S: Deref<Target = CStr> + Default, F: Borrow<Font>> TextLayer<S, F> {
+	/// Edit the text in place, starting from `S::default()` if no text has been set.
+	pub fn text_mut<R>(&mut self, f: impl FnOnce(&mut S) -> R) -> R {
+		let text = self
+			.text
+			.get_or_insert_with(|| Box::new_in(S::default(), PebbleAlloc));
+		let result = f(text);
+		self.repoint();
+		result
+	}
+}
 unsafe impl<S: Deref<Target = CStr>, F: Borrow<Font>> AsLayer for TextLayer<S, F> {
 	fn as_ptr(&self) -> *mut sys::Layer {
 		unsafe { sys::text_layer_get_layer(self.ptr) }

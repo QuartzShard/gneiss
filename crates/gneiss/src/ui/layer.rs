@@ -1,4 +1,4 @@
-//! The layer tree, and [`DataLayer`] for layers that carry and draw their own state.
+//! The layer tree, and [`DataLayer`] for generic layers that carry and draw their own state.
 extern crate alloc;
 use alloc::boxed::Box;
 use core::marker::PhantomData;
@@ -17,6 +17,7 @@ use crate::{
 /// # Safety
 /// `as_ptr` must return a valid layer for as long as `self` lives.
 pub unsafe trait AsLayer {
+	/// The raw layer.
 	fn as_ptr(&self) -> *mut sys::Layer;
 }
 

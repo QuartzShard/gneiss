@@ -11,4 +11,6 @@ ci      = "run --package xtask --release -- ci"
 # path is resolved against cwd.
 check-sys  = ["check",  "-p", "gneiss-sys", "--features", "emery", "--target", "crates/cargo-gneiss/thumbv7m-pebble.json", "-Zbuild-std=core", "-Zjson-target-spec"]
 clippy-sys = ["clippy", "-p", "gneiss-sys", "--features", "emery", "--target", "crates/cargo-gneiss/thumbv7m-pebble.json", "-Zbuild-std=core", "-Zjson-target-spec"]
-doc-sys    = ["doc",    "-p", "gneiss-sys", "-p", "gneiss-types", "-p", "gneiss", "--features", "gneiss-sys/emery", "--target", "crates/cargo-gneiss/thumbv7m-pebble.json", "-Zbuild-std=core", "-Zjson-target-spec"]
+doc-sys    = ["doc",    "-p", "gneiss-sys", "-p", "gneiss-types", "-p", "gneiss", "--features", "gneiss/emery", "--target", "crates/cargo-gneiss/thumbv7m-pebble.json", "-Zbuild-std=core,alloc", "-Zjson-target-spec"]
+# Compiles (doesn't run) gneiss's doc examples on the app target
+doc-test   = ["test", "--doc", "-p", "gneiss", "--features", "gneiss/emery,gneiss/__doctest", "--target", "crates/cargo-gneiss/thumbv7m-pebble.json", "-Zbuild-std=core,alloc", "-Zjson-target-spec"]

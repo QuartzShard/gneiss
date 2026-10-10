@@ -49,7 +49,6 @@ impl Layout<HomeData> for Home {
 	fn load(ctx: &mut WindowCtx<'_, Self, HomeData>) -> Self {
 		let mut root = ctx.root();
 		let mut text = TextLayer::new(root.bounds()).expect("home text layer");
-		text.set_text("");
 		root.add_child(&mut text);
 		Self { text }
 	}
@@ -58,8 +57,6 @@ impl Layout<HomeData> for Home {
 		let opened = ctx.data().map_or(0, |data| data.opened);
 		self.show(opened);
 	}
-
-	fn unload(self, _ctx: &mut WindowCtx<'_, Self, HomeData>) {}
 }
 
 /// Rebuilt every time the detail window is pushed; `appear` sets the count it starts from.
@@ -88,7 +85,6 @@ impl Layout for Detail {
 	fn load(ctx: &mut WindowCtx<'_, Self>) -> Self {
 		let mut root = ctx.root();
 		let mut text = TextLayer::new(root.bounds()).expect("detail text layer");
-		text.set_text("");
 		root.add_child(&mut text);
 		Self { text, count: 0 }
 	}
@@ -99,8 +95,6 @@ impl Layout for Detail {
 		}
 		self.show();
 	}
-
-	fn unload(self, _ctx: &mut WindowCtx<'_, Self>) {}
 }
 
 #[gneiss::entry]

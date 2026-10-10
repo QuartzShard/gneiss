@@ -31,9 +31,12 @@ use gneiss_sys::{free, malloc, realloc};
 
 /// On Cortex-M, this address is Forbidden (Private Peripheral Bus), touching it will cause a
 /// `BusFault` - `PebbleOS` then kills the app. Used as the ZST sentinel. If you see this in a log,
-/// somebeody made a larther large oopsie.
+/// somebody made a rather large oopsie.
 const DANGLING: *mut u8 = ptr::without_provenance_mut(0xE000_0000);
 
+/// The app heap, through the firmware's `malloc`, `free` and `realloc`. The global allocator unless
+/// `#[gneiss::entry]` names another, and usable as an [`Allocator`] either way
+/// (`Box::new_in(x, PebbleAlloc)`).
 pub struct PebbleAlloc;
 
 impl PebbleAlloc {

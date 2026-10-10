@@ -129,7 +129,7 @@ pub trait Layout<D = ()>: NoWindow + Sized {
 	fn disappear(&mut self, parent: &mut WindowCtx<'_, Self, D>) {}
 
 	/// Called with the layout when the window unloads. It drops once this returns.
-	fn unload(self, parent: &mut WindowCtx<'_, Self, D>);
+	fn unload(self, parent: &mut WindowCtx<'_, Self, D>) {}
 }
 
 impl<C: Layout<D>, D> Window<C, D> {
@@ -446,7 +446,9 @@ impl<C: Layout<D>, D> Default for StaticWindow<C, D> {
 /// A window whose types are known, so [`Nav::push_with`](super::Nav::push_with) can hand it an
 /// argument.
 pub trait TypedWindow<'w>: Into<AnyWindow<'w>> + Copy {
+	/// The window's [`Layout`].
 	type Layout: Layout<Self::Data> + 'static;
+	/// The window's persistent data.
 	type Data: 'static;
 }
 

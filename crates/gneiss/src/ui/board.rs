@@ -35,11 +35,7 @@ impl<const SLOTS: usize> BoardLayout<SLOTS> {
 				text.push_str("\n");
 			}
 		};
-		if self.text.text_mut(render).is_none() {
-			let mut text = TextBuf::new();
-			render(&mut text);
-			self.text.set_text(text);
-		}
+		self.text.text_mut(render);
 	}
 }
 
@@ -56,8 +52,6 @@ impl<const SLOTS: usize> Layout<BoardLines<SLOTS>> for BoardLayout<SLOTS> {
 		}
 		board
 	}
-
-	fn unload(self, _ctx: &mut WindowCtx<'_, Self, BoardLines<SLOTS>>) {}
 }
 
 impl<const SLOTS: usize> StatusBoard<SLOTS> {

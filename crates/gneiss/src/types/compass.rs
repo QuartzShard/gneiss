@@ -3,6 +3,7 @@ use core::ops::{Add, Sub};
 
 use crate::sys;
 
+/// A compass reading, from [`CompassService`](crate::service::CompassService).
 pub struct HeadingData {
 	magnetic_heading:  Heading,
 	true_heading:      Heading,
@@ -29,6 +30,7 @@ impl HeadingData {
 		self.true_heading().unwrap_or(self.magnetic_heading)
 	}
 
+	/// How far to trust the heading.
 	pub fn status(&self) -> CompassStatus {
 		self.status
 	}
@@ -83,6 +85,7 @@ impl Heading {
 		}
 	}
 
+	/// The raw value, in the firmware's `TRIG_MAX_ANGLE` scale.
 	pub fn inner(&self) -> sys::CompassHeading {
 		self.inner
 	}
@@ -142,6 +145,7 @@ impl DeltaAngle {
 		}
 	}
 
+	/// The raw value, in the firmware's `TRIG_MAX_ANGLE` scale.
 	pub fn inner(&self) -> sys::CompassHeading {
 		self.inner
 	}
@@ -199,6 +203,7 @@ impl Sub<Heading> for Heading {
 	}
 }
 
+/// How trustworthy a compass reading is. Headings are only accurate once `Calibrated`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CompassStatus {
 	Unavailable,

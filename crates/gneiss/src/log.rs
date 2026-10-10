@@ -1,4 +1,25 @@
-//! Logging macros writing to the watch's app log.
+//! Logging from the watch
+//!
+//! [`info!`], [`warn!`](macro@warn), [`error!`], [`debug!`] and [`verbose!`] each log a `&str`,
+//! tagged with the caller's file and line. They don't format: build a `String` with `format!`
+//! first, or use [`log_sys_fmt!`] for the firmware's own `printf`-style formatting.
+//!
+//! ```no_run
+//! # fn _example() {
+//! # extern crate alloc;
+//! # use alloc::format;
+//! # let charge = gneiss::service::BatteryService::peek(());
+//! # use gneiss::service::Peekable;
+//! use gneiss::log;
+//!
+//! log::info!("App started");
+//! log::warn!(&format!("Battery at {}%", charge.charge_percent));
+//! # }
+//! ```
+//!
+//! [`debug!`] and [`verbose!`] compile to nothing when debug-logs is not enabled.
+//!
+//! The firmware truncates messages to 88 bytes, and filenames to the last 15 characters.
 use crate::sys;
 
 #[repr(u8)]
@@ -10,7 +31,6 @@ pub enum LogLevel {
 	Verbose = sys::AppLogLevel_APP_LOG_LEVEL_DEBUG_VERBOSE,
 }
 
-/// Whether [`debug!`] and [`verbose!`] log, from gneiss's `debug-logs` feature (on by default).
 pub const DEBUG: bool = cfg!(feature = "debug-logs");
 
 #[doc(hidden)]
@@ -73,8 +93,7 @@ macro_rules! error {
 }
 pub use error;
 
-/// Log a `&str` at [`LogLevel::Debug`]. Without gneiss's `debug-logs` feature, does nothing and
-/// does not evaluate `$msg`.
+/// Log a `&str` at [`LogLevel::Debug`] if cfg!(feature = "debug-logs")
 #[macro_export]
 macro_rules! debug {
 	($msg:expr $(,)?) => {
@@ -85,8 +104,7 @@ macro_rules! debug {
 }
 pub use debug;
 
-/// Log a `&str` at [`LogLevel::Verbose`]. Without gneiss's `debug-logs` feature, does nothing and
-/// does not evaluate `$msg`.
+/// Log a `&str` at [`LogLevel::Verbose`] if cfg!(feature = "debug-logs")
 #[macro_export]
 macro_rules! verbose {
 	($msg:expr $(,)?) => {
@@ -103,7 +121,7 @@ pub use verbose;
 /// You must ensure that `fmt` is a valid `vsnprintf` fmt string (see upstream Pebble docs), and
 /// that you have passed the correct number and type of varargs.
 /// Pay special attention to the interaction between `%s` and rust `&str`:
-/// ```
+/// ```ignore
 /// let name_str: &str = "quartzshard";
 /// let name_cstr: &CStr = c"quartzshard";
 /// unsafe {

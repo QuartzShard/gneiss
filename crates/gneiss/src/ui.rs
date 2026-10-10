@@ -1,5 +1,82 @@
-//! Windows, layers and navigation, and the [`UiGuard`] token that keeps their callbacks from
-//! aliasing.
+//! Windows, layers, navigation, buttons and drawing.
+//!
+//! # Windows and layouts
+//!
+//! The screen shows the top window of a stack. A [`Window<C, D>`](Window) owns two things:
+//!
+//! - `D`, optional data that lives as long as the window does.
+//! - `C`, its [`Layout`]: the layers and any state needed only while the window is loaded. The
+//!   firmware loads a window when it's pushed and unloads it when it leaves the stack, and gneiss
+//!   builds `C` in [`Layout::load`] and drops it after [`Layout::unload`] to match.
+//!
+//! [`Layout::appear`] and [`Layout::disappear`] run whenever the window comes on or goes off
+//! screen, including when another window is pushed over it or popped off it.
+//!
+//! ```no_run
+//! # use gneiss::ui::*;
+//! struct Counter {
+//!     text: TextLayer<TextBuf>,
+//!     count: u32,
+//! }
+//!
+//! impl Layout for Counter {
+//!     fn load(ctx: &mut WindowCtx<'_, Self>) -> Self {
+//!         let mut root = ctx.root();
+//!         let mut text = TextLayer::new(root.bounds()).expect("text layer");
+//!         text.set_text("0");
+//!         root.add_child(&mut text);
+//!         Self { text, count: 0 }
+//!     }
+//! }
+//! ```
+//!
+//! # Layers
+//!
+//! A layout owns its layers, and each layer owns what it shows: a [`TextLayer`] its text and font,
+//! a [`BitmapLayer`] its bitmap, and a [`DataLayer<T>`](DataLayer) a `T` that your [`DrawFn`]
+//! draws. Dropping the layout drops them all, and nothing the firmware still points at is freed
+//! first. Layer setters return `&mut Self`, so they chain.
+//!
+//! A layer you never touch again after `load` still has to live in a field, so the layout keeps it
+//! alive. Name such fields with a leading underscore (`_logo`) so Rust doesn't warn that they're
+//! never read.
+//!
+//! # Where windows live
+//!
+//! A window that has to outlive `main` lives in a [`StaticWindow`], or inside another window's
+//! `D`. A layout can't own a window ([`NoWindow`]): layouts are dropped when their window
+//! unloads, which happens partway through navigation.
+//!
+//! # Buttons
+//!
+//! [`Window::set_click_handler`] gives one button a closure, subscribed to the [`ClickKinds`] it
+//! wants. It runs with the layout, the window's data, the [`Click`] that happened, and a [`Nav`].
+//! Back pops the window unless you give it a handler.
+//!
+//! # Navigation
+//!
+//! Pushing or popping a window fires callbacks straight away: the old window's `disappear`, maybe
+//! its `unload`, then the new one's `load` and `appear`. From inside a callback that would hand out
+//! a second `&mut` to a layout that's still in use, so navigation is queued on a [`Nav`] and runs
+//! once the callback returns. [`Nav::push_with`] also hands the pushed window an argument, which its
+//! next `appear` receives.
+//!
+//! # The UI guard
+//!
+//! [`UiGuard`] is the token behind those rules. At most one exists, every window callback holds it
+//! while it runs, and anything that reaches into a window takes it as an argument. `main` is given
+//! one; a service handler takes its own with [`UiGuard::enter`].
+//!
+//! # Updating the screen from a service
+//!
+//! A service handler reaches a window through its [`StaticWindow`]: [`StaticWindow::with`] lends
+//! the layout, if the window is loaded, and the window's data. [`StatusBoard`] is a ready-made
+//! window for showing a few lines of status this way.
+//!
+//! # Drawing
+//!
+//! [`graphics`] draws with the firmware's own primitives through
+//! [`GContext`](graphics::GContext), or with `embedded-graphics` straight into the framebuffer.
 use core::cell::Cell;
 
 mod bitmap;

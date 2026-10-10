@@ -46,7 +46,7 @@ fn main(ui: &mut UiGuard) {
 #[gneiss::service(
 	AppMessageService<MsgCtx>,
 	(
-		SubscribeTo::RECIEVED | SubscribeTo::SENT | SubscribeTo::FAILED,
+		SubscribeTo::RECEIVED | SubscribeTo::SENT | SubscribeTo::FAILED,
         BufferSizes::default(),
 		Some(MsgCtx { received: 0, sent: 0 }),
 	)
@@ -54,7 +54,7 @@ fn main(ui: &mut UiGuard) {
 fn on_message(event: AppMessageEvent, ctx: Option<&mut MsgCtx>) {
 	let mut guard = UiGuard::enter();
 	match event {
-		AppMessageEvent::Recieved { inbox } => {
+		AppMessageEvent::Received { inbox } => {
 			let n = ctx.map_or(0, |c| {
 				c.received += 1;
 				c.received

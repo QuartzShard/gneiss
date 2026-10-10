@@ -48,3 +48,5 @@ aplite  = ["gneiss-sys/aplite"]
 basalt  = ["gneiss-sys/basalt"]
 chalk   = ["gneiss-sys/chalk"]
 diorite = ["gneiss-sys/diorite"]
+# Only for `cargo test --doc`: a panic handler and allocator for the examples to link against
+__doctest = []

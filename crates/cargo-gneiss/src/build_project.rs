@@ -179,7 +179,7 @@ impl BuildProject {
 			pbw.write_all(&pbpack_bytes)?;
 
 			log::info!(
-				"{platform} space usge:\n\
+				"{platform} space usage:\n\
                     -> RAM (static): {} / {}, {} left for heap\n\
                     -> Flash: {} binary, {} resources",
 				bytes_readable(virt_size as usize),

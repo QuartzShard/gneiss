@@ -42,49 +42,49 @@ pub type int_fast8_t = i8;
 pub type uint_fast8_t = u8;
 pub type intmax_t = ::core::ffi::c_longlong;
 pub type uintmax_t = ::core::ffi::c_ulonglong;
-#[doc = "! Use to indicate the process is a \"standard\" app.\n! The system will show the app in the main menu."]
+#[doc = " Use to indicate the process is a \"standard\" app.\n The system will show the app in the main menu."]
 pub const PebbleProcessInfoFlags_PROCESS_INFO_STANDARD_APP: PebbleProcessInfoFlags = 0;
-#[doc = "! Use to indicate the process is a watchface.\n! The system will show the process in the watchfaces menu."]
+#[doc = " Use to indicate the process is a watchface.\n The system will show the process in the watchfaces menu."]
 pub const PebbleProcessInfoFlags_PROCESS_INFO_WATCH_FACE: PebbleProcessInfoFlags = 1;
-#[doc = "! Use to hide the process."]
+#[doc = " Use to hide the process."]
 pub const PebbleProcessInfoFlags_PROCESS_INFO_VISIBILITY_HIDDEN: PebbleProcessInfoFlags = 2;
-#[doc = "! Use to hide the process, unless there is ongoing communication with\n! the companion smartphone application."]
+#[doc = " Use to hide the process, unless there is ongoing communication with\n the companion smartphone application."]
 pub const PebbleProcessInfoFlags_PROCESS_INFO_VISIBILITY_SHOWN_ON_COMMUNICATION:
 	PebbleProcessInfoFlags = 4;
-#[doc = "! Use to indicate the process allows Javascript API access"]
+#[doc = " Use to indicate the process allows Javascript API access"]
 pub const PebbleProcessInfoFlags_PROCESS_INFO_ALLOW_JS: PebbleProcessInfoFlags = 8;
-#[doc = "! Use to indicate the process should have a worker.bin installed as well."]
+#[doc = " Use to indicate the process should have a worker.bin installed as well."]
 pub const PebbleProcessInfoFlags_PROCESS_INFO_HAS_WORKER: PebbleProcessInfoFlags = 16;
-#[doc = "! Deprecated: was RockyJS, kept for ABI compatibility (bit 5)"]
+#[doc = " Deprecated: was RockyJS, kept for ABI compatibility (bit 5)"]
 pub const PebbleProcessInfoFlags_PROCESS_INFO_ROCKY_APP: PebbleProcessInfoFlags = 32;
-#[doc = "! Bitmask, to store compile time platform"]
+#[doc = " Bitmask, to store compile time platform"]
 pub const PebbleProcessInfoFlags_PROCESS_INFO_PLATFORM_MASK: PebbleProcessInfoFlags = 960;
-#[doc = "! True, if process uses Moddable XS APIs"]
+#[doc = " True, if process uses Moddable XS APIs"]
 pub const PebbleProcessInfoFlags_PROCESS_INFO_MODDABLE_APP: PebbleProcessInfoFlags = 1024;
-#[doc = "! SDK older than 4.2 doesn't store any value"]
+#[doc = " SDK older than 4.2 doesn't store any value"]
 pub const PebbleProcessInfoFlags_PROCESS_INFO_PLATFORM_UNKNOWN: PebbleProcessInfoFlags = 0;
-#[doc = "! SDK older than 4.2 doesn't store any value"]
+#[doc = " SDK older than 4.2 doesn't store any value"]
 pub const PebbleProcessInfoFlags_PROCESS_INFO_PLATFORM_APLITE: PebbleProcessInfoFlags = 64;
-#[doc = "! Values that are actually added by SDK 4.2+"]
+#[doc = " Values that are actually added by SDK 4.2+"]
 pub const PebbleProcessInfoFlags_PROCESS_INFO_PLATFORM_BASALT: PebbleProcessInfoFlags = 128;
-#[doc = "! Values that are actually added by SDK 4.2+"]
+#[doc = " Values that are actually added by SDK 4.2+"]
 pub const PebbleProcessInfoFlags_PROCESS_INFO_PLATFORM_CHALK: PebbleProcessInfoFlags = 192;
-#[doc = "! Values that are actually added by SDK 4.2+"]
+#[doc = " Values that are actually added by SDK 4.2+"]
 pub const PebbleProcessInfoFlags_PROCESS_INFO_PLATFORM_DIORITE: PebbleProcessInfoFlags = 256;
-#[doc = "! Values that are actually added by SDK 4.2+"]
+#[doc = " Values that are actually added by SDK 4.2+"]
 pub const PebbleProcessInfoFlags_PROCESS_INFO_PLATFORM_EMERY: PebbleProcessInfoFlags = 320;
-#[doc = "! Values that are actually added by SDK 4.9+"]
+#[doc = " Values that are actually added by SDK 4.9+"]
 pub const PebbleProcessInfoFlags_PROCESS_INFO_PLATFORM_FLINT: PebbleProcessInfoFlags = 384;
-#[doc = "! Values that are actually added by SDK 4.9+"]
+#[doc = " Values that are actually added by SDK 4.9+"]
 pub const PebbleProcessInfoFlags_PROCESS_INFO_PLATFORM_GABBRO: PebbleProcessInfoFlags = 448;
-#[doc = "! Application metadata flags.\n! Flags can be combined using the `|` operator.\n! @see PBL_PROCESS_INFO"]
+#[doc = " Application metadata flags.\n Flags can be combined using the `|` operator.\n\n See PBL_PROCESS_INFO"]
 pub type PebbleProcessInfoFlags = ::core::ffi::c_ushort;
-#[doc = "! @internal\n! Version data structure with minor & major versions: When making non-backwards-compatible changes,\n! the major version should get bumped. When making a change (e.g. to the PebbleProcessInfo struct) that is backwards\n! compatible (e.g. adding a field at the end), you should only bump the minor version."]
+#[doc = " Version data structure with minor & major versions: When making non-backwards-compatible changes,\n the major version should get bumped. When making a change (e.g. to the PebbleProcessInfo struct) that is backwards\n compatible (e.g. adding a field at the end), you should only bump the minor version."]
 #[repr(C, packed)]
 #[derive(Debug, Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Version {
-	#[doc = "!< \"compatibility\" version number"]
+	#[doc = " < \"compatibility\" version number"]
 	pub major: u8,
 	pub minor: u8,
 }
@@ -95,44 +95,43 @@ const _: () = {
 	["Offset of field: Version::major"][::core::mem::offset_of!(Version, major) - 0usize];
 	["Offset of field: Version::minor"][::core::mem::offset_of!(Version, minor) - 1usize];
 };
-#[doc = "! @internal"]
 #[repr(C, packed)]
 #[derive(Debug, Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct PebbleProcessInfo {
-	#[doc = "!< Sentinal value, should always be 'PBLAPP'"]
+	#[doc = " < Sentinal value, should always be 'PBLAPP'"]
 	pub header:             [::core::ffi::c_char; 8usize],
-	#[doc = "!< version of this structure's format"]
+	#[doc = " < version of this structure's format"]
 	pub struct_version:     Version,
-	#[doc = "!< version of the SDK used to build this process"]
+	#[doc = " < version of the SDK used to build this process"]
 	pub sdk_version:        Version,
-	#[doc = "!< version of the process. Note this omits any semver \"patch\" version."]
+	#[doc = " < version of the process. Note this omits any semver \"patch\" version."]
 	pub process_version:    Version,
-	#[doc = "!< size of the binary in flash, including this metadata but not the reloc table"]
+	#[doc = " < size of the binary in flash, including this metadata but not the reloc table"]
 	pub load_size:          u16,
-	#[doc = "!< The entry point of this executable"]
+	#[doc = " < The entry point of this executable"]
 	pub offset:             u32,
-	#[doc = "!< CRC of the data only, ie, not including this struct or the reloc table at the end"]
+	#[doc = " < CRC of the data only, ie, not including this struct or the reloc table at the end"]
 	pub crc:                u32,
-	#[doc = "!< Name to display on the menu"]
+	#[doc = " < Name to display on the menu"]
 	pub name:               [::core::ffi::c_char; 32usize],
-	#[doc = "!< Name of the maker of this process"]
+	#[doc = " < Name of the maker of this process"]
 	pub company:            [::core::ffi::c_char; 32usize],
-	#[doc = "!< Resource ID within this bank to use as a 32x32 icon"]
+	#[doc = " < Resource ID within this bank to use as a 32x32 icon"]
 	pub icon_resource_id:   u32,
-	#[doc = "!< The system will poke the sdk's symbol table address into this field on load"]
+	#[doc = " < The system will poke the sdk's symbol table address into this field on load"]
 	pub sym_table_addr:     u32,
-	#[doc = "!< Bitwise OR of PebbleProcessInfoFlags"]
+	#[doc = " < Bitwise OR of PebbleProcessInfoFlags"]
 	pub flags:              u32,
-	#[doc = "!< The number of entries in the address relocation list"]
+	#[doc = " < The number of entries in the address relocation list"]
 	pub num_reloc_entries:  u32,
-	#[doc = "!< The process's UUID"]
+	#[doc = " < The process's UUID"]
 	pub uuid:               PebbleProcessInfo__bindgen_ty_1,
-	#[doc = "!< CRC of the resource data only"]
+	#[doc = " < CRC of the resource data only"]
 	pub resource_crc:       u32,
-	#[doc = "!< timestamp of the resource data"]
+	#[doc = " < timestamp of the resource data"]
 	pub resource_timestamp: u32,
-	#[doc = "!< The total amount of memory used by the process (.text + .data + .bss)"]
+	#[doc = " < The total amount of memory used by the process (.text + .data + .bss)"]
 	pub virtual_size:       u16,
 }
 #[repr(C, packed)]
@@ -234,40 +233,39 @@ const _: () = {
 	["Offset of field: PebbleProcessInfo::virtual_size"]
 		[::core::mem::offset_of!(PebbleProcessInfo, virtual_size) - 128usize];
 };
-#[doc = "! @internal"]
 #[repr(C, packed)]
 #[derive(Debug, Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct LegacyPebbleAppInfo {
-	#[doc = "!< Sentinal value, should always be 'PBLAPP'"]
+	#[doc = " < Sentinal value, should always be 'PBLAPP'"]
 	pub header:            [::core::ffi::c_char; 8usize],
-	#[doc = "!< version of this structure's format"]
+	#[doc = " < version of this structure's format"]
 	pub struct_version:    Version,
-	#[doc = "!< version of the SDK used to build this process"]
+	#[doc = " < version of the SDK used to build this process"]
 	pub sdk_version:       Version,
-	#[doc = "!< version of the process"]
+	#[doc = " < version of the process"]
 	pub process_version:   Version,
-	#[doc = "!< size of the binary in flash, including this metadata but not the reloc table"]
+	#[doc = " < size of the binary in flash, including this metadata but not the reloc table"]
 	pub load_size:         u16,
-	#[doc = "!< The entry point of this executable"]
+	#[doc = " < The entry point of this executable"]
 	pub offset:            u32,
-	#[doc = "!< CRC of the data only, ie, not including this struct or the reloc table at the end"]
+	#[doc = " < CRC of the data only, ie, not including this struct or the reloc table at the end"]
 	pub crc:               u32,
-	#[doc = "!< Name to display on the menu"]
+	#[doc = " < Name to display on the menu"]
 	pub name:              [::core::ffi::c_char; 32usize],
-	#[doc = "!< Name of the maker of this process"]
+	#[doc = " < Name of the maker of this process"]
 	pub company:           [::core::ffi::c_char; 32usize],
-	#[doc = "!< Resource ID within this process's bank to use as a 32x32 icon"]
+	#[doc = " < Resource ID within this process's bank to use as a 32x32 icon"]
 	pub icon_resource_id:  u32,
-	#[doc = "!< The system will poke the sdk's symbol table address into this field on load"]
+	#[doc = " < The system will poke the sdk's symbol table address into this field on load"]
 	pub sym_table_addr:    u32,
-	#[doc = "!< Bitwise OR of PebbleProcessInfoFlags"]
+	#[doc = " < Bitwise OR of PebbleProcessInfoFlags"]
 	pub flags:             u32,
-	#[doc = "!< The offset of the address relocation list"]
+	#[doc = " < The offset of the address relocation list"]
 	pub reloc_list_start:  u32,
-	#[doc = "!< The number of entries in the address relocation list"]
+	#[doc = " < The number of entries in the address relocation list"]
 	pub num_reloc_entries: u32,
-	#[doc = "!< The process's UUID"]
+	#[doc = " < The process's UUID"]
 	pub uuid:              LegacyPebbleAppInfo__bindgen_ty_1,
 }
 #[repr(C, packed)]

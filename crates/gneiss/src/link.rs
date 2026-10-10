@@ -1,6 +1,61 @@
-//! `AppMessage` link layer: subscription flags, the event stream, and the
-//! outbound handle. Reads run through [`crate::dict::DictHandle`], which the
-//! read events carry directly.
+//! AppMessage: key-value messages exchanged with the phone.
+//!
+//! AppMessage carries small dictionaries between the watch app and its companion on the phone,
+//! whether that's PebbleKit JS or a native app. Keys are numbers on the wire, not self-describing
+//! like, say, JSON. You name them in `Cargo.toml`, and the build generates a `message_keys`
+//! module of typed keys:
+//!
+//! ```toml
+//! [package.metadata.pebble]
+//! message_keys = ["Command", "Status", "Minute", "Samples[8]"]
+//! ```
+//!
+//! A plain name becomes a [`SingleKey`]; `Name[N]` becomes an [`ArrayKey`](crate::dict::ArrayKey)
+//! for `N` consecutive keys. The bundle's `appinfo.json` lists the same names, so the companion can
+//! use them too. Values are read and written through [`dict`](crate::dict).
+//!
+//! # Receiving
+//!
+//! Subscribe [`AppMessageService`](crate::service::AppMessageService), choosing the events to
+//! deliver with [`SubscribeTo`] and the buffer sizes with [`BufferSizes`]. Each message arrives as
+//! an [`AppMessageEvent::Received`], carrying a [`DictHandle`] to read from:
+//!
+//! ```no_run,standalone_crate
+//! # use gneiss::{link::*, service::*};
+//! # gneiss::__doctest_slices!();
+//! # mod message_keys { pub const Command: gneiss::dict::SingleKey = gneiss::dict::SingleKey::new(0); }
+//! #[gneiss::service(AppMessageService<()>, SubscribeTo::RECEIVED, BufferSizes::default(), None)]
+//! fn on_message(event: AppMessageEvent, _ctx: Option<&mut ()>) {
+//!     if let AppMessageEvent::Received { inbox } = event {
+//!         let command = inbox.get::<u8>(message_keys::Command);
+//!     }
+//! }
+//! ```
+//!
+//! # Sending
+//!
+//! [`Outbox`] builds a message, which sends when it drops. Only one can be open at a time, so
+//! opening fails while a message is still in flight, until its [`AppMessageEvent::Sent`] or
+//! [`AppMessageEvent::Failed`] arrives.
+//!
+//! ```no_run,standalone_crate
+//! # use gneiss::{link::*, service::*, time::*};
+//! # gneiss::__doctest_slices!();
+//! # mod message_keys { use gneiss::dict::SingleKey; pub const Status: SingleKey = SingleKey::new(1); pub const Minute: SingleKey = SingleKey::new(2); }
+//! #[gneiss::service(TickService, TimeUnits::MINUTES)]
+//! fn on_minute(time: TickTime, _changed: TimeUnits) {
+//!     // SAFETY: no DictHandle is live outside the AppMessage handler
+//!     let Some(mut outbox) = (unsafe { Outbox::open() }) else {
+//!         return; // the last message is still in flight
+//!     };
+//!     let _ = outbox.set(message_keys::Status, c"tick");
+//!     let _ = outbox.set(message_keys::Minute, &time.tm_min);
+//! } // sends here
+//! ```
+//!
+//! [`Outbox::open`] is `unsafe` because opening reuses the dictionary buffer, so no
+//! [`DictHandle`] may still be reading it. Inside the AppMessage handler, reply with
+//! [`Outbox::open_after`], which takes the handle you're done with.
 use core::ptr;
 
 use crate::{
@@ -9,24 +64,24 @@ use crate::{
 };
 
 bitflags::bitflags! {
+	/// Which AppMessage events to deliver.
 	pub struct SubscribeTo : u8 {
-		const RECIEVED = 1;
+		const RECEIVED = 1;
 		const DROPPED = 1 << 1;
 		const SENT = 1 << 2;
 		const FAILED = 1 << 3;
 	}
 }
 
+/// Something that happened to an incoming or outgoing message.
 pub enum AppMessageEvent<'msg> {
-	Recieved {
-		inbox: DictHandle<'msg>,
-	},
-	Dropped {
-		reason: AppMessageError,
-	},
-	Sent {
-		outbox: DictHandle<'msg>,
-	},
+	/// A message arrived.
+	Received { inbox: DictHandle<'msg> },
+	/// A message arrived but couldn't be delivered, e.g. the inbox was too small.
+	Dropped { reason: AppMessageError },
+	/// The phone acknowledged the message in `outbox`.
+	Sent { outbox: DictHandle<'msg> },
+	/// The message in `outbox` wasn't delivered.
 	Failed {
 		outbox: DictHandle<'msg>,
 		reason: AppMessageError,
@@ -39,7 +94,7 @@ impl From<sys::AppMessageResult> for AppMessageError {
 }
 
 bitflags::bitflags! {
-	/// Empty means `APP_MSG_OK`.
+	/// Why AppMessage failed. Empty means `APP_MSG_OK`.
 	pub struct AppMessageError : u16 {
 		const SEND_TIMEOUT = sys::AppMessageResult_APP_MSG_SEND_TIMEOUT;
 		const SEND_REJECTED = sys::AppMessageResult_APP_MSG_SEND_REJECTED;
@@ -58,11 +113,13 @@ bitflags::bitflags! {
 	}
 }
 
-/// Size in bytes of buffer to request at in/outbox open
-/// Will be clamped between min/max, or if None, `sys::app_message_*_box_size_maximum()`,
+/// Inbox and outbox sizes in bytes. Each is clamped to what the firmware allows, and `None` asks
+/// for the most it allows.
 #[derive(Default, Clone, Copy)]
 pub struct BufferSizes {
+	/// The largest message that can be received.
 	pub inbox:  Option<u32>,
+	/// The largest message that can be sent.
 	pub outbox: Option<u32>,
 }
 
@@ -78,7 +135,7 @@ impl<'msg> Outbox<'msg> {
 	pub fn open_after(view: DictHandle<'msg>) -> Option<Outbox<'msg>> {
 		#[allow(
 			clippy::drop_non_drop,
-			reason = "Strictly speaking, view must NOT exsit by the time open is called"
+			reason = "Strictly speaking, view must NOT exist by the time open is called"
 		)]
 		drop(view);
 		unsafe { Self::open() }

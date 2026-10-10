@@ -3,7 +3,7 @@
 //! before branching into [`jump_to_pbl_fn`].
 //! Relies on the shim code being co-located in memory with the address, in that order, no more than
 //! 4095 bytes apart. (if within 1020, instruction remains T1 width)
-//! ```
+//! ```text
 //! .pbl_dispatch : ALIGN(4) {
 //!     KEEP(*(.pbl_dispatch.code))
 //!     . = ALIGN(4);

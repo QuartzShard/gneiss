@@ -1,12 +1,14 @@
-//! Types for interfacing with the watch's accelorometer
+//! Accelerometer readings and tap events.
 use crate::sys;
 
+/// The axis a tap was along.
 pub enum Axis {
 	X,
 	Y,
 	Z,
 }
 
+/// Which way along its [`Axis`] a tap went.
 pub enum Direction {
 	Positive,
 	Negative,
@@ -14,6 +16,7 @@ pub enum Direction {
 
 #[repr(C, packed)]
 #[derive(Clone, Copy)]
+/// One reading of all three axes.
 pub struct Sample {
 	x: i16,
 	y: i16,
@@ -22,6 +25,7 @@ pub struct Sample {
 
 #[repr(C, packed)]
 #[derive(Clone, Copy)]
+/// A [`Sample`] with its timestamp, from [`AccelDataService`](crate::service::AccelDataService).
 pub struct AccelData {
 	sample:      Sample,
 	did_vibrate: bool,
@@ -43,6 +47,7 @@ impl Sample {
 }
 
 impl AccelData {
+	/// The reading.
 	pub fn sample(&self) -> Sample {
 		self.sample
 	}
@@ -59,10 +64,12 @@ impl AccelData {
 		self.sample.z
 	}
 
+	/// The watch was vibrating at the time, which disturbs the reading.
 	pub fn did_vibrate(&self) -> bool {
 		self.did_vibrate
 	}
 
+	/// When the reading was taken, in milliseconds.
 	pub fn timestamp(&self) -> u64 {
 		self.timestamp
 	}

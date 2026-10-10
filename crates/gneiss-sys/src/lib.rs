@@ -1,3 +1,14 @@
+//! The raw PebbleOS app API: the C SDK's `pebble.h`, as Rust.
+//!
+//! Each platform's bindings are generated from that platform's `pebble.h`. Every function is a
+//! small shim that jumps through the firmware's syscall table, which the app loader fills in at
+//! launch, so nothing links against the C SDK. Exactly one platform feature must be enabled.
+//!
+//! Apps normally use [gneiss](https://docs.rs/gneiss), and reach this crate as `gneiss::sys` only
+//! for what gneiss doesn't wrap yet. Everything here is `unsafe` and follows the C SDK's rules.
+//!
+//! The crate also provides the app header ([`PBL_HEADER`]), the panic handlers in [`panic`](mod@panic), and
+//! `memcpy`, `memmove` and `memset` forwarded to the firmware's own.
 #![no_std]
 #![deny(
 	clippy::panic,

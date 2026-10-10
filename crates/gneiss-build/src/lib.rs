@@ -1,5 +1,8 @@
 //! Host-side build logic for Pebble apps: turn a compiled app ELF into its
 //! per-platform `.bin` + `manifest.json`, and assemble the bundle's `appinfo`.
+//!
+//! An app's `build.rs` calls [`gen_includes`], which compiles its resources and generates its
+//! `resources` and `message_keys` modules. The rest is for `cargo-gneiss`.
 use std::{
 	borrow::Borrow,
 	cmp,
@@ -88,7 +91,7 @@ pub fn declared_platforms(pkg: &cargo_metadata::Package) -> Result<Vec<Platform>
 }
 
 /// Pick the target platform.
-/// `mutually_exclusive_features` only enforces at lib compile time — build.rs
+/// `mutually_exclusive_features` only enforces at lib compile time, and build.rs
 /// runs first, so do the check here too.
 /// # Panics
 /// If multiple platforms are enabled by build time, or if the enabled platform is invalid
@@ -117,7 +120,7 @@ pub fn select_platform() -> Platform {
 		),
 	}
 }
-/// Contents of `[package.metadata.pebble]` — written by `cargo gneiss new`,
+/// Contents of `[package.metadata.pebble]`: written by `cargo gneiss new`,
 /// read back at build time.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PebbleMetadata {

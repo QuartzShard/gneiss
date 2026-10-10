@@ -1,5 +1,36 @@
-//! Drawing inside a layer's update proc: [`GContext`] for the firmware's own primitives, and
-//! [`Framebuffer`] as an `embedded-graphics` [`DrawTarget`] over the captured screen.
+//! Drawing: the firmware's own primitives through [`GContext`], or `embedded-graphics` through
+//! [`Framebuffer`].
+//!
+//! Drawing happens when the firmware redraws a layer. Give a [`DataLayer`](super::DataLayer) a
+//! [`DrawFn`](super::DrawFn), and it's called with the layer's data, its bounds, and a
+//! [`GContext`] whenever the layer needs drawing. [`mark_dirty`](super::Layer::mark_dirty) asks for
+//! a redraw after the data changes. Coordinates are the layer's own, with `(0, 0)` at its top left.
+//!
+//! ```no_run
+//! # use gneiss::ui::graphics::*;
+//! # fn tip(_angle: i32, bounds: Rectangle) -> Point { bounds.top_left }
+//! fn draw_hand(angle: &i32, bounds: Rectangle, ctx: &mut GContext<'_>) {
+//!     ctx.set_stroke_colour(Colour::rgb(3, 0, 0));
+//!     ctx.set_stroke_width(3);
+//!     ctx.draw_line(bounds.center(), tip(*angle, bounds));
+//! }
+//! ```
+//!
+//! [`GContext`] draws shapes, text, bitmaps and draw command images with configured colours, stroke
+//! width and compositing mode.
+//!
+//! # embedded-graphics
+//!
+//! [`GContext::with_framebuffer`] captures the screen as a [`Framebuffer`], an `embedded-graphics`
+//! [`DrawTarget`] clipped to the layer, so anything that draws with `embedded-graphics` draws
+//! straight onto the watch. gneiss uses `embedded-graphics`' [`Point`], [`Size`] and [`Rectangle`]
+//! for geometry throughout.
+//!
+//! # Colour
+//!
+//! [`Colour`] (or [`Color`]) is the watch's native format: 2 bits each of alpha, red, green and
+//! blue, for 64 opaque colours. It converts from `embedded-graphics`' colour types, rounding to the
+//! nearest. Black and white watches draw each colour as black, white, or nothing.
 
 use core::{convert::Infallible, ffi::CStr, marker::PhantomData};
 
@@ -67,8 +98,12 @@ fn clamp_i16(v: i32) -> i16 {
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 #[repr(transparent)]
 pub struct Colour {
+	/// `0bAARRGGBB`: alpha in the top two bits, then red, green and blue.
 	pub argb: u8,
 }
+
+/// [`Colour`], spelled the wrong way.
+pub type Color = Colour;
 
 impl From<Colour> for sys::GColor {
 	fn from(colour: Colour) -> Self {
@@ -184,12 +219,21 @@ impl Colour {
 /// How a drawn bitmap combines with what's under it.
 #[derive(Clone, Copy)]
 #[repr(u8)]
+///
+/// Only [`Assign`](Self::Assign) and [`Set`](Self::Set) work on colour bitmaps; the rest are for
+/// 1-bit ones.
 pub enum CompOp {
+	/// Replace what's underneath. Ignores transparency.
 	Assign         = sys::GCompOp_GCompOpAssign,
+	/// Replace what's underneath with the inverted image.
 	AssignInverted = sys::GCompOp_GCompOpAssignInverted,
+	/// Paint the image's white pixels; its black pixels are clear.
 	Or             = sys::GCompOp_GCompOpOr,
+	/// Paint the image's black pixels; its white pixels are clear.
 	And            = sys::GCompOp_GCompOpAnd,
+	/// Paint black wherever the image is white.
 	Clear          = sys::GCompOp_GCompOpClear,
+	/// Draw the image with its transparency. On a 1-bit image, paint white wherever it's black.
 	Set            = sys::GCompOp_GCompOpSet,
 }
 
@@ -199,6 +243,7 @@ pub enum CompOp {
 pub enum TextOverflow {
 	WordWrap         = sys::GTextOverflowMode_GTextOverflowModeWordWrap,
 	TrailingEllipsis = sys::GTextOverflowMode_GTextOverflowModeTrailingEllipsis,
+	/// Like `TrailingEllipsis`, with newlines inside the text treated as spaces.
 	Fill             = sys::GTextOverflowMode_GTextOverflowModeFill,
 }
 
@@ -238,17 +283,17 @@ impl GContext<'_> {
 	}
 
 	/// Set the colour shapes are filled with.
-	pub fn set_fill_color(&mut self, colour: Colour) {
+	pub fn set_fill_colour(&mut self, colour: Colour) {
 		unsafe { sys::graphics_context_set_fill_color(self.as_ptr(), colour.into()) };
 	}
 
 	/// Set the colour of lines and outlines.
-	pub fn set_stroke_color(&mut self, colour: Colour) {
+	pub fn set_stroke_colour(&mut self, colour: Colour) {
 		unsafe { sys::graphics_context_set_stroke_color(self.as_ptr(), colour.into()) };
 	}
 
 	/// Set the colour text is drawn in.
-	pub fn set_text_color(&mut self, colour: Colour) {
+	pub fn set_text_colour(&mut self, colour: Colour) {
 		unsafe { sys::graphics_context_set_text_color(self.as_ptr(), colour.into()) };
 	}
 

@@ -1,4 +1,11 @@
 //! Image resources: bitmaps and their palettes, and draw command images and sequences.
+//!
+//! A [`GBitMap`] is shown by a [`BitmapLayer`](crate::ui::BitmapLayer) or drawn with
+//! [`GContext::draw_bitmap`](crate::ui::graphics::GContext::draw_bitmap). Draw command images and
+//! sequences are vector graphics, drawn from a [`DataLayer`](crate::ui::DataLayer) with
+//! [`draw_pdc`](crate::ui::graphics::GContext::draw_pdc) and
+//! [`draw_pdc_sequence`](crate::ui::graphics::GContext::draw_pdc_sequence). Each type owns its
+//! firmware object and frees it on drop.
 use core::{cell::Cell, slice};
 
 extern crate alloc;
@@ -9,8 +16,8 @@ use crate::{
 	ui::graphics::Colour,
 };
 
-/// Rust representation of a valid, shared, mutible palette. Long enough to account for any use,
-/// handing to a 2-bit image will just ignore the extra 12 colours.
+/// A palette several bitmaps can share, set with [`GBitMap::set_shared_palette`]. It holds 16
+/// colours, enough for any palettised format; smaller formats use the first 2 or 4.
 #[repr(transparent)]
 pub struct SharedPalette {
 	inner: [Cell<Colour>; 16],
@@ -22,7 +29,8 @@ unsafe impl Sync for SharedPalette {}
 
 impl SharedPalette {
 	/// Construct Self from an array. Usable in const context
-	/// ```
+	/// ```no_run
+	/// # use gneiss::{resource::image::SharedPalette, ui::graphics::Colour};
 	/// static PALETTE: SharedPalette = SharedPalette::new([Colour { argb: 0xa5 }; 16]);
 	/// ```
 	pub const fn new(val: [Colour; 16]) -> Self {
@@ -58,7 +66,7 @@ impl SharedPalette {
 	}
 }
 
-/// An image loaded at runtime
+/// A bitmap, loaded from an image resource.
 pub struct GBitMap {
 	inner:          *mut sys::GBitmap,
 	shared_palette: bool,
@@ -72,6 +80,7 @@ pub struct GBitMap {
 //	sys::gbitmap_set_data(bitmap, data, format, row_size_bytes, free_on_destroy);
 //	sys::gbitmap_set_bounds(bitmap, bounds);
 impl GBitMap {
+	/// Load the image resource `key`. `None` if the firmware is out of memory.
 	pub fn load(key: ImageKey) -> Option<Self> {
 		let inner = unsafe { sys::gbitmap_create_with_resource(key.0.get()) };
 		(!inner.is_null()).then_some(GBitMap {
@@ -80,6 +89,8 @@ impl GBitMap {
 		})
 	}
 
+	/// The palette of a 1, 2 or 4-bit palettised bitmap, to recolour it in place. `None` for other
+	/// formats, and once [`set_shared_palette`](Self::set_shared_palette) has replaced it.
 	pub fn palette(&mut self) -> Option<&mut [Colour]> {
 		let format = unsafe { sys::gbitmap_get_format(self.inner) };
 		let mut palette_len = match format {
@@ -96,22 +107,28 @@ impl GBitMap {
 			})
 	}
 
+	/// The top-left of [`bounds`](Self::bounds).
 	pub fn origin(&self) -> sys::GPoint {
 		self.bounds().origin
 	}
 
+	/// The size of [`bounds`](Self::bounds).
 	pub fn size(&self) -> sys::GSize {
 		self.bounds().size
 	}
 
+	/// The part of the bitmap that gets drawn, usually all of it.
 	pub fn bounds(&self) -> sys::GRect {
 		unsafe { sys::gbitmap_get_bounds(self.inner) }
 	}
 
+	/// The raw bitmap, valid while this `GBitMap` lives.
 	pub fn as_ptr(&self) -> *mut sys::GBitmap {
 		self.inner
 	}
 
+	/// Draw with `shared` instead of the bitmap's own palette, so several bitmaps can be recoloured
+	/// together.
 	pub fn set_shared_palette(&mut self, shared: &'static SharedPalette) {
 		// SAFETY: Takes &mut self, so no ref to the current palette exists - safe to destroy it.
 		self.shared_palette = true;
@@ -127,10 +144,12 @@ impl Drop for GBitMap {
 	}
 }
 
+/// A draw command image: vector graphics, from an `svg` or `pdc` resource.
 pub struct DrawCommand {
 	inner: *mut sys::GDrawCommandImage,
 }
 impl DrawCommand {
+	/// Load the resource `key`. `None` if the firmware is out of memory.
 	pub fn load(key: PdcKey) -> Option<Self> {
 		let inner = unsafe { sys::gdraw_command_image_create_with_resource(key.0.get()) };
 		if inner.is_null() {
@@ -140,6 +159,7 @@ impl DrawCommand {
 		}
 	}
 
+	/// The raw image, valid while this `DrawCommand` lives.
 	pub fn as_ptr(&self) -> *mut sys::GDrawCommandImage {
 		self.inner
 	}
@@ -150,10 +170,13 @@ impl Drop for DrawCommand {
 	}
 }
 
+/// A draw command sequence: frames of vector graphics, from a directory of `svg` files or an
+/// animated `pdc`.
 pub struct DrawCommandSequence {
 	inner: *mut sys::GDrawCommandSequence,
 }
 impl DrawCommandSequence {
+	/// Load the resource `key`. `None` if the firmware is out of memory.
 	pub fn load(key: PdcSeqKey) -> Option<Self> {
 		let inner = unsafe { sys::gdraw_command_sequence_create_with_resource(key.0.get()) };
 		if inner.is_null() {
@@ -163,6 +186,7 @@ impl DrawCommandSequence {
 		}
 	}
 
+	/// The raw sequence, valid while this `DrawCommandSequence` lives.
 	pub fn as_ptr(&self) -> *mut sys::GDrawCommandSequence {
 		self.inner
 	}

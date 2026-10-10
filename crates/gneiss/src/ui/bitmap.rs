@@ -61,7 +61,7 @@ impl<B: Borrow<GBitMap>> BitmapLayer<B> {
 	}
 
 	/// Set the colour behind the bitmap.
-	pub fn set_background_color(&mut self, colour: Colour) -> &mut Self {
+	pub fn set_background_colour(&mut self, colour: Colour) -> &mut Self {
 		unsafe { sys::bitmap_layer_set_background_color(self.ptr, colour.into()) };
 		self
 	}
