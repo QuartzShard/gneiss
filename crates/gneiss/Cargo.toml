@@ -1,6 +1,6 @@
 [package]
 name              = "gneiss"
-version           = "0.1.0"
+version           = "0.1.1"
 description       = "Safe Rust SDK for Pebble watchapps and watchfaces"
 keywords          = ["pebble", "pebbleos", "smartwatch", "watchface"]
 categories        = ["embedded", "no-std"]
@@ -33,7 +33,7 @@ embedded-graphics-core = "0.4"
 ufmt = "0.2"
 
 [build-dependencies]
-gneiss-build = { workspace = true }
+gneiss-types = { workspace = true, features = ["std"] }
 
 [features]
 default    = ["debug-logs"]

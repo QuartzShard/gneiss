@@ -1091,20 +1091,20 @@ checksum = "e4eba85ea1d0a966a983acd07deee566e67395d2d96b6fb39e62b5a833f1eb0b"
 
 [[package]]
 name = "gneiss"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "bitflags 2.13.2",
  "embedded-graphics-core",
- "gneiss-build",
  "gneiss-macros",
  "gneiss-sys",
+ "gneiss-types",
  "linkme",
  "ufmt",
 ]
 
 [[package]]
 name = "gneiss-build"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "bytemuck",
  "cargo_metadata",
@@ -1142,16 +1142,15 @@ dependencies = [
 
 [[package]]
 name = "gneiss-sys"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
- "gneiss-build",
  "gneiss-types",
  "mutually_exclusive_features",
 ]
 
 [[package]]
 name = "gneiss-types"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "bytemuck",
  "clap",

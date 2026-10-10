@@ -18,7 +18,7 @@ repository = "https://codeberg.org/quartzshard/gneiss"
 
 [workspace.dependencies]
 # Internal
-gneiss-types  = { path = "crates/gneiss-types",  version = "0.1" }
+gneiss-types  = { path = "crates/gneiss-types",  version = "0.1.1" }
 gneiss-build  = { path = "crates/gneiss-build",  version = "0.1" }
 gneiss-sys    = { path = "crates/gneiss-sys",    version = "0.1" }
 gneiss-macros = { path = "crates/gneiss-macros", version = "0.1" }

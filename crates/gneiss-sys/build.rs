@@ -1,6 +1,6 @@
 use std::{env::var, path::PathBuf};
 
-use gneiss_build::{emit_platform_cfgs, platform_features, select_platform};
+use gneiss_types::build_script::{emit_platform_cfgs, platform_features, select_platform};
 
 fn main() {
 	let in_dir = PathBuf::from(var("CARGO_MANIFEST_DIR").expect("No in dir"));

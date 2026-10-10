@@ -1,4 +1,4 @@
-use gneiss_build::{emit_platform_cfgs, platform_features, select_platform};
+use gneiss_types::build_script::{emit_platform_cfgs, platform_features, select_platform};
 
 fn main() {
 	for (env, _) in platform_features() {
