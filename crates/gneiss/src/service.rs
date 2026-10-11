@@ -34,14 +34,40 @@
 //! [`Peekable`] services can also be read without waiting for an event: `BatteryService::peek(())`
 //! is the current charge state.
 //!
+//! # Subscribing at runtime
+//!
+//! With `enabled_at_boot = false` the function is registered but not subscribed. Any registered
+//! function can be subscribed again with [`Subscribe::subscribe`], from anywhere, and most can be
+//! stopped with [`Unsubscribe::unsubscribe`]:
+//!
+//! ```no_run,standalone_crate
+//! # use gneiss::{service::*, time};
+//! # gneiss::__doctest_slices!();
+//! #[gneiss::service(TickService, enabled_at_boot = false, time::TimeUnits::MINUTES)]
+//! fn on_tick(_time: time::TickTime, _changed: time::TimeUnits) {}
+//!
+//! fn faster() {
+//!     TickService::subscribe(time::TimeUnits::SECONDS);
+//! }
+//! ```
+//!
+//! Subscribing a service with no registered function is a link error. A context service keeps the
+//! context from its first subscription.
+//!
 //! # Availability
 //!
-//! Some services only exist on some watches, such as touch on watches with a touch panel.
-use core::{marker::PhantomData, mem::MaybeUninit, ptr};
+//! A service only exists on watches with the hardware behind it: [`CompassService`] with
+//! `cfg(pbl_compass)`, [`HealthService`] with `cfg(pbl_health)` and [`TouchService`] with
+//! `cfg(pbl_touch)`.
+use core::{ffi, marker::PhantomData, mem::MaybeUninit, ptr};
 
+#[cfg(any(pbl_touch, pbl_health))]
+use crate::cell::SyncCell;
+#[cfg(pbl_health)]
+use crate::health;
 #[cfg(pbl_touch)]
 use crate::touch;
-use crate::{accel, battery, compass, connection, focus, health, link, sys, time, wakeup};
+use crate::{accel, battery, compass, connection, focus, link, sys, time, wakeup};
 
 /// The context of a service that carries none.
 pub struct NoneT;
@@ -56,7 +82,132 @@ pub trait Service: Sealed {
 	type Context;
 
 	/// Register `f` with the firmware. Called by the code `#[gneiss::service]` generates.
-	fn subscribe(f: Self::RawHandler, a: Self::SubscribeArg);
+	#[doc(hidden)]
+	fn register(f: Self::RawHandler, a: Self::SubscribeArg);
+}
+
+/// A service that can be subscribed at runtime, to the function
+/// [`#[gneiss::service]`](macro@crate::service) registered for it. Subscribing a service with no
+/// registered function is a link error.
+pub trait Subscribe: Service {
+	/// What each subscription takes. A context service keeps the context it was first subscribed
+	/// with, so this leaves it out.
+	type Arg;
+
+	/// Subscribe the registered function, replacing any earlier subscription.
+	fn subscribe(arg: Self::Arg);
+}
+
+/// A service that can be unsubscribed at runtime.
+pub trait Unsubscribe: Subscribe {
+	/// Stop calling the registered function until the next [`Subscribe::subscribe`].
+	fn unsubscribe();
+}
+
+/// Reads a symbol a `_raw!` macro exported for `$service`.
+macro_rules! service_symbol {
+	($prefix: literal, $service: ident: $ty: ty) => {{
+		unsafe extern "Rust" {
+			#[link_name = concat!($prefix, stringify!($service))]
+			static SYMBOL: $ty;
+		}
+		// SAFETY: only the service's `_raw!` macro exports the symbol, with this type
+		unsafe { SYMBOL }
+	}};
+}
+
+/// Implements [`Subscribe`] for a service, and [`Unsubscribe`] when the firmware can unsubscribe
+/// it. A context service names the slot that keeps its context.
+macro_rules! runtime_subscribe {
+	($service: ident $(, $unsubscribe: ident)?) => {
+		impl Subscribe for $service {
+			type Arg = <Self as Service>::SubscribeArg;
+
+			#[inline]
+			fn subscribe(arg: Self::Arg) {
+				let handler =
+					service_symbol!("__gneiss_handler_", $service: <$service as Service>::RawHandler);
+				Self::register(handler, arg);
+			}
+		}
+		$(runtime_subscribe!(@unsubscribe [] $service, $unsubscribe);)?
+	};
+	($service: ident<T>, context: $slot: ident, $unsubscribe: ident) => {
+		impl<T> Subscribe for $service<T> {
+			type Arg = ();
+
+			#[inline]
+			fn subscribe((): Self::Arg) {
+				unsafe extern "Rust" {
+					#[link_name = concat!("__gneiss_context_", stringify!($service))]
+					fn make() -> *mut ffi::c_void;
+				}
+				// The raw handler's type is the same whatever the context's
+				let handler = service_symbol!(
+					"__gneiss_handler_",
+					$service: <$service<NoneT> as Service>::RawHandler
+				);
+				// SAFETY: only the service's `_raw!` macro exports the context maker, with this type
+				let context = context_or(&$slot, || unsafe { make() });
+				Self::__subscribe(handler, context);
+			}
+		}
+		runtime_subscribe!(@unsubscribe [T] $service<T>, $unsubscribe);
+	};
+	(@unsubscribe [$($generic: ident)?] $service: ty, $unsubscribe: ident) => {
+		impl$(<$generic>)? Unsubscribe for $service {
+			fn unsubscribe() {
+				unsafe { sys::$unsubscribe(); }
+			}
+		}
+	};
+}
+
+/// Exports a `#[gneiss::service]` function's raw handler, and a context service's context maker,
+/// for [`Subscribe`] to find.
+#[doc(hidden)]
+#[macro_export]
+macro_rules! __export_handler {
+	($service: ident, $s: ty, $r: ident $(, context: $c: ident)?) => {
+		const _: () = {
+			#[unsafe(export_name = concat!("__gneiss_handler_", stringify!($service)))]
+			static HANDLER: <$s as $crate::service::Service>::RawHandler = $r;
+			$(
+				#[unsafe(export_name = concat!("__gneiss_context_", stringify!($service)))]
+				fn context() -> *mut ::core::ffi::c_void {
+					$crate::service::leak_context($c())
+				}
+			)?
+		};
+	};
+}
+
+/// A context service's context, made on its first subscription and kept for every later one.
+#[cfg(any(pbl_touch, pbl_health))]
+type ContextSlot = SyncCell<Option<*mut ffi::c_void>>;
+
+/// `slot`'s context, made with `make` if it has none yet.
+#[cfg(any(pbl_touch, pbl_health))]
+fn context_or(slot: &ContextSlot, make: impl FnOnce() -> *mut ffi::c_void) -> *mut ffi::c_void {
+	slot.get().unwrap_or_else(|| {
+		let context = make();
+		slot.set(Some(context));
+		context
+	})
+}
+
+/// Move a service's context to the app heap for the rest of the app's life. Called by the code
+/// `#[gneiss::service]` generates.
+#[doc(hidden)]
+pub fn leak_context<T>(context: Option<T>) -> *mut ffi::c_void {
+	extern crate alloc;
+	use alloc::boxed::Box;
+	// Leak to the watch's heap providing 'static independent of app's choice of alloc
+	context.map_or(ptr::null_mut(), |c| {
+		Box::into_raw_with_allocator(Box::new_in(c, crate::alloc::PebbleAlloc))
+			.0
+			.cast()
+	})
 }
 
 /// A service whose latest reading can be read on demand.
@@ -86,11 +237,12 @@ impl Service for TickService {
 	type RawHandler = unsafe extern "C" fn(*mut sys::tm, sys::TimeUnits);
 	type SubscribeArg = time::TimeUnits;
 
-	fn subscribe(f: Self::RawHandler, a: Self::SubscribeArg) {
+	fn register(f: Self::RawHandler, a: Self::SubscribeArg) {
 		crate::log::debug!("Registering TickService handler;");
 		unsafe { sys::tick_timer_service_subscribe(a.bits(), Some(f)) }
 	}
 }
+runtime_subscribe!(TickService, tick_timer_service_unsubscribe);
 impl Peekable for TickService {
 	type Output = time::TickTime;
 	type PeekArgs = ();
@@ -103,11 +255,8 @@ impl Peekable for TickService {
 #[macro_export]
 #[doc(hidden)]
 macro_rules! TickService_raw {
-	(handler: $f: ident, raw_handler: $r: ident, service: $s: ty) => {
-		const _: () = {
-			#[unsafe(export_name = "__gneiss_slot_TickService")]
-			static GUARD: u8 = 0;
-		};
+	(handler: $f: ident, raw_handler: $r: ident, service: $s: ty, config: $c: ident) => {
+		$crate::__export_handler!(TickService, $s, $r);
 		unsafe extern "C" fn $r(tm: *mut $crate::sys::tm, unit: $crate::sys::TimeUnits) {
 			// SAFETY: *mut tm is valid for the duration of the callback, after which it is
 			// cleaned up - reading now is valid and correct, passing as a ref could escape.
@@ -128,11 +277,12 @@ impl Service for BatteryService {
 	type RawHandler = unsafe extern "C" fn(sys::BatteryChargeState);
 	type SubscribeArg = ();
 
-	fn subscribe(f: Self::RawHandler, _a: Self::SubscribeArg) {
+	fn register(f: Self::RawHandler, _a: Self::SubscribeArg) {
 		crate::log::debug!("Registering BatteryService handler;");
 		unsafe { sys::battery_state_service_subscribe(Some(f)) }
 	}
 }
+runtime_subscribe!(BatteryService, battery_state_service_unsubscribe);
 impl Peekable for BatteryService {
 	type Output = battery::BatteryChargeState;
 	type PeekArgs = ();
@@ -145,11 +295,8 @@ impl Peekable for BatteryService {
 #[macro_export]
 #[doc(hidden)]
 macro_rules! BatteryService_raw {
-	(handler: $f: ident, raw_handler: $r: ident, service: $s: ty) => {
-		const _: () = {
-			#[unsafe(export_name = "__gneiss_slot_BatteryService")]
-			static GUARD: u8 = 0;
-		};
+	(handler: $f: ident, raw_handler: $r: ident, service: $s: ty, config: $c: ident) => {
+		$crate::__export_handler!(BatteryService, $s, $r);
 		unsafe extern "C" fn $r(charge: $crate::sys::BatteryChargeState) {
 			$f(charge)
 		}
@@ -173,20 +320,19 @@ impl Service for BacklightService {
 	type RawHandler = unsafe extern "C" fn(bool);
 	type SubscribeArg = ();
 
-	fn subscribe(f: Self::RawHandler, _a: Self::SubscribeArg) {
+	fn register(f: Self::RawHandler, _a: Self::SubscribeArg) {
 		crate::log::debug!("Registering BacklightService handler;");
 		unsafe { sys::backlight_service_subscribe(Some(f)) }
 	}
 }
 #[cfg(not(pbl_sdk_frozen))]
+runtime_subscribe!(BacklightService, backlight_service_unsubscribe);
+#[cfg(not(pbl_sdk_frozen))]
 #[macro_export]
 #[doc(hidden)]
 macro_rules! BacklightService_raw {
-	(handler: $f: ident, raw_handler: $r: ident, service: $s: ty) => {
-		const _: () = {
-			#[unsafe(export_name = "__gneiss_slot_BacklightService")]
-			static GUARD: u8 = 0;
-		};
+	(handler: $f: ident, raw_handler: $r: ident, service: $s: ty, config: $c: ident) => {
+		$crate::__export_handler!(BacklightService, $s, $r);
 		unsafe extern "C" fn $r(on: bool) {
 			$f(on)
 		}
@@ -202,19 +348,17 @@ impl Service for AccelTapService {
 	type RawHandler = unsafe extern "C" fn(sys::AccelAxisType, core::ffi::c_int);
 	type SubscribeArg = ();
 
-	fn subscribe(f: Self::RawHandler, _a: Self::SubscribeArg) {
+	fn register(f: Self::RawHandler, _a: Self::SubscribeArg) {
 		crate::log::debug!("Registering AccelTapService handler;");
 		unsafe { sys::accel_tap_service_subscribe(Some(f)) }
 	}
 }
+runtime_subscribe!(AccelTapService, accel_tap_service_unsubscribe);
 #[macro_export]
 #[doc(hidden)]
 macro_rules! AccelTapService_raw {
-	(handler: $f: ident, raw_handler: $r: ident, service: $s: ty) => {
-		const _: () = {
-			#[unsafe(export_name = "__gneiss_slot_AccelTapService")]
-			static GUARD: u8 = 0;
-		};
+	(handler: $f: ident, raw_handler: $r: ident, service: $s: ty, config: $c: ident) => {
+		$crate::__export_handler!(AccelTapService, $s, $r);
 		unsafe extern "C" fn $r(axis: $crate::sys::AccelAxisType, direction: i32) {
 			$f(axis.into(), direction.into())
 		}
@@ -231,11 +375,12 @@ impl Service for AccelDataService {
 	type RawHandler = unsafe extern "C" fn(*mut sys::AccelData, u32);
 	type SubscribeArg = core::num::NonZeroU32;
 
-	fn subscribe(f: Self::RawHandler, a: Self::SubscribeArg) {
+	fn register(f: Self::RawHandler, a: Self::SubscribeArg) {
 		crate::log::debug!("Registering AccelDataService handler;");
 		unsafe { sys::accel_data_service_subscribe(a.get(), Some(f)) }
 	}
 }
+runtime_subscribe!(AccelDataService, accel_data_service_unsubscribe);
 impl Peekable for AccelDataService {
 	type Output = Option<accel::AccelData>;
 	type PeekArgs = ();
@@ -252,11 +397,12 @@ impl Peekable for AccelDataService {
 #[macro_export]
 #[doc(hidden)]
 macro_rules! AccelDataService_raw {
-	(handler: $f: ident, raw_handler: $r: ident, service: $s: ty) => {
+	(handler: $f: ident, raw_handler: $r: ident, service: $s: ty, config: $c: ident) => {
 		const _: () = {
 			#[unsafe(export_name = "__gneiss_slot_AccelData")]
 			static GUARD: u8 = 0;
 		};
+		$crate::__export_handler!(AccelDataService, $s, $r);
 		unsafe extern "C" fn $r(data: *mut $crate::sys::AccelData, num_samples: u32) {
 			$f(if data.is_null() {
 				&[]
@@ -278,11 +424,12 @@ impl Service for AccelRawDataService {
 	type RawHandler = unsafe extern "C" fn(*mut sys::AccelRawData, u32, u64);
 	type SubscribeArg = core::num::NonZeroU32;
 
-	fn subscribe(f: Self::RawHandler, a: Self::SubscribeArg) {
+	fn register(f: Self::RawHandler, a: Self::SubscribeArg) {
 		crate::log::debug!("Registering AccelRawDataService handler;");
 		unsafe { sys::accel_raw_data_service_subscribe(a.get(), Some(f)) }
 	}
 }
+runtime_subscribe!(AccelRawDataService, accel_data_service_unsubscribe);
 impl Peekable for AccelRawDataService {
 	type Output = Option<(accel::Sample, u64)>;
 	type PeekArgs = ();
@@ -301,12 +448,17 @@ impl Peekable for AccelRawDataService {
 #[macro_export]
 #[doc(hidden)]
 macro_rules! AccelRawDataService_raw {
-	(handler: $f: ident, raw_handler: $r: ident, service: $s: ty) => {
+	(handler: $f: ident, raw_handler: $r: ident, service: $s: ty, config: $c: ident) => {
 		const _: () = {
 			#[unsafe(export_name = "__gneiss_slot_AccelData")]
 			static GUARD: u8 = 0;
 		};
-		unsafe extern "C" fn $r(data: *mut $crate::sys::AccelRawData, num_samples: u32, timestamp: u64) {
+		$crate::__export_handler!(AccelRawDataService, $s, $r);
+		unsafe extern "C" fn $r(
+			data: *mut $crate::sys::AccelRawData,
+			num_samples: u32,
+			timestamp: u64,
+		) {
 			$f(
 				if data.is_null() {
 					&[]
@@ -319,16 +471,41 @@ macro_rules! AccelRawDataService_raw {
 	};
 }
 
-/// Called when the heading changes by more than the supplied `DeltaAngle`
+/// Called when the heading changes by more than the supplied `DeltaAngle`.
+///
+/// Only on watches with a magnetometer (`cfg(pbl_compass)`).
+///
+/// # Emulator
+///
+/// The emulator has no magnetometer, so its firmware calls the handler once from inside the
+/// subscribe, with [`CompassStatus::Unavailable`](compass::CompassStatus::Unavailable). Subscribing
+/// while a [`UiGuard`](crate::ui::UiGuard) is held, such as from a click handler, then leaves
+/// `UiGuard::enter()` in the handler to panic. Take the guard with `try_enter` and skip the update
+/// when it's held:
+///
+/// ```no_run,standalone_crate
+/// # use gneiss::{compass, service::*, ui::UiGuard};
+/// # gneiss::__doctest_slices!();
+/// #[gneiss::service(CompassService, compass::DeltaAngle::from_degrees(10).unwrap())]
+/// fn on_heading(heading: compass::HeadingData) {
+///     let Some(mut ui) = UiGuard::try_enter() else {
+///         return;
+///     };
+///     // show `heading` using `ui`
+/// }
+/// ```
+#[cfg(pbl_compass)]
 pub struct CompassService;
+#[cfg(pbl_compass)]
 impl Sealed for CompassService {}
+#[cfg(pbl_compass)]
 impl Service for CompassService {
 	type Context = NoneT;
 	type Handler = fn(compass::HeadingData);
 	type RawHandler = unsafe extern "C" fn(sys::CompassHeadingData);
 	type SubscribeArg = compass::DeltaAngle;
 
-	fn subscribe(f: Self::RawHandler, a: Self::SubscribeArg) {
+	fn register(f: Self::RawHandler, a: Self::SubscribeArg) {
 		crate::log::debug!("Registering CompassService handler;");
 		unsafe {
 			sys::compass_service_set_heading_filter(a.inner().abs());
@@ -336,6 +513,9 @@ impl Service for CompassService {
 		}
 	}
 }
+#[cfg(pbl_compass)]
+runtime_subscribe!(CompassService, compass_service_unsubscribe);
+#[cfg(pbl_compass)]
 impl Peekable for CompassService {
 	type Output = compass::HeadingData;
 	type PeekArgs = ();
@@ -353,14 +533,12 @@ impl Peekable for CompassService {
 		compass::HeadingData::from(unsafe { data.assume_init() })
 	}
 }
+#[cfg(pbl_compass)]
 #[macro_export]
 #[doc(hidden)]
 macro_rules! CompassService_raw {
-	(handler: $f: ident, raw_handler: $r: ident, service: $s: ty) => {
-		const _: () = {
-			#[unsafe(export_name = "__gneiss_slot_CompassService")]
-			static GUARD: u8 = 0;
-		};
+	(handler: $f: ident, raw_handler: $r: ident, service: $s: ty, config: $c: ident) => {
+		$crate::__export_handler!(CompassService, $s, $r);
 		unsafe extern "C" fn $r(headings: $crate::sys::CompassHeadingData) {
 			$f(headings.into())
 		}
@@ -376,7 +554,7 @@ impl Service for AppFocusService {
 	type RawHandler = fn() -> (unsafe extern "C" fn(bool), unsafe extern "C" fn(bool));
 	type SubscribeArg = focus::SubscribeTo;
 
-	fn subscribe(f: Self::RawHandler, a: Self::SubscribeArg) {
+	fn register(f: Self::RawHandler, a: Self::SubscribeArg) {
 		crate::log::debug!("Registering AppFocusService handler;");
 		let handlers = f();
 		let handlers = sys::AppFocusHandlers {
@@ -386,14 +564,12 @@ impl Service for AppFocusService {
 		unsafe { sys::app_focus_service_subscribe_handlers(handlers) }
 	}
 }
+runtime_subscribe!(AppFocusService, app_focus_service_unsubscribe);
 #[macro_export]
 #[doc(hidden)]
 macro_rules! AppFocusService_raw {
-	(handler: $f: ident, raw_handler: $r: ident, service: $s: ty) => {
-		const _: () = {
-			#[unsafe(export_name = "__gneiss_slot_AppFocusService")]
-			static GUARD: u8 = 0;
-		};
+	(handler: $f: ident, raw_handler: $r: ident, service: $s: ty, config: $c: ident) => {
+		$crate::__export_handler!(AppFocusService, $s, $r);
 		fn $r() -> (unsafe extern "C" fn(bool), unsafe extern "C" fn(bool)) {
 			unsafe extern "C" fn __gneiss_app_focus_will(gaining: bool) {
 				if gaining {
@@ -423,7 +599,7 @@ impl Service for ConnectionService {
 	type RawHandler = fn() -> (unsafe extern "C" fn(bool), unsafe extern "C" fn(bool));
 	type SubscribeArg = connection::SubscribeTo;
 
-	fn subscribe(f: Self::RawHandler, a: Self::SubscribeArg) {
+	fn register(f: Self::RawHandler, a: Self::SubscribeArg) {
 		crate::log::debug!("Registering ConnectionService handler;");
 		let handlers = f();
 		let handlers = sys::ConnectionHandlers {
@@ -437,6 +613,7 @@ impl Service for ConnectionService {
 		unsafe { sys::connection_service_subscribe(handlers) }
 	}
 }
+runtime_subscribe!(ConnectionService, connection_service_unsubscribe);
 impl Peekable for ConnectionService {
 	type Output = connection::State;
 	type PeekArgs = ();
@@ -454,11 +631,8 @@ impl Peekable for ConnectionService {
 #[macro_export]
 #[doc(hidden)]
 macro_rules! ConnectionService_raw {
-	(handler: $f: ident, raw_handler: $r: ident, service: $s: ty) => {
-		const _: () = {
-			#[unsafe(export_name = "__gneiss_slot_ConnectionService")]
-			static GUARD: u8 = 0;
-		};
+	(handler: $f: ident, raw_handler: $r: ident, service: $s: ty, config: $c: ident) => {
+		$crate::__export_handler!(ConnectionService, $s, $r);
 		fn $r() -> (unsafe extern "C" fn(bool), unsafe extern "C" fn(bool)) {
 			unsafe extern "C" fn __gneiss_connection_app(connected: bool) {
 				if connected {
@@ -489,20 +663,18 @@ impl Service for WakeupService {
 	type RawHandler = unsafe extern "C" fn(sys::WakeupId, i32);
 	type SubscribeArg = ();
 
-	fn subscribe(f: Self::RawHandler, _a: Self::SubscribeArg) {
+	fn register(f: Self::RawHandler, _a: Self::SubscribeArg) {
 		crate::log::debug!("Registering WakeupService handler;");
 		unsafe { sys::wakeup_service_subscribe(Some(f)) }
 	}
 }
+runtime_subscribe!(WakeupService);
 #[macro_export]
 #[doc(hidden)]
 #[allow(clippy::crate_in_macro_def)]
 macro_rules! WakeupService_raw {
-	(handler: $f: ident, raw_handler: $r: ident, service: $s: ty) => {
-		const _: () = {
-			#[unsafe(export_name = "__gneiss_slot_WakeupService")]
-			static GUARD: u8 = 0;
-		};
+	(handler: $f: ident, raw_handler: $r: ident, service: $s: ty, config: $c: ident) => {
+		$crate::__export_handler!(WakeupService, $s, $r);
 		unsafe extern "C" fn $r(id: $crate::sys::WakeupId, reason: i32) {
 			$f(
 				::gneiss::wakeup::WakeupId(id),
@@ -542,34 +714,32 @@ impl<T> Service for TouchService<T> {
 	type RawHandler = unsafe extern "C" fn(*const sys::TouchEvent, *mut core::ffi::c_void);
 	type SubscribeArg = Option<T>;
 
-	fn subscribe(f: Self::RawHandler, a: Self::SubscribeArg) {
-		extern crate alloc;
-		use alloc::boxed::Box;
-		// Leak to the watch's heap providing 'static independent of app's choice of alloc
-		let ctx: *mut Self::Context = a
-			.map(|c| Box::new_in(c, crate::alloc::PebbleAlloc))
-			.map_or(core::ptr::null_mut(), |b| Box::into_raw_with_allocator(b).0);
-		Self::__subscribe(f, ctx);
+	fn register(f: Self::RawHandler, a: Self::SubscribeArg) {
+		Self::__subscribe(f, context_or(&TOUCH_CONTEXT, || leak_context(a)));
 	}
 }
 #[cfg(pbl_touch)]
 impl<T> TouchService<T> {
-	fn __subscribe(f: <Self as Service>::RawHandler, ctx: *mut T) {
+	fn __subscribe(f: <Self as Service>::RawHandler, ctx: *mut ffi::c_void) {
 		crate::log::debug!("Registering TouchService handler;");
-		// SAFETY: It's always safe to cast to c_void.
-		unsafe { sys::touch_service_subscribe(Some(f), ctx.cast()) }
+		// SAFETY: ctx is null or a context we leaked
+		unsafe { sys::touch_service_subscribe(Some(f), ctx) }
 	}
 }
+#[cfg(pbl_touch)]
+static TOUCH_CONTEXT: ContextSlot = SyncCell::new(None);
+#[cfg(pbl_touch)]
+runtime_subscribe!(TouchService<T>, context: TOUCH_CONTEXT, touch_service_unsubscribe);
 #[cfg(pbl_touch)]
 #[macro_export]
 #[doc(hidden)]
 macro_rules! TouchService_raw {
-	(handler: $f: ident, raw_handler: $r: ident, service: $s: ty) => {
-		const _: () = {
-			#[unsafe(export_name = "__gneiss_slot_TouchService")]
-			static GUARD: u8 = 0;
-		};
-		unsafe extern "C" fn $r(event: *const $crate::sys::TouchEvent, ctx: *mut core::ffi::c_void) {
+	(handler: $f: ident, raw_handler: $r: ident, service: $s: ty, config: $c: ident) => {
+		$crate::__export_handler!(TouchService, $s, $r, context: $c);
+		unsafe extern "C" fn $r(
+			event: *const $crate::sys::TouchEvent,
+			ctx: *mut core::ffi::c_void,
+		) {
 			// SAFETY: *const event is valid for the duration of the callback, after which it is
 			// cleaned up - reading now is valid and correct, passing as a ref could escape. We know
 			// ctx is valid because *we* leaked it.
@@ -584,42 +754,43 @@ macro_rules! TouchService_raw {
 
 /// Called when the health tracker has new data: activity, sleep, heart rate. `T` is optional
 /// [context](self#context).
+///
+/// Only on watches with health tracking (`cfg(pbl_health)`).
+#[cfg(pbl_health)]
 pub struct HealthService<T>(PhantomData<T>);
+#[cfg(pbl_health)]
 impl<T> Sealed for HealthService<T> {}
+#[cfg(pbl_health)]
 impl<T> Service for HealthService<T> {
 	type Context = T;
 	type Handler = for<'a> fn(health::Event, Option<&'a mut T>);
 	type RawHandler = unsafe extern "C" fn(u8, *mut core::ffi::c_void);
 	type SubscribeArg = Option<T>;
 
-	fn subscribe(f: Self::RawHandler, a: Self::SubscribeArg) {
-		extern crate alloc;
-		use alloc::boxed::Box;
-		// Leak to the watch's heap providing 'static independent of app's choice of alloc
-		let ctx: *mut Self::Context = a
-			.map(|c| Box::new_in(c, crate::alloc::PebbleAlloc))
-			.map_or(core::ptr::null_mut(), |b| Box::into_raw_with_allocator(b).0);
-		Self::__subscribe(f, ctx);
+	fn register(f: Self::RawHandler, a: Self::SubscribeArg) {
+		Self::__subscribe(f, context_or(&HEALTH_CONTEXT, || leak_context(a)));
 	}
 }
-
+#[cfg(pbl_health)]
 impl<T> HealthService<T> {
-	fn __subscribe(f: <Self as Service>::RawHandler, ctx: *mut T) {
+	fn __subscribe(f: <Self as Service>::RawHandler, ctx: *mut ffi::c_void) {
 		crate::log::debug!("Registering HealthService handler;");
-		// SAFETY: It's always safe to cast to c_void.
-		if !unsafe { sys::health_service_events_subscribe(Some(f), ctx.cast()) } {
+		// SAFETY: ctx is null or a context we leaked
+		if !unsafe { sys::health_service_events_subscribe(Some(f), ctx) } {
 			crate::log::error!("Health service subscribe failed, not enough heap.");
 		}
 	}
 }
+#[cfg(pbl_health)]
+static HEALTH_CONTEXT: ContextSlot = SyncCell::new(None);
+#[cfg(pbl_health)]
+runtime_subscribe!(HealthService<T>, context: HEALTH_CONTEXT, health_service_events_unsubscribe);
+#[cfg(pbl_health)]
 #[macro_export]
 #[doc(hidden)]
 macro_rules! HealthService_raw {
-	(handler: $f: ident, raw_handler: $r: ident, service: $s: ty) => {
-		const _: () = {
-			#[unsafe(export_name = "__gneiss_slot_HealthService")]
-			static GUARD: u8 = 0;
-		};
+	(handler: $f: ident, raw_handler: $r: ident, service: $s: ty, config: $c: ident) => {
+		$crate::__export_handler!(HealthService, $s, $r, context: $c);
 		unsafe extern "C" fn $r(event: u8, ctx: *mut core::ffi::c_void) {
 			// SAFETY: We leaked ctx, we know it's valid
 			$f(
@@ -651,14 +822,8 @@ impl<T> Service for AppMessageService<T> {
 	type RawHandler = fn() -> AppMessageHandlers;
 	type SubscribeArg = (link::SubscribeTo, link::BufferSizes, Option<T>);
 
-	fn subscribe(f: Self::RawHandler, mut a: Self::SubscribeArg) {
-		extern crate alloc;
-		use alloc::boxed::Box;
-		// Leak to the watch's heap providing 'static independent of app's choice of alloc
-		let ctx: *mut Self::Context =
-			a.2.take()
-				.map(|c| Box::new_in(c, crate::alloc::PebbleAlloc))
-				.map_or(core::ptr::null_mut(), |b| Box::into_raw_with_allocator(b).0);
+	fn register(f: Self::RawHandler, mut a: Self::SubscribeArg) {
+		let ctx = leak_context(a.2.take());
 		Self::__subscribe(f, &a, ctx);
 	}
 }
@@ -666,13 +831,13 @@ impl<T> AppMessageService<T> {
 	fn __subscribe(
 		f: <Self as Service>::RawHandler,
 		a: &<Self as Service>::SubscribeArg,
-		ctx: *mut T,
+		ctx: *mut ffi::c_void,
 	) {
 		crate::log::debug!("Registering AppMessageService handler;");
 		let mut handlers = f();
 		// SAFETY: ctx is null or a pointer we leaked; the handlers are valid fn pointers.
 		unsafe {
-			sys::app_message_set_context(ctx.cast());
+			sys::app_message_set_context(ctx);
 			sys::app_message_register_inbox_received(
 				handlers
 					.received
@@ -721,11 +886,8 @@ impl<T> AppMessageService<T> {
 #[macro_export]
 #[doc(hidden)]
 macro_rules! AppMessageService_raw {
-	(handler: $f: ident, raw_handler: $r: ident, service: $s: ty) => {
-		const _: () = {
-			#[unsafe(export_name = "__gneiss_slot_AppMessageService")]
-			static GUARD: u8 = 0;
-		};
+	(handler: $f: ident, raw_handler: $r: ident, service: $s: ty, config: $c: ident) => {
+		$crate::__export_handler!(AppMessageService, $s, $r);
 		fn $r() -> AppMessageHandlers {
 			// SAFETY: *DictionaryIterator is INVALID past the end of this callback, pass a short
 			// borrow to the gneiss handler, not the raw ptr

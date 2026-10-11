@@ -6,11 +6,12 @@
 //! [`draw_pdc`](crate::ui::graphics::GContext::draw_pdc) and
 //! [`draw_pdc_sequence`](crate::ui::graphics::GContext::draw_pdc_sequence). Each type owns its
 //! firmware object and frees it on drop.
-use core::{cell::Cell, slice};
+use core::slice;
 
 extern crate alloc;
 
 use crate::{
+	cell::SyncCell,
 	resource::{ImageKey, PdcKey, PdcSeqKey},
 	sys,
 	ui::graphics::Colour,
@@ -20,12 +21,8 @@ use crate::{
 /// colours, enough for any palettised format; smaller formats use the first 2 or 4.
 #[repr(transparent)]
 pub struct SharedPalette {
-	inner: [Cell<Colour>; 16],
+	inner: [SyncCell<Colour>; 16],
 }
-
-// SAFETY: Pebble apps are single-threaded - every callback runs on the app task,
-// so a shared reference never actually crosses a thread boundary.
-unsafe impl Sync for SharedPalette {}
 
 impl SharedPalette {
 	/// Construct Self from an array. Usable in const context
@@ -35,7 +32,7 @@ impl SharedPalette {
 	/// ```
 	pub const fn new(val: [Colour; 16]) -> Self {
 		Self {
-			inner: val.map(Cell::new),
+			inner: val.map(SyncCell::new),
 		}
 	}
 
@@ -62,7 +59,7 @@ impl SharedPalette {
 
 	/// Get a palette entry. NOP on OOB
 	pub fn get(&self, i: usize) -> Option<Colour> {
-		self.inner.get(i).map(Cell::get)
+		self.inner.get(i).map(|c| c.get())
 	}
 }
 

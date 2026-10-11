@@ -2,20 +2,26 @@
 #![no_main]
 //! All-services demo: registers every gneiss `Service` and paints a live
 //! one-line-per-service status board onto the watch via [`StatusBoard`].
-//! Companion to the `resources` example. Needs gneiss's `alloc` feature.
+//! Select turns the accelerometer and compass on and off, Up and Down make
+//! the tick finer or coarser: services subscribed and unsubscribed at runtime.
+//! Companion to the `resources` example.
 extern crate alloc;
 
 use alloc::format;
+use core::num::NonZeroU32;
 
+#[cfg(pbl_compass)]
+use gneiss::compass;
 #[cfg(pbl_touch)]
 use gneiss::touch;
 use gneiss::{
-	accel, battery, compass, connection, focus, health,
+	accel, battery,
+	cell::SyncCell,
+	connection, focus, health,
 	link::{self, AppMessageEvent},
 	service::*,
-	sys,
 	time::{TickTime, TimeUnits},
-	ui::{Nav, StatusBoard, UiGuard},
+	ui::{BoardLayout, BoardLines, Button, ClickKinds, Nav, StatusBoard, UiGuard},
 	wakeup,
 };
 
@@ -23,6 +29,7 @@ use gneiss::{
 // Fixed rows; a watch without the matching service leaves its slot empty
 #[allow(dead_code)]
 enum Slot {
+	Controls,
 	Tick,
 	Battery,
 	Backlight,
@@ -36,13 +43,96 @@ enum Slot {
 	Health,
 	Message,
 }
-static BOARD: StatusBoard<12> = StatusBoard::new();
+const SLOTS: usize = 13;
+static BOARD: StatusBoard<SLOTS> = StatusBoard::new();
+
+/// The tick granularities Up and Down step through, finest first.
+const TICK_UNITS: [(TimeUnits, &str); 3] = [
+	(TimeUnits::SECONDS, "sec"),
+	(TimeUnits::MINUTES, "min"),
+	(TimeUnits::HOURS, "hour"),
+];
+const ACCEL_BATCH: NonZeroU32 = NonZeroU32::new(25).unwrap();
+
+/// What the buttons have set.
+#[derive(Clone, Copy)]
+struct Controls {
+	sensors: bool,
+	/// Index into [`TICK_UNITS`]
+	tick:    usize,
+}
+
+impl Controls {
+	fn line(self) -> alloc::string::String {
+		format!(
+			"Sensors: {} | Tick: {}",
+			if self.sensors { "on" } else { "off" },
+			TICK_UNITS[self.tick].1
+		)
+	}
+}
+
+/// Shared by the three click handlers.
+static CONTROLS: SyncCell<Controls> = SyncCell::new(Controls {
+	sensors: true,
+	tick:    0,
+});
 
 #[gneiss::entry]
 fn main(ui: &mut UiGuard) {
-	BOARD.init();
-	BOARD.set_line(ui, 0, "waiting for services...");
+	BOARD.init_with(|board| {
+		board.set_click_handler(
+			ui,
+			Button::Select,
+			ClickKinds::SINGLE,
+			move |board, lines, _, _| {
+				let mut now = CONTROLS.get();
+				now.sensors = !now.sensors;
+				CONTROLS.set(now);
+				set_sensors(now.sensors);
+				if let Some(lines) = lines {
+					let state = if now.sensors { "on" } else { "off" };
+					board.set_line(lines, Slot::Accel as usize, format!("Accel: {state}"));
+					#[cfg(pbl_compass)]
+					board.set_line(lines, Slot::Compass as usize, format!("Compass: {state}"));
+					show(board, lines, now);
+				}
+			},
+		);
+		for (button, finer) in [(Button::Up, true), (Button::Down, false)] {
+			board.set_click_handler(ui, button, ClickKinds::SINGLE, move |board, lines, _, _| {
+				let mut now = CONTROLS.get();
+				now.tick = if finer {
+					now.tick.saturating_sub(1)
+				} else {
+					(now.tick + 1).min(TICK_UNITS.len() - 1)
+				};
+				CONTROLS.set(now);
+				TickService::subscribe(TICK_UNITS[now.tick].0);
+				if let Some(lines) = lines {
+					show(board, lines, now);
+				}
+			});
+		}
+	});
+	BOARD.set_line(ui, Slot::Controls as usize, CONTROLS.get().line());
 	Nav::new(ui).push(&BOARD, false);
+}
+
+fn show(board: &mut BoardLayout<SLOTS>, lines: &mut BoardLines<SLOTS>, controls: Controls) {
+	board.set_line(lines, Slot::Controls as usize, controls.line());
+}
+
+fn set_sensors(on: bool) {
+	if on {
+		AccelDataService::subscribe(ACCEL_BATCH);
+		#[cfg(pbl_compass)]
+		CompassService::subscribe(compass::DeltaAngle::from_degrees(10).unwrap());
+	} else {
+		AccelDataService::unsubscribe();
+		#[cfg(pbl_compass)]
+		CompassService::unsubscribe();
+	}
 }
 
 // --- config + handler ---
@@ -59,7 +149,7 @@ fn on_tick(time: TickTime, _changed: TimeUnits) {
 	);
 }
 
-#[gneiss::service(AccelDataService, core::num::NonZeroU32::new(25).unwrap())]
+#[gneiss::service(AccelDataService, ACCEL_BATCH)]
 fn on_accel(batch: &[accel::AccelData]) {
 	if let Some(s) = batch.first() {
 		BOARD.set_line(
@@ -70,8 +160,14 @@ fn on_accel(batch: &[accel::AccelData]) {
 	}
 }
 
+#[cfg(pbl_compass)]
 #[gneiss::service(CompassService, compass::DeltaAngle::from_degrees(10).unwrap())]
 fn on_compass(heading: compass::HeadingData) {
+	// The emulator's compass calls this from inside a subscribe, which Select does from its click
+	// handler while the guard is held
+	let Some(mut ui) = UiGuard::try_enter() else {
+		return;
+	};
 	let line = match heading.status() {
 		compass::CompassStatus::Calibrated | compass::CompassStatus::Calibrating => {
 			let deg = heading.heading().as_degrees_cw();
@@ -86,7 +182,7 @@ fn on_compass(heading: compass::HeadingData) {
 		}
 		_ => "Compass: unavailable".into(),
 	};
-	BOARD.set_line(&mut UiGuard::enter(), Slot::Compass as usize, line);
+	BOARD.set_line(&mut ui, Slot::Compass as usize, line);
 }
 
 // --- handler only ---

@@ -5,6 +5,7 @@ use core::{any::TypeId, cell::Cell, marker::PhantomData, mem};
 
 use crate::{
 	alloc::PebbleAlloc,
+	cell::SyncCell,
 	sys,
 	ui::{ClickHandlers, UiGuard, layer::RootLayer},
 };
@@ -355,9 +356,6 @@ impl<'w> AnyWindow<'w> {
 	}
 }
 
-// SAFETY: PebbleOS runs all app code on a single task
-unsafe impl Sync for AnyWindow<'_> {}
-
 impl<'w, C: Layout<D>, D> From<&'w Window<C, D>> for AnyWindow<'w> {
 	fn from(window: &'w Window<C, D>) -> Self {
 		Self {
@@ -369,19 +367,16 @@ impl<'w, C: Layout<D>, D> From<&'w Window<C, D>> for AnyWindow<'w> {
 
 /// A set-once global slot for a leaked [`Window`], pushable from anywhere as `&SLOT`.
 pub struct StaticWindow<C: Layout<D> + 'static, D: 'static = ()> {
-	inner: Cell<Option<AnyWindow<'static>>>,
+	inner: SyncCell<Option<AnyWindow<'static>>>,
 	// This can be used to obtain references to C and D
 	_win:  PhantomData<fn() -> (C, D)>,
 }
-
-// SAFETY: PebbleOS runs all app code on a single task
-unsafe impl<C: Layout<D>, D> Sync for StaticWindow<C, D> {}
 
 impl<C: Layout<D>, D> StaticWindow<C, D> {
 	/// An empty slot.
 	pub const fn new() -> Self {
 		Self {
-			inner: Cell::new(None),
+			inner: SyncCell::new(None),
 			_win:  PhantomData,
 		}
 	}

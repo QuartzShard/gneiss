@@ -27,6 +27,21 @@ pub struct BoardLayout<const SLOTS: usize> {
 }
 
 impl<const SLOTS: usize> BoardLayout<SLOTS> {
+	/// Replace slot `slot`'s line and redraw, from one of the board's own callbacks, such as a click
+	/// handler.
+	///
+	/// # Panics
+	/// If `slot >= SLOTS`.
+	pub fn set_line(
+		&mut self,
+		lines: &mut BoardLines<SLOTS>,
+		slot: usize,
+		line: impl Into<String>,
+	) {
+		lines.lines[slot] = Some(line.into());
+		self.render(lines);
+	}
+
 	fn render(&mut self, lines: &BoardLines<SLOTS>) {
 		let render = |text: &mut TextBuf| {
 			text.clear();
@@ -60,10 +75,24 @@ impl<const SLOTS: usize> StatusBoard<SLOTS> {
 	/// # Panics
 	/// If the slot is already set, or the firmware is out of memory.
 	pub fn init(&self) {
+		self.init_with(|_| {});
+	}
+
+	/// [`init`](Self::init), letting `configure` set the window up first, such as its click
+	/// handlers.
+	///
+	/// # Panics
+	/// If the slot is already set, or the firmware is out of memory.
+	pub fn init_with(
+		&self,
+		configure: impl FnOnce(&mut Window<BoardLayout<SLOTS>, BoardLines<SLOTS>>),
+	) {
 		let lines = BoardLines {
 			lines: [const { None }; SLOTS],
 		};
-		self.set(Window::new(Some(lines)).expect("board window"));
+		let mut window = Window::new(Some(lines)).expect("board window");
+		configure(&mut window);
+		self.set(window);
 	}
 
 	/// Replace slot `slot`'s line, redrawing if the board is loaded.
@@ -73,9 +102,9 @@ impl<const SLOTS: usize> StatusBoard<SLOTS> {
 	pub fn set_line(&self, ui: &mut UiGuard, slot: usize, line: impl Into<String>) {
 		self.with(ui, |board, ctx| {
 			let Some(lines) = ctx.data() else { return };
-			lines.lines[slot] = Some(line.into());
-			if let Some(board) = board {
-				board.render(lines);
+			match board {
+				Some(board) => board.set_line(lines, slot, line),
+				None => lines.lines[slot] = Some(line.into()),
 			}
 		});
 	}

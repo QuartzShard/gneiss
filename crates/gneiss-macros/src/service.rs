@@ -4,20 +4,26 @@ use syn::{Expr, ItemFn, Path, Token, parse::Parser, punctuated::Punctuated, span
 
 #[derive(Debug, Clone)]
 struct ServiceArgs {
-	service: Path,
-	config:  Punctuated<Expr, Token![,]>,
+	service:         Path,
+	enabled_at_boot: bool,
+	config:          Punctuated<Expr, Token![,]>,
 }
 
 impl syn::parse::Parse for ServiceArgs {
 	fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
 		let service: Path = input.parse()?;
+		let enabled_at_boot = super::parse_key(input, "enabled_at_boot", true)?;
 		let config = if input.peek(Token![,]) {
 			input.parse::<Token![,]>()?;
 			Punctuated::parse_terminated(input)?
 		} else {
 			Punctuated::new()
 		};
-		Ok(Self { service, config })
+		Ok(Self {
+			service,
+			enabled_at_boot,
+			config,
+		})
 	}
 }
 
@@ -31,6 +37,7 @@ pub fn service(
 	let fn_item: Option<ItemFn> = errs.handle(syn::parse2(item).map_err(DarlingError::from));
 	let attr_args: Option<ServiceArgs> = errs.handle(syn::parse2(attr).map_err(DarlingError::from));
 	let mut service: Option<Path> = attr_args.clone().map(|a| a.service);
+	let enabled_at_boot: bool = attr_args.as_ref().is_none_or(|a| a.enabled_at_boot);
 	let mut config: Vec<Expr> =
 		attr_args.map_or_else(Vec::new, |a| a.config.iter().cloned().collect());
 
@@ -67,13 +74,17 @@ pub fn service(
 		out.extend(quote! {
 			#handler_check
 			#config_fn
-			::gneiss::#m!(handler: #fn_ident, raw_handler: #raw_fn_ident, service: #service);
-			#[::gneiss::linkme::distributed_slice(crate::GNEISS_SERVICES)]
-			#[linkme(crate = ::gneiss::linkme)]
-			fn #init_fn_ident() {
-				<#service as ::gneiss::service::Service>::subscribe(#raw_fn_ident, #cfg_fn_ident())
-			}
+			::gneiss::#m!(handler: #fn_ident, raw_handler: #raw_fn_ident, service: #service, config: #cfg_fn_ident);
 		});
+		if enabled_at_boot {
+			out.extend(quote! {
+				 #[::gneiss::linkme::distributed_slice(crate::GNEISS_SERVICES)]
+				 #[linkme(crate = ::gneiss::linkme)]
+				 fn #init_fn_ident() {
+					 <#service as ::gneiss::service::Service>::register(#raw_fn_ident, #cfg_fn_ident())
+				 }
+			});
+		}
 	}
 
 	if let Err(e) = errs.finish() {

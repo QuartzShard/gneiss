@@ -77,7 +77,7 @@
 //!
 //! [`graphics`] draws with the firmware's own primitives through
 //! [`GContext`](graphics::GContext), or with `embedded-graphics` straight into the framebuffer.
-use core::cell::Cell;
+use crate::cell::SyncCell;
 
 mod bitmap;
 mod board;
@@ -98,13 +98,7 @@ pub use window::{
 	AnyWindow, Layout, NoWindow, StaticWindow, TypedWindow, Window, WindowCtx, WindowRef,
 };
 
-struct UiHeld(Cell<bool>);
-
-// SAFETY: PebbleOS runs all app code on a single task.
-// Not an atomic: read-modify-write atomics spin forever!
-unsafe impl Sync for UiHeld {}
-
-static UI_HELD: UiHeld = UiHeld(Cell::new(false));
+static UI_HELD: SyncCell<bool> = SyncCell::new(false);
 
 /// Permission to touch the UI: borrowing a layout, changing click handlers, navigating. At most one
 /// exists at a time, and every window callback holds one while it runs, so a `&mut UiGuard` proves
@@ -147,7 +141,7 @@ impl UiGuard {
 
 	/// Take the guard. `None` if one is already held, e.g. from inside a window callback.
 	pub fn try_enter() -> Option<Self> {
-		(!UI_HELD.0.replace(true)).then_some(Self(()))
+		(!UI_HELD.replace(true)).then_some(Self(()))
 	}
 
 	/// Release the guard while `f` calls into the firmware, so window callbacks it fires
@@ -157,10 +151,10 @@ impl UiGuard {
 		reason = "the &mut borrow is the proof of exclusivity"
 	)]
 	pub(crate) fn os_lend<R>(&mut self, f: impl FnOnce() -> R) -> R {
-		UI_HELD.0.set(false);
+		UI_HELD.set(false);
 		let result = f();
 		assert!(
-			!UI_HELD.0.replace(true),
+			!UI_HELD.replace(true),
 			"UiGuard leaked by a window callback"
 		);
 		result
@@ -169,6 +163,6 @@ impl UiGuard {
 
 impl Drop for UiGuard {
 	fn drop(&mut self) {
-		UI_HELD.0.set(false);
+		UI_HELD.set(false);
 	}
 }

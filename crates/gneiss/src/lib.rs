@@ -48,7 +48,7 @@
 //! (see [`UiGuard`](ui::UiGuard)).
 //! Read-modify-write atomics never complete on the Pebble Time 2, so the app target leaves them
 //! out entirely: there is no `Arc`, and no `fetch_add` or `compare_exchange`; Where you would reach
-//! for Arc/Mutex, instead use the single-threaded versions behind `unsafe impl Sync` wrappers.
+//! for Arc/Mutex, use `Rc` and [`SyncCell`](cell::SyncCell).
 //!
 //! # Panics
 //!
@@ -83,6 +83,7 @@ pub use ufmt;
 
 pub mod alloc;
 
+pub mod cell;
 pub mod log;
 pub mod service;
 pub mod ui;
