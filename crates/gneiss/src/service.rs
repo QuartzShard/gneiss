@@ -62,7 +62,7 @@
 use core::{ffi, marker::PhantomData, mem::MaybeUninit, ptr};
 
 #[cfg(any(pbl_touch, pbl_health))]
-use crate::cell::SyncCell;
+use crate::SyncCell;
 #[cfg(pbl_health)]
 use crate::health;
 #[cfg(pbl_touch)]

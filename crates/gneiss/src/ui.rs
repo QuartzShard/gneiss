@@ -77,7 +77,7 @@
 //!
 //! [`graphics`] draws with the firmware's own primitives through
 //! [`GContext`](graphics::GContext), or with `embedded-graphics` straight into the framebuffer.
-use crate::cell::SyncCell;
+use crate::SyncCell;
 
 mod bitmap;
 mod board;

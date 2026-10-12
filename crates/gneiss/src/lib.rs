@@ -48,7 +48,7 @@
 //! (see [`UiGuard`](ui::UiGuard)).
 //! Read-modify-write atomics never complete on the Pebble Time 2, so the app target leaves them
 //! out entirely: there is no `Arc`, and no `fetch_add` or `compare_exchange`; Where you would reach
-//! for Arc/Mutex, use `Rc` and [`SyncCell`](cell::SyncCell).
+//! for Arc/Mutex, use `Rc` and [`SyncCell`].
 //!
 //! # Panics
 //!
@@ -70,7 +70,9 @@
 	ptr_cast_slice,
 	auto_traits,
 	negative_impls,
-	associated_type_defaults
+	associated_type_defaults,
+	unboxed_closures,
+	tuple_trait
 )]
 
 pub use gneiss_macros::{entry, service};
@@ -83,7 +85,6 @@ pub use ufmt;
 
 pub mod alloc;
 
-pub mod cell;
 pub mod log;
 pub mod service;
 pub mod ui;
@@ -95,7 +96,7 @@ pub mod resource;
 
 // Strong type wrappers for sys types
 mod types;
-pub use types::{accel, battery, compass, connection, dict, focus, health, time, touch, wakeup};
+pub use types::*;
 
 #[cfg(feature = "__doctest")]
 #[panic_handler]

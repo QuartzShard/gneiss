@@ -4,8 +4,8 @@ use alloc::boxed::Box;
 use core::{any::TypeId, cell::Cell, marker::PhantomData, mem};
 
 use crate::{
+	SyncCell,
 	alloc::PebbleAlloc,
-	cell::SyncCell,
 	sys,
 	ui::{ClickHandlers, UiGuard, layer::RootLayer},
 };

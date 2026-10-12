@@ -14,7 +14,6 @@ use alloc::format;
 use gneiss::{
 	link::{AppMessageEvent, BufferSizes, Outbox, SubscribeTo},
 	service::*,
-	sys,
 	time::{TickTime, TimeUnits},
 	ui::{Nav, StatusBoard, UiGuard},
 };

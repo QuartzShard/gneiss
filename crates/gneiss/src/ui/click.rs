@@ -2,20 +2,18 @@
 //!
 //! # Binary size
 //!
-//! A [`ClickHandler`] stores its closure as a raw pointer plus `call` and `drop` function pointers,
-//! not as a `Box<dyn FnMut>`. A trait object's vtable sits in `.data`, needs a load-time relocation
-//! per function pointer, and brings a `call_once` shim that is never called: measured at about 52
-//! bytes per registered handler. Function pointers written at runtime need no relocation.
+//! A [`ClickHandler`] stores its closure as an `ErasedFn`, not as a `Box<dyn FnMut>`. A trait
+//! object's vtable sits in `.data`, needs a load-time relocation per function pointer, and brings a
+//! `call_once` shim that is never called: measured at about 52 bytes per registered handler.
+//! Function pointers written at runtime need no relocation.
 //!
 //! The click trampolines are generic over the click kind only, not the window type, so an app has
 //! one set however many windows it has.
-extern crate alloc;
-use alloc::boxed::Box;
 use core::ffi;
 
 use crate::{
-	alloc::PebbleAlloc,
 	sys,
+	types::{Callable, ErasedFn, Sig},
 	ui::{
 		Layout, Nav, NoWindow, UiGuard, Window,
 		window::{Header, WindowData, header},
@@ -109,15 +107,25 @@ pub enum Click {
 	RawUp,
 }
 
-// Not a Box<dyn FnMut> on purpose: see the module docs, "Binary size"
 /// One button's handler, and the clicks it is subscribed to.
 pub struct ClickHandler {
 	subscribed: ClickKinds,
-	// A boxed closure, reached only through `call` and `drop`, which know its type
-	closure:    *mut (),
-	call:       for<'n> unsafe fn(*mut (), *mut Header, Click, &mut Nav<'n>),
-	// None when dropping the box is a no-op
-	drop:       Option<unsafe fn(*mut ())>,
+	// Not a Box<dyn FnMut> on purpose: see the module docs, "Binary size"
+	fun:        ErasedFn<'static, ClickSig>,
+}
+
+/// A click handler's signature: the window's header, the click, and the navigation queue.
+enum ClickSig {}
+
+impl Sig for ClickSig {
+	type Args<'a: 'b, 'b> = (*mut Header, Click, &'b mut Nav<'a>);
+	type Output = ();
+}
+
+impl<F: for<'n> FnMut(*mut Header, Click, &mut Nav<'n>)> Callable<ClickSig> for F {
+	fn call<'a: 'b, 'b>(&mut self, (header, click, nav): <ClickSig as Sig>::Args<'a, 'b>) {
+		self(header, click, nav);
+	}
 }
 
 impl ClickHandler {
@@ -125,37 +133,9 @@ impl ClickHandler {
 		subscribed: ClickKinds,
 		closure: F,
 	) -> Self {
-		unsafe fn call<F: for<'n> FnMut(*mut Header, Click, &mut Nav<'n>)>(
-			closure: *mut (),
-			header: *mut Header,
-			click: Click,
-			nav: &mut Nav<'_>,
-		) {
-			// SAFETY: closure is the Box<F> made in new, live until drop
-			unsafe { (*closure.cast::<F>())(header, click, nav) }
-		}
-		unsafe fn drop_box<F>(closure: *mut ()) {
-			// SAFETY: closure is the Box<F> made in new, dropped once
-			drop(unsafe { Box::from_raw_in(closure.cast::<F>(), PebbleAlloc) });
-		}
 		Self {
 			subscribed,
-			// no alloc for fn items, ZST
-			closure: Box::into_raw_with_allocator(Box::new_in(closure, PebbleAlloc))
-				.0
-				.cast(),
-			call: call::<F>,
-			drop: (size_of::<F>() != 0 || core::mem::needs_drop::<F>())
-				.then_some(drop_box::<F> as unsafe fn(*mut ())),
-		}
-	}
-}
-
-impl Drop for ClickHandler {
-	fn drop(&mut self) {
-		if let Some(drop) = self.drop {
-			// SAFETY: closure and drop were paired in new, and this is the only drop
-			unsafe { drop(self.closure) };
+			fun: ErasedFn::new((), closure),
 		}
 	}
 }
@@ -330,6 +310,5 @@ unsafe extern "C" fn click<const KIND: u8>(
 		}
 	};
 	let mut nav = Nav::new(&mut ui);
-	// SAFETY: closure and call were paired in ClickHandler::new
-	unsafe { (handler.call)(handler.closure, header, click, &mut nav) };
+	handler.fun.call((header, click, &mut nav));
 }

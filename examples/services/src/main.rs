@@ -15,9 +15,7 @@ use gneiss::compass;
 #[cfg(pbl_touch)]
 use gneiss::touch;
 use gneiss::{
-	accel, battery,
-	cell::SyncCell,
-	connection, focus, health,
+	SyncCell, accel, battery, connection, focus, health,
 	link::{self, AppMessageEvent},
 	service::*,
 	time::{TickTime, TimeUnits},

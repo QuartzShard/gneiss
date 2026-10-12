@@ -11,7 +11,7 @@ use core::slice;
 extern crate alloc;
 
 use crate::{
-	cell::SyncCell,
+	SyncCell,
 	resource::{ImageKey, PdcKey, PdcSeqKey},
 	sys,
 	ui::graphics::Colour,
