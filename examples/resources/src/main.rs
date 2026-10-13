@@ -7,13 +7,9 @@
 extern crate alloc;
 
 use alloc::{ffi::CString, vec::Vec};
-use core::{
-	ffi::c_void,
-	ptr,
-	sync::atomic::{AtomicPtr, AtomicU32, Ordering},
-};
 
 use gneiss::{
+	SyncCell,
 	alloc::PebbleAlloc,
 	resource::{
 		font::Font,
@@ -21,9 +17,10 @@ use gneiss::{
 		raw,
 	},
 	sys,
+	timer::Timer,
 	ui::{
-		AsLayer, BitmapLayer, DataLayer, Layer, Layout, Nav, StaticWindow, TextLayer, UiGuard,
-		Window, WindowCtx,
+		BitmapLayer, DataLayer, Layer, Layout, Nav, StaticWindow, TextLayer, UiGuard, Window,
+		WindowCtx,
 		graphics::{Colour, GContext, Point, Rectangle, Size},
 	},
 };
@@ -32,20 +29,20 @@ static ROOT: StaticWindow<Resources, ()> = StaticWindow::new();
 
 /// Matches the `spinner` resource's `frameDurationMs`.
 const SPINNER_STEP_MS: u32 = 60;
-const SPINNER_SIZE: u32 = 28;
 
-// Elapsed time into the spinner's sequence, advanced by a raw app timer until gneiss wraps timers.
-static SPINNER_MS: AtomicU32 = AtomicU32::new(0);
-static SPINNER_TIMER: AtomicPtr<sys::AppTimer> = AtomicPtr::new(ptr::null_mut());
+// Elapsed time into the spinner's sequence, advanced by the layout's timer.
+static SPINNER_MS: SyncCell<u32> = SyncCell::new(0);
 
 /// Everything on screen, created when the window loads and dropped when it unloads. Each layer owns
 /// the resource it shows, so nothing needs leaking.
 struct Resources {
-	_title:   TextLayer<CString>,
-	_image:   BitmapLayer,
-	_pbi:     BitmapLayer,
-	_ferris:  DataLayer<DrawCommand>,
-	_spinner: DataLayer<DrawCommandSequence>,
+	_title:         TextLayer<CString>,
+	_image:         BitmapLayer,
+	_pbi:           BitmapLayer,
+	_ferris:        DataLayer<DrawCommand>,
+	spinner:        DataLayer<DrawCommandSequence>,
+	// Dropping the timer cancels it, so it stops when the window unloads
+	_spinner_timer: Timer,
 }
 
 impl Layout for Resources {
@@ -112,8 +109,7 @@ impl Layout for Resources {
 		// fills it from the resource at draw time, so it scales with no palette
 		// and no decode buffer. The layer owns the image and draws it itself.
 		let ferris = DrawCommand::load(resources::FERRIS_PDC).expect("FERRIS_PDC declared");
-		let ferris_size = unsafe { sys::gdraw_command_image_get_bounds_size(ferris.as_ptr()) };
-		let ferris_size = Size::new(ferris_size.w as u32, ferris_size.h as u32);
+		let ferris_size = ferris.bounds();
 		let mut ferris_layer = DataLayer::new_with_data(
 			Rectangle::new(
 				Point::new(((width - ferris_size.width) / 2) as i32, 126),
@@ -126,28 +122,22 @@ impl Layout for Resources {
 		root.add_child(&mut ferris_layer);
 
 		// svg: a directory of frames compiles to a draw command sequence. The
-		// layer draws the frame for the elapsed time, and a repeating app timer
+		// layer draws the frame for the elapsed time, and a repeating timer
 		// advances that time.
 		let sequence =
 			DrawCommandSequence::load(resources::SPINNER_PDCS).expect("SPINNER_PDCS declared");
+		let spinner_size = sequence.bounds();
 		let mut spinner = DataLayer::new_with_data(
 			Rectangle::new(
-				Point::new((width - SPINNER_SIZE - 2) as i32, 4),
-				Size::new(SPINNER_SIZE, SPINNER_SIZE),
+				Point::new((width - spinner_size.width - 2) as i32, 4),
+				spinner_size,
 			),
 			sequence,
 		)
 		.expect("spinner layer");
 		spinner.set_draw(draw_spinner);
 		root.add_child(&mut spinner);
-		let timer = unsafe {
-			sys::app_timer_register(
-				SPINNER_STEP_MS,
-				Some(advance_spinner),
-				spinner.as_ptr().cast(),
-			)
-		};
-		SPINNER_TIMER.store(timer, Ordering::Relaxed);
+		let spinner_timer = Timer::repeating(SPINNER_STEP_MS, advance_spinner);
 
 		// a prebaked .pdc loads identically, image or sequence; nothing keeps this
 		// one, so it drops (and is destroyed) at the end of `load`
@@ -167,15 +157,9 @@ impl Layout for Resources {
 			_image: image,
 			_pbi: pbi,
 			_ferris: ferris_layer,
-			_spinner: spinner,
+			spinner,
+			_spinner_timer: spinner_timer,
 		}
-	}
-
-	fn unload(self, _ctx: &mut WindowCtx<'_, Self>) {
-		// The timer holds the spinner layer's pointer, so it stops before the layer goes
-		let timer = SPINNER_TIMER.load(Ordering::Relaxed);
-		SPINNER_TIMER.store(ptr::null_mut(), Ordering::Relaxed);
-		unsafe { sys::app_timer_cancel(timer) };
 	}
 }
 
@@ -190,17 +174,17 @@ fn draw_ferris(image: &DrawCommand, _bounds: Rectangle, ctx: &mut GContext<'_>) 
 }
 
 fn draw_spinner(sequence: &DrawCommandSequence, _bounds: Rectangle, ctx: &mut GContext<'_>) {
-	ctx.draw_pdc_sequence(sequence, SPINNER_MS.load(Ordering::Relaxed), Point::zero());
+	ctx.draw_pdc_sequence(sequence, SPINNER_MS.get(), Point::zero());
 }
 
-/// An app timer fires once, so re-register to keep going. The sequence's play
-/// count is `0xFFFF`, so the firmware wraps the elapsed time for us.
-unsafe extern "C" fn advance_spinner(layer: *mut c_void) {
-	let elapsed = SPINNER_MS.load(Ordering::Relaxed);
-	SPINNER_MS.store(elapsed.wrapping_add(SPINNER_STEP_MS), Ordering::Relaxed);
-	unsafe {
-		sys::layer_mark_dirty(layer.cast());
-		let timer = sys::app_timer_register(SPINNER_STEP_MS, Some(advance_spinner), layer);
-		SPINNER_TIMER.store(timer, Ordering::Relaxed);
-	}
+/// Step the spinner on and redraw it, then run again after the next step. The sequence's play count
+/// is `0xFFFF`, so the firmware wraps the elapsed time for us.
+fn advance_spinner() -> Option<u32> {
+	SPINNER_MS.set(SPINNER_MS.get().wrapping_add(SPINNER_STEP_MS));
+	ROOT.with(&mut UiGuard::enter(), |layout, _| {
+		if let Some(layout) = layout {
+			layout.spinner.mark_dirty();
+		}
+	});
+	Some(SPINNER_STEP_MS)
 }
