@@ -69,6 +69,8 @@ impl NewProject {
 		Self::toolchain(path).wrap_err("Failed to write rust-toolchain.toml")?;
 		Self::main_rs(path).wrap_err("Failed to write src/main.rs")?;
 		Self::build_rs(path).wrap_err("Failed to write build.rs")?;
+		std::fs::write(path.join(".gitignore"), "/target\n")
+			.wrap_err("Failed to write .gitignore")?;
 		Ok(())
 	}
 

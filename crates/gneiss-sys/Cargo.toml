@@ -2,7 +2,7 @@
 name              = "gneiss-sys"
 # Defines memcpy, the syscall table pointer and the app header: two copies can never link
 links             = "gneiss-sys"
-version           = "0.1.1"
+version           = "0.2.0"
 description       = "Raw PebbleOS app syscall bindings for gneiss"
 keywords          = ["pebble", "pebbleos", "ffi"]
 categories        = ["external-ffi-bindings", "embedded", "no-std"]

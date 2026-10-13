@@ -1,6 +1,6 @@
 [package]
 name              = "gneiss"
-version           = "0.1.1"
+version           = "0.2.0"
 description       = "Safe Rust SDK for Pebble watchapps and watchfaces"
 keywords          = ["pebble", "pebbleos", "smartwatch", "watchface"]
 categories        = ["embedded", "no-std"]
