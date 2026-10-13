@@ -12,7 +12,11 @@ extern crate alloc;
 
 use crate::{
 	SyncCell,
-	resource::{ImageKey, PdcKey, PdcSeqKey},
+	resource::{
+		ImageKey, PdcKey, PdcSeqKey,
+		persist::{__persist_pod, __recover_pod, Persist, PersistKey, Recover},
+	},
+	status::StatusError,
 	sys,
 	ui::graphics::{Colour, Size, size},
 };
@@ -60,6 +64,35 @@ impl SharedPalette {
 	/// Get a palette entry. NOP on OOB
 	pub fn get(&self, i: usize) -> Option<Colour> {
 		self.inner.get(i).map(|c| c.get())
+	}
+}
+
+/// Stored as its 16 colours, a byte each, in one key.
+impl Persist for SharedPalette {
+	fn persist(&self, key: PersistKey<Self>) -> Result<u32, StatusError> {
+		__persist_pod(&self.inner.each_ref().map(|c| c.get().argb), key.key())
+	}
+}
+
+impl SharedPalette {
+	/// Set every colour from the palette stored at `key`, in place, such as for a `static` palette
+	/// bitmaps already share. `false`, leaving the palette as it was, if `key` is unset. Bitmaps
+	/// using it show the new colours when next drawn: mark their layers dirty.
+	pub fn restore(&self, key: PersistKey<Self>) -> bool {
+		let Some(argb) = __recover_pod::<[u8; 16]>(key.key()) else {
+			return false;
+		};
+		for (cell, argb) in self.inner.iter().zip(argb) {
+			cell.set(Colour { argb });
+		}
+		true
+	}
+}
+
+impl Recover for SharedPalette {
+	fn recover(key: PersistKey<Self>) -> Option<Self> {
+		// Every byte is a colour
+		__recover_pod::<[u8; 16]>(key.key()).map(|argb| Self::new(argb.map(|argb| Colour { argb })))
 	}
 }
 

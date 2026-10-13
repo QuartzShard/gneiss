@@ -1,7 +1,9 @@
-//! The `#[entry]` and `#[service]` attribute macros, used as `gneiss::entry` and `gneiss::service`.
+//! The `#[entry]`, `#[service]` and `#[make_persistible]` attribute macros and `persist_keys!`,
+//! used through `gneiss`.
 #![allow(unused)]
 #![allow(clippy::needless_pass_by_value)]
 mod entry;
+mod persist;
 mod service;
 
 use proc_macro::TokenStream;
@@ -36,6 +38,51 @@ pub fn entry(attr: TokenStream, item: TokenStream) -> TokenStream {
 /// Subscribing the same service twice in one app is a link error.
 pub fn service(attr: TokenStream, item: TokenStream) -> TokenStream {
 	service::service(attr.into(), item.into()).into()
+}
+
+#[proc_macro]
+/// Declare the app's persist keys, numbered in order from 0 so no two collide, each with the type it
+/// stores. Once per app: a second invocation anywhere would share keys, so it's a link error. The
+/// app's exported `__gneiss_persist_keys`, a `u32`, holds the first key after the fixed entries,
+/// where a `[T; ..]` tail starts.
+///
+/// ```ignore
+/// gneiss::persist_keys! {
+///     /// One key holding an `i32`
+///     LAUNCHES: i32,
+///     /// 16 keys, `NOTES.get(0)` to `NOTES.get(15)`
+///     NOTES: [Note; 16],
+///     /// Every key after the rest, last only
+///     LOG: [Entry; ..],
+/// }
+/// ```
+///
+/// A plain entry is a `PersistKey`, `[T; len]` a `PersistBlock` and `[T; ..]` a `PersistTail`. `[T]`
+/// alone is one key holding a slice. Add new entries at the end: moving one reads another's stored
+/// value under its key. See `gneiss::resource::persist` for a worked example.
+pub fn persist_keys(input: TokenStream) -> TokenStream {
+	persist::persist_keys(input.into()).into()
+}
+
+#[proc_macro_attribute]
+/// Make a struct storable whole, in one persist key, as its bytes.
+///
+/// ```ignore
+/// #[gneiss::make_persistible]
+/// struct HighScores {
+///     top: [u32; 5],
+/// }
+/// ```
+///
+/// Adds `#[repr(C)]` unless the struct has `repr(C)` or `repr(transparent)` already (any other
+/// `repr` is an error), derives whichever of `Clone`, `Copy`, `bytemuck::Pod` and
+/// `bytemuck::Zeroable` it doesn't already derive, and implements `Persist` and `Recover`.
+///
+/// The struct must be at most 256 bytes. `Recover::recover_or_default` also needs it to implement
+/// `Default`. `Pod` rejects a struct with padding: order fields largest first, or add explicit
+/// padding fields. Generic structs aren't supported.
+pub fn make_persistible(attr: TokenStream, item: TokenStream) -> TokenStream {
+	persist::make_persistible(attr.into(), item.into()).into()
 }
 
 /// Parse an `, ident = true` shaped input, returning the value of the bool

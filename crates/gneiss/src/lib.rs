@@ -75,7 +75,10 @@
 	tuple_trait
 )]
 
-pub use gneiss_macros::{entry, service};
+/// For [`AsBytes`](resource::persist::AsBytes) and [`make_persistible`]. Derive its traits through
+/// this re-export with `#[bytemuck(crate = "gneiss::bytemuck")]`.
+pub use bytemuck;
+pub use gneiss_macros::{entry, make_persistible, persist_keys, service};
 pub use gneiss_sys as sys;
 pub use linkme;
 /// Present when building with `-Cpanic=immediate-abort`. `use gneiss::ufmt;` puts it in scope for

@@ -6,6 +6,7 @@ pub mod connection;
 pub mod dict;
 pub mod focus;
 pub mod health;
+pub mod status;
 pub mod time;
 pub mod touch;
 pub mod wakeup;

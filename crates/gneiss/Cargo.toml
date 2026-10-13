@@ -25,6 +25,7 @@ workspace = true
 gneiss-sys    = { workspace = true }
 gneiss-macros = { workspace = true }
 linkme        = { workspace = true }
+bytemuck      = { workspace = true, features = ["derive", "min_const_generics"] }
 bitflags = "2.13.2"
 embedded-graphics-core = "0.4"
 

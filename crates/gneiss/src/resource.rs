@@ -184,6 +184,7 @@ use core::num::NonZeroU32;
 
 pub mod font;
 pub mod image;
+pub mod persist;
 pub mod raw;
 
 /// A bitmap image resource.

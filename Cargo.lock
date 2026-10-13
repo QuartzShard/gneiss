@@ -1094,6 +1094,7 @@ name = "gneiss"
 version = "0.1.1"
 dependencies = [
  "bitflags 2.13.2",
+ "bytemuck",
  "embedded-graphics-core",
  "gneiss-macros",
  "gneiss-sys",
