@@ -87,6 +87,7 @@ pub mod alloc;
 
 pub mod log;
 pub mod service;
+pub mod timer;
 pub mod ui;
 
 pub mod link;

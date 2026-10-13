@@ -14,7 +14,7 @@ use crate::{
 	SyncCell,
 	resource::{ImageKey, PdcKey, PdcSeqKey},
 	sys,
-	ui::graphics::Colour,
+	ui::graphics::{Colour, Size, size},
 };
 
 /// A palette several bitmaps can share, set with [`GBitMap::set_shared_palette`]. It holds 16
@@ -156,6 +156,11 @@ impl DrawCommand {
 		}
 	}
 
+	/// The size the image draws within, from the point it's drawn at.
+	pub fn bounds(&self) -> Size {
+		size(unsafe { sys::gdraw_command_image_get_bounds_size(self.inner) })
+	}
+
 	/// The raw image, valid while this `DrawCommand` lives.
 	pub fn as_ptr(&self) -> *mut sys::GDrawCommandImage {
 		self.inner
@@ -181,6 +186,11 @@ impl DrawCommandSequence {
 		} else {
 			Some(DrawCommandSequence { inner })
 		}
+	}
+
+	/// The size every frame draws within, from the point it's drawn at.
+	pub fn bounds(&self) -> Size {
+		size(unsafe { sys::gdraw_command_sequence_get_bounds_size(self.inner) })
 	}
 
 	/// The raw sequence, valid while this `DrawCommandSequence` lives.

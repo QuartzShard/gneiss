@@ -14,6 +14,7 @@ extern crate alloc;
 use alloc::boxed::Box;
 use core::{
 	cell::Cell,
+	ffi,
 	marker::{PhantomData, Tuple},
 	mem,
 	ops::Deref,
@@ -63,67 +64,57 @@ impl<T: Default> Default for SyncCell<T> {
 	}
 }
 
-/// One allocation holding a typed header `H` and an erased value `T`, freed by an erased drop when
-/// this drops. `T` is only known where the box was made, and in shims made there.
-pub(crate) struct ErasedBox<'t, H = ()> {
-	ptr:  ErasedPtr<H>, // -> BoxState<H, T>
-	drop: Option<unsafe fn(ErasedPtr<H>)>,
-	_t:   PhantomData<&'t ()>,
-}
-
-/// An [`ErasedBox`]'s allocation. The header comes first, so a pointer to the whole is also a
-/// pointer to the header, readable without knowing `T`. `value` is only reached by casting back to
-/// `BoxState<H, T>` where `T` is known: its offset depends on `T`'s alignment.
-#[repr(C)]
-pub(crate) struct BoxState<H, T> {
-	header: H, // Metadata from the box's owner
-	value:  T, // The erased value, such as a closure and its captures, inline
-}
-
-impl<'t, H> ErasedBox<'t, H> {
-	pub(crate) fn new<T: 't>(header: H, value: T) -> Self {
-		unsafe fn drop_box<H, T>(ptr: ErasedPtr<H>) {
-			// SAFETY: ptr is the BoxState<H, T> made in new, dropped once
-			drop(unsafe { Box::from_raw_in(ptr.0.cast::<BoxState<H, T>>().as_ptr(), PebbleAlloc) });
-		}
-
-		// No allocation when BoxState<H, T> is a ZST: the pointer is dangling, aligned for it
-		let (ptr, _) =
-			Box::into_raw_with_allocator(Box::new_in(BoxState { header, value }, PebbleAlloc));
-		let needs_drop = size_of::<BoxState<H, T>>() != 0 || mem::needs_drop::<BoxState<H, T>>();
-
-		Self {
-			// SAFETY: from a Box, so not null
-			ptr:  ErasedPtr(unsafe { NonNull::new_unchecked(ptr) }.cast()),
-			drop: needs_drop.then_some(drop_box::<H, T> as unsafe fn(ErasedPtr<H>)),
-			_t:   PhantomData,
-		}
-	}
-}
-
-impl<H> Drop for ErasedBox<'_, H> {
-	fn drop(&mut self) {
-		if let Some(drop) = self.drop {
-			// SAFETY: ptr and drop were paired in new, and this is the only drop
-			unsafe { drop(self.ptr) };
-		}
-	}
-}
-
-/// Crate internal utility for `Box<dyn Fn>` shaped things, smaller than a vtable approach: an
-/// [`ErasedBox`] whose value is the closure, and the shim that calls it.
-pub(crate) struct ErasedFn<'f, S: Sig, H = ()> {
-	state: ErasedBox<'f, H>,
+/// Crate internal `Box<dyn FnMut>`, smaller than a vtable approach, for a closure gneiss calls
+/// through this handle, such as a click handler. The call and drop shims are written into the handle
+/// at runtime, so they need no load-time relocation, and a closure that captures nothing needs no
+/// allocation.
+///
+/// A closure called by the firmware, which only hands back a data pointer, needs [`ErasedCallback`].
+pub(crate) struct ErasedFn<'f, S: Sig, Header = ()> {
+	ptr:  ErasedPtr<Header>, // -> BoxState<Header, F>
 	// rust-call spreads the argument tuple over registers instead of passing a pointer to it
-	call:  for<'a, 'b> unsafe extern "rust-call" fn(ErasedPtr<H>, S::Args<'a, 'b>) -> S::Output,
-	_sig:  PhantomData<fn(S)>,
+	call: for<'a, 'b> unsafe extern "rust-call" fn(ErasedPtr<Header>, S::Args<'a, 'b>) -> S::Output,
+	drop: Option<unsafe fn(ErasedPtr<Header>)>,
+	_f:   PhantomData<&'f ()>,
 }
 
-/// The signature of an [`ErasedFn`]. `'b` is a short borrow of a context living for `'a`, such as
-/// `&'b mut Nav<'a>`
+/// Crate internal `Box<dyn FnMut>` for a closure the firmware calls back: the firmware is handed
+/// [`trampoline`](Self::trampoline), a C function made per closure type by the signature's
+/// [`CallbackSig`], and [`as_raw`](Self::as_raw) as its data, the pair a firmware registration takes.
+/// The trampoline gets the closure back from [`ErasedPtr`] alone, with [`ErasedPtr::call`] and
+/// [`ErasedPtr::free`]. Always allocates: the firmware holds the allocation's address.
+pub(crate) struct ErasedCallback<'f, S: CallbackSig, Header> {
+	ptr:        ErasedPtr<Header>, // -> BoxState<Header, F>
+	trampoline: unsafe extern "C" fn(*mut ffi::c_void),
+	drop:       Option<unsafe fn(ErasedPtr<Header>)>,
+	_f:         PhantomData<(&'f (), fn(S))>,
+}
+
+/// The allocation behind an [`ErasedFn`] or [`ErasedCallback`]. The header comes first, so a pointer to
+/// the whole is also a pointer to the header, readable without knowing `F`. `fun` is only reached by
+/// casting back to `BoxState<Header, F>` where `F` is known: its offset depends on `F`'s alignment.
+#[repr(C)]
+struct BoxState<Header, F> {
+	header: Header, // Metadata from the closure's owner
+	fun:    F,      // The closure and its captures, inline
+}
+
+/// The signature of an [`ErasedFn`] or [`ErasedCallback`]. `'b` is a short borrow of a context living
+/// for `'a`, such as `&'b mut Nav<'a>`
 pub(crate) trait Sig {
 	type Args<'a: 'b, 'b>: Tuple;
 	type Output;
+}
+
+/// A signature whose closures the firmware calls back, through a C trampoline made per closure
+/// type. Tying the trampoline to the signature means [`ErasedCallback::new`] instantiates it with the
+/// same `F` it boxes, so the two can't be mismatched.
+pub(crate) trait CallbackSig: Sig + Sized {
+	/// The firmware's callback for an `F`, given an [`ErasedCallback::as_raw`] pointer as its data.
+	///
+	/// # Safety
+	/// `data` must be a live [`ErasedCallback`]'s allocation holding an `F`.
+	unsafe extern "C" fn trampoline<F: Callable<Self>>(data: *mut ffi::c_void);
 }
 
 /// Calling an `F` with a [`Sig`]'s arguments. One blanket impl per signature, over the matching
@@ -132,39 +123,146 @@ pub(crate) trait Callable<S: Sig> {
 	fn call<'a: 'b, 'b>(&mut self, args: S::Args<'a, 'b>) -> S::Output;
 }
 
-impl<'f, S: Sig, H> ErasedFn<'f, S, H> {
-	pub(crate) fn new<F: Callable<S> + 'f>(header: H, f: F) -> Self {
+/// Box `fun` behind `header`, returning its pointer and the drop that frees it. A `BoxState` that is
+/// a ZST isn't allocated: the pointer is dangling, aligned for it, and there's nothing to drop.
+fn boxed<Header, F>(
+	header: Header,
+	fun: F,
+) -> (ErasedPtr<Header>, Option<unsafe fn(ErasedPtr<Header>)>) {
+	let (ptr, _) = Box::into_raw_with_allocator(Box::new_in(BoxState { header, fun }, PebbleAlloc));
+	let needs_drop =
+		size_of::<BoxState<Header, F>>() != 0 || mem::needs_drop::<BoxState<Header, F>>();
+	(
+		// SAFETY: from a Box, so not null
+		ErasedPtr(unsafe { NonNull::new_unchecked(ptr) }.cast()),
+		needs_drop.then_some(ErasedPtr::<Header>::free::<F> as unsafe fn(ErasedPtr<Header>)),
+	)
+}
+
+impl<'f, S: Sig, Header> ErasedFn<'f, S, Header> {
+	pub(crate) fn new<F: Callable<S> + 'f>(header: Header, f: F) -> Self {
+		let (ptr, drop) = boxed(header, f);
 		Self {
-			state: ErasedBox::new(header, f),
-			call:  ErasedPtr::<H>::call::<S, F>,
-			_sig:  PhantomData,
+			ptr,
+			call: ErasedPtr::<Header>::call_shim::<S, F>,
+			drop,
+			_f: PhantomData,
 		}
 	}
 
 	pub(crate) fn call<'a: 'b, 'b>(&mut self, args: S::Args<'a, 'b>) -> S::Output {
-		// SAFETY: the box and call were paired in new, and &mut self keeps the box live
-		unsafe { (self.call)(self.state.ptr, args) }
+		// SAFETY: the allocation and call were paired in new, and &mut self keeps the allocation live
+		// and excludes any other borrow of the closure
+		unsafe { (self.call)(self.ptr, args) }
 	}
 }
 
-/// Points to an [`ErasedBox`]'s `BoxState<H, T>`. An [`ErasedFn`]'s call shim is a method on it so
-/// it can use the `rust-call` ABI, which takes only `self` and a tuple.
+impl<S: Sig, Header> Drop for ErasedFn<'_, S, Header> {
+	fn drop(&mut self) {
+		if let Some(drop) = self.drop {
+			// SAFETY: the allocation and drop were paired in new, and this is the only drop
+			unsafe { drop(self.ptr) };
+		}
+	}
+}
+
+impl<'f, S: CallbackSig, Header> ErasedCallback<'f, S, Header> {
+	pub(crate) fn new<F: Callable<S> + 'f>(header: Header, f: F) -> Self {
+		let (ptr, drop) = boxed(header, f);
+		Self {
+			ptr,
+			trampoline: S::trampoline::<F>,
+			drop,
+			_f: PhantomData,
+		}
+	}
+
+	/// The C function to register with the firmware, alongside [`as_raw`](Self::as_raw).
+	pub(crate) fn trampoline(&self) -> unsafe extern "C" fn(*mut ffi::c_void) {
+		self.trampoline
+	}
+
+	/// The header. The closure is only ever borrowed alone, so it stays readable while that runs.
+	pub(crate) fn header(&self) -> &Header {
+		// SAFETY: &self keeps the allocation live, and nothing borrows the header mutably
+		unsafe { self.ptr.header() }
+	}
+
+	/// The allocation's pointer as a firmware callback's data, for the trampoline to turn back into
+	/// an [`ErasedPtr`] with [`ErasedPtr::from_raw`].
+	pub(crate) fn as_raw(&self) -> *mut ffi::c_void {
+		self.ptr.0.as_ptr().cast()
+	}
+}
+
+impl<S: CallbackSig, Header> Drop for ErasedCallback<'_, S, Header> {
+	fn drop(&mut self) {
+		if let Some(drop) = self.drop {
+			// SAFETY: the allocation and drop were paired in new, and this is the only drop
+			unsafe { drop(self.ptr) };
+		}
+	}
+}
+
+/// Points to an [`ErasedFn`]'s or [`ErasedCallback`]'s allocation: reaches the header without knowing
+/// the closure's type, and the closure itself where the type is known.
 #[repr(transparent)]
-pub(crate) struct ErasedPtr<H>(NonNull<H>);
-impl<H> Clone for ErasedPtr<H> {
+pub(crate) struct ErasedPtr<Header>(NonNull<Header>);
+impl<Header> Clone for ErasedPtr<Header> {
 	fn clone(&self) -> Self {
 		*self
 	}
 }
-impl<H> Copy for ErasedPtr<H> {}
-impl<H> ErasedPtr<H> {
-	unsafe extern "rust-call" fn call<S: Sig, F: Callable<S>>(
+impl<Header> Copy for ErasedPtr<Header> {}
+impl<Header> ErasedPtr<Header> {
+	/// The pointer back from a firmware callback's data.
+	///
+	/// # Safety
+	/// `raw` must come from [`ErasedCallback::as_raw`] on an `ErasedCallback<_, _, Header>`.
+	pub(crate) unsafe fn from_raw(raw: *mut ffi::c_void) -> Self {
+		// SAFETY: ErasedCallback::as_raw only ever gives a non-null pointer
+		Self(unsafe { NonNull::new_unchecked(raw.cast()) })
+	}
+
+	/// The header.
+	///
+	/// # Safety
+	/// The allocation must stay live for `'a`, and nothing may borrow the header mutably meanwhile.
+	pub(crate) unsafe fn header<'a>(self) -> &'a Header {
+		// SAFETY: the header is at the start of the allocation, which the caller keeps live
+		unsafe { self.0.as_ref() }
+	}
+
+	/// Call the closure, borrowing it alone so the header stays readable.
+	///
+	/// # Safety
+	/// The allocation must be live and hold an `F`, with no other borrow of the closure while it
+	/// runs.
+	pub(crate) unsafe fn call<S: Sig, F: Callable<S>>(self, args: S::Args<'_, '_>) -> S::Output {
+		// SAFETY: the caller vouches this is a live BoxState<Header, F> with its closure unborrowed
+		let f = unsafe { &mut (*self.0.cast::<BoxState<Header, F>>().as_ptr()).fun };
+		f.call(args)
+	}
+
+	/// Drop the header and closure, and free the allocation.
+	///
+	/// # Safety
+	/// The allocation must hold an `F`, be live with no borrow into it, and never be used again.
+	pub(crate) unsafe fn free<F>(self) {
+		// SAFETY: the caller vouches this is the BoxState<Header, F> made by `boxed`, freed once
+		drop(unsafe {
+			Box::from_raw_in(self.0.cast::<BoxState<Header, F>>().as_ptr(), PebbleAlloc)
+		});
+	}
+
+	/// [`call`](Self::call) as an [`ErasedFn`] stores it: a method, so it can use the `rust-call`
+	/// ABI, which takes only `self` and a tuple.
+	unsafe extern "rust-call" fn call_shim<S: Sig, F: Callable<S>>(
 		self,
 		args: S::Args<'_, '_>,
 	) -> S::Output {
-		// SAFETY: the pointer is the BoxState<H, F> made in ErasedBox::new, live until drop. Only the
-		// value is borrowed, so the header stays readable while it runs
-		let f = unsafe { &mut (*self.0.cast::<BoxState<H, F>>().as_ptr()).value };
-		f.call(args)
+		// SAFETY: ErasedFn::new paired this shim with its BoxState<Header, F>, and ErasedFn::call's
+		// &mut self excludes any other borrow of the closure
+		unsafe { self.call::<S, F>(args) }
 	}
 }
