@@ -15,7 +15,7 @@ use gneiss::{
 	link::{AppMessageEvent, BufferSizes, Outbox, SubscribeTo},
 	service::*,
 	time::{TickTime, TimeUnits},
-	ui::{Nav, StatusBoard, UiGuard},
+	ui::{StatusBoard, UiGuard, UiQueue},
 };
 
 #[repr(usize)]
@@ -37,7 +37,7 @@ struct MsgCtx {
 fn main(ui: &mut UiGuard) {
 	BOARD.init();
 	BOARD.set_line(ui, 0, "messageKeys demo");
-	Nav::new(ui).push(&BOARD, false);
+	UiQueue::new(ui).push(&BOARD, false);
 }
 
 // --- read side: keys drive get / get_array_slot / iter on the inbox handle ---

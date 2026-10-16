@@ -19,13 +19,13 @@ use gneiss::{
 	sys,
 	timer::Timer,
 	ui::{
-		BitmapLayer, DataLayer, Layer, Layout, Nav, StaticWindow, TextLayer, UiGuard, Window,
+		BitmapLayer, DataLayer, Layer, Layout, StaticWindow, TextLayer, UiGuard, UiQueue, Window,
 		WindowCtx,
 		graphics::{Colour, GContext, Point, Rectangle, Size},
 	},
 };
 
-static ROOT: StaticWindow<Resources, ()> = StaticWindow::new();
+static ROOT: StaticWindow<Resources> = StaticWindow::new();
 
 /// Matches the `spinner` resource's `frameDurationMs`.
 const SPINNER_STEP_MS: u32 = 60;
@@ -46,7 +46,7 @@ struct Resources {
 }
 
 impl Layout for Resources {
-	fn load(ctx: &mut WindowCtx<'_, Self>) -> Self {
+	fn load(ctx: &mut WindowCtx<'_>) -> Self {
 		let mut root = ctx.root();
 		let width = root.bounds().size.width;
 
@@ -166,7 +166,7 @@ impl Layout for Resources {
 #[gneiss::entry]
 fn main(ui: &mut UiGuard) {
 	ROOT.set(Window::new(None).expect("window created"));
-	Nav::new(ui).push(&ROOT, false);
+	UiQueue::new(ui).push(&ROOT, false);
 }
 
 fn draw_ferris(image: &DrawCommand, _bounds: Rectangle, ctx: &mut GContext<'_>) {

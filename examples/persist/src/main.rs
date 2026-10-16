@@ -14,7 +14,7 @@ use gneiss::{
 	sys,
 	time::{TickTime, TimeUnits},
 	ui::{
-		Layer, Layout, Nav, StaticWindow, TextAlignment, TextBuf, TextLayer, UiGuard, Window,
+		HeapText, Layer, Layout, StaticWindow, TextAlignment, TextLayer, UiGuard, UiQueue, Window,
 		WindowCtx,
 	},
 };
@@ -28,11 +28,11 @@ static ROOT: StaticWindow<Lifetime> = StaticWindow::new();
 static TOTAL: SyncCell<i32> = SyncCell::new(0);
 
 struct Lifetime {
-	text: TextLayer<TextBuf>,
+	text: TextLayer<HeapText>,
 }
 
 impl Layout for Lifetime {
-	fn load(ctx: &mut WindowCtx<'_, Self>) -> Self {
+	fn load(ctx: &mut WindowCtx<'_>) -> Self {
 		let mut root = ctx.root();
 		let mut text = TextLayer::new(root.bounds()).expect("text layer");
 		text.set_font(Font::system(sys::FONT_KEY_GOTHIC_28_BOLD))
@@ -43,7 +43,7 @@ impl Layout for Lifetime {
 		lifetime
 	}
 
-	fn unload(self, _ctx: &mut WindowCtx<'_, Self>) {
+	fn unload(self, _ctx: &mut WindowCtx<'_>) {
 		let _ = TOTAL.get().persist(SECONDS);
 	}
 }
@@ -85,5 +85,5 @@ fn on_tick(_time: TickTime, _changed: TimeUnits) {
 fn main(ui: &mut UiGuard) {
 	TOTAL.set(i32::recover_or_default(SECONDS));
 	ROOT.set(Window::new(None).expect("window"));
-	Nav::new(ui).push(&ROOT, false);
+	UiQueue::new(ui).push(&ROOT, false);
 }

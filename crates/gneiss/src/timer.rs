@@ -17,7 +17,7 @@
 //! #     redraw: Option<Timer>,
 //! # }
 //! # impl Layout for Stopwatch {
-//! #     fn load(_ctx: &mut WindowCtx<'_, Self>) -> Self {
+//! #     fn load(_ctx: &mut WindowCtx<'_>) -> Self {
 //! #         Self { since: None, redraw: None }
 //! #     }
 //! # }

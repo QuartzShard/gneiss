@@ -93,7 +93,7 @@ const VAL_OFFSET: usize = size_of::<Option<ErasedDrawFn>>();
 
 impl RootLayer {
 	/// The root layer of `win`.
-	pub fn from_ctx<C, D>(win: &mut WindowCtx<'_, C, D>) -> Self {
+	pub fn from_ctx<D>(win: &mut WindowCtx<'_, D>) -> Self {
 		let ptr = unsafe { sys::window_get_root_layer(win.ptr()) };
 		RootLayer { ptr }
 	}

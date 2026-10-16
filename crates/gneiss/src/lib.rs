@@ -14,14 +14,14 @@
 //! ```ignore
 //! #![no_std]
 //! #![no_main]
-//! use gneiss::ui::{Nav, StaticWindow, UiGuard, Window};
+//! use gneiss::ui::{UiQueue, StaticWindow, UiGuard, Window};
 //!
-//! static HOME: StaticWindow<Home, ()> = StaticWindow::new();
+//! static HOME: StaticWindow<Home> = StaticWindow::new();
 //!
 //! #[gneiss::entry]
 //! fn main(ui: &mut UiGuard) {
 //!     HOME.set(Window::new(None).expect("home window"));
-//!     Nav::new(ui).push(&HOME, false);
+//!     UiQueue::new(ui).push(&HOME, false);
 //! }
 //! ```
 //!
@@ -41,6 +41,9 @@
 //! - One per platform, as above. Exactly one is enabled in each build.
 //! - `debug-logs` (default): [`debug!`](log::debug) and [`verbose!`](log::verbose) log. Without it
 //!   they compile to nothing, gneiss's own included.
+//! - `trace-ui`: every window logs its `load`, `appear`, `disappear` and `unload`, the drop of its
+//!   handle and its destruction, as `ui <event> <window> <layout type>`, for tests to follow the UI
+//!   from the log. Without it, none of this is compiled in.
 //!
 //! # Concurrency & Cross-Task Sync
 //!
@@ -78,7 +81,7 @@
 /// For [`AsBytes`](resource::persist::AsBytes) and [`make_persistible`]. Derive its traits through
 /// this re-export with `#[bytemuck(crate = "gneiss::bytemuck")]`.
 pub use bytemuck;
-pub use gneiss_macros::{entry, make_persistible, persist_keys, service};
+pub use gneiss_macros::{entry, make_persistible, menu, persist_keys, service};
 pub use gneiss_sys as sys;
 pub use linkme;
 /// Present when building with `-Cpanic=immediate-abort`. `use gneiss::ufmt;` puts it in scope for

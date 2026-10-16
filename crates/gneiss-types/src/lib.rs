@@ -16,9 +16,9 @@
 
 use core::fmt;
 
-mod config;
 #[cfg(feature = "std")]
 pub mod build_script;
+mod config;
 pub mod header;
 #[cfg(feature = "std")]
 pub mod stm_crc32;

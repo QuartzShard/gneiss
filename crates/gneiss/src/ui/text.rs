@@ -22,16 +22,19 @@ pub enum TextAlignment {
 	Right  = sys::GTextAlignment_GTextAlignmentRight,
 }
 
-/// Growable text for a [`TextLayer`] whose text changes: edit it in place through
+/// Growable text on the heap, for a [`TextLayer`] whose text changes: edit it in place through
 /// [`TextLayer::text_mut`], e.g. with `write!`. NUL bytes are dropped. With
 /// `-Cpanic=immediate-abort` it is also a `ufmt::uWrite`, for `uwrite!` without `core::fmt`.
+///
+/// For text built and used straight away, such as a menu row formatted while it's drawn,
+/// [`StackText`] needs no allocation.
 #[derive(Default)]
-pub struct TextBuf {
+pub struct HeapText {
 	// empty, or NUL-terminated with no interior NUL
 	bytes: Vec<u8>,
 }
 
-impl TextBuf {
+impl HeapText {
 	/// Empty text. Allocates nothing until written to.
 	pub const fn new() -> Self {
 		Self { bytes: Vec::new() }
@@ -69,7 +72,7 @@ impl TextBuf {
 	}
 }
 
-impl Deref for TextBuf {
+impl Deref for HeapText {
 	type Target = CStr;
 
 	fn deref(&self) -> &CStr {
@@ -77,7 +80,7 @@ impl Deref for TextBuf {
 	}
 }
 
-impl fmt::Write for TextBuf {
+impl fmt::Write for HeapText {
 	fn write_str(&mut self, s: &str) -> fmt::Result {
 		self.push_str(s);
 		Ok(())
@@ -85,7 +88,7 @@ impl fmt::Write for TextBuf {
 }
 
 #[cfg(panic = "immediate-abort")]
-impl ufmt::uWrite for TextBuf {
+impl ufmt::uWrite for HeapText {
 	type Error = core::convert::Infallible;
 
 	fn write_str(&mut self, s: &str) -> Result<(), Self::Error> {
@@ -94,7 +97,7 @@ impl ufmt::uWrite for TextBuf {
 	}
 }
 
-impl From<&str> for TextBuf {
+impl From<&str> for HeapText {
 	fn from(s: &str) -> Self {
 		let mut buf = Self::with_capacity(s.len());
 		buf.push_str(s);
@@ -102,13 +105,120 @@ impl From<&str> for TextBuf {
 	}
 }
 
-impl From<String> for TextBuf {
+impl From<String> for HeapText {
 	/// Reuses the string's allocation.
 	fn from(s: String) -> Self {
 		let mut bytes = s.into_bytes();
 		bytes.retain(|&b| b != 0);
 		bytes.push(0);
 		Self { bytes }
+	}
+}
+
+/// Text of up to `N` bytes, held inline, so it needs no allocation: for text built and used
+/// straight away, such as a menu row formatted while it's drawn. Write to it with `write!`, or
+/// `uwrite!` with `-Cpanic=immediate-abort`.
+///
+/// Text that doesn't fit is cut at a character boundary, and the write returns an error. NUL bytes
+/// are dropped.
+#[repr(C)]
+pub struct StackText<const N: usize> {
+	// bytes and nul are contiguous, as N + 1 bytes: the text, then its NUL
+	bytes: [u8; N],
+	nul:   u8,
+	len:   usize,
+}
+
+impl<const N: usize> StackText<N> {
+	/// Empty text.
+	pub const fn new() -> Self {
+		Self {
+			bytes: [0; N],
+			nul:   0,
+			len:   0,
+		}
+	}
+
+	/// The text and NUL bytes, as one slice of N + 1.
+	fn buf(&self) -> &[u8] {
+		// SAFETY: repr(C) puts bytes at offset 0 and nul straight after it, with no padding as both
+		// are bytes
+		unsafe { core::slice::from_raw_parts((&raw const *self).cast(), N + 1) }
+	}
+
+	/// As for `buf`.
+	fn buf_mut(&mut self) -> &mut [u8] {
+		// SAFETY: as for buf
+		unsafe { core::slice::from_raw_parts_mut((&raw mut *self).cast(), N + 1) }
+	}
+
+	/// Empty the text.
+	pub fn clear(&mut self) {
+		self.len = 0;
+		self.buf_mut()[0] = 0;
+	}
+
+	/// Append as much of `s` as fits, dropping any NUL bytes. An error if some didn't fit.
+	pub fn push_str(&mut self, s: &str) -> fmt::Result {
+		let mut len = self.len;
+		let result = push_inline(self.buf_mut(), &mut len, s);
+		self.len = len;
+		result
+	}
+
+	/// The text, NUL-terminated.
+	pub fn as_c_str(&self) -> &CStr {
+		// SAFETY: buf[len] is the only NUL in buf[..=len]
+		unsafe { CStr::from_bytes_with_nul_unchecked(&self.buf()[..=self.len]) }
+	}
+}
+
+// Not generic over N, so every StackText size shares it
+fn push_inline(bytes: &mut [u8], len: &mut usize, s: &str) -> fmt::Result {
+	let mut end = s.len().min(bytes.len() - 1 - *len);
+	while !s.is_char_boundary(end) {
+		end -= 1;
+	}
+	for &b in &s.as_bytes()[..end] {
+		if b != 0 {
+			bytes[*len] = b;
+			*len += 1;
+		}
+	}
+	bytes[*len] = 0;
+	if end == s.len() {
+		Ok(())
+	} else {
+		Err(fmt::Error)
+	}
+}
+
+impl<const N: usize> Default for StackText<N> {
+	fn default() -> Self {
+		Self::new()
+	}
+}
+
+impl<const N: usize> Deref for StackText<N> {
+	type Target = CStr;
+
+	fn deref(&self) -> &CStr {
+		self.as_c_str()
+	}
+}
+
+impl<const N: usize> fmt::Write for StackText<N> {
+	fn write_str(&mut self, s: &str) -> fmt::Result {
+		self.push_str(s)
+	}
+}
+
+#[cfg(panic = "immediate-abort")]
+impl<const N: usize> ufmt::uWrite for StackText<N> {
+	type Error = fmt::Error;
+
+	fn write_str(&mut self, s: &str) -> Result<(), Self::Error> {
+		self.push_str(s)
 	}
 }
 

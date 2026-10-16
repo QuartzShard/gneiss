@@ -19,7 +19,7 @@ use gneiss::{
 	link::{self, AppMessageEvent},
 	service::*,
 	time::{TickTime, TimeUnits},
-	ui::{BoardLayout, BoardLines, Button, ClickKinds, Nav, StatusBoard, UiGuard},
+	ui::{BoardLayout, BoardLines, Button, ClickKinds, StatusBoard, UiGuard, UiQueue},
 	wakeup,
 };
 
@@ -114,7 +114,7 @@ fn main(ui: &mut UiGuard) {
 		}
 	});
 	BOARD.set_line(ui, Slot::Controls as usize, CONTROLS.get().line());
-	Nav::new(ui).push(&BOARD, false);
+	UiQueue::new(ui).push(&BOARD, false);
 }
 
 fn show(board: &mut BoardLayout<SLOTS>, lines: &mut BoardLines<SLOTS>, controls: Controls) {

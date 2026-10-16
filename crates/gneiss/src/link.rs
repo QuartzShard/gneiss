@@ -75,13 +75,16 @@ bitflags::bitflags! {
 
 /// Something that happened to an incoming or outgoing message.
 pub enum AppMessageEvent<'msg> {
-	/// A message arrived.
-	Received { inbox: DictHandle<'msg> },
+	Received {
+		inbox: DictHandle<'msg>,
+	},
 	/// A message arrived but couldn't be delivered, e.g. the inbox was too small.
-	Dropped { reason: AppMessageError },
-	/// The phone acknowledged the message in `outbox`.
-	Sent { outbox: DictHandle<'msg> },
-	/// The message in `outbox` wasn't delivered.
+	Dropped {
+		reason: AppMessageError,
+	},
+	Sent {
+		outbox: DictHandle<'msg>,
+	},
 	Failed {
 		outbox: DictHandle<'msg>,
 		reason: AppMessageError,
@@ -117,9 +120,7 @@ bitflags::bitflags! {
 /// for the most it allows.
 #[derive(Default, Clone, Copy)]
 pub struct BufferSizes {
-	/// The largest message that can be received.
 	pub inbox:  Option<u32>,
-	/// The largest message that can be sent.
 	pub outbox: Option<u32>,
 }
 

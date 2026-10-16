@@ -41,9 +41,9 @@ You can annotate free-standing functions with `gneiss::service(SomeService)` to 
 Name your message keys in Cargo.toml (`message_keys = ["Command", "Samples[8]"]` under `[package.metadata.pebble]`) and they're generated as typed keys in a `message_keys` module, and listed in the bundle for your phone-side companion. Receive with `AppMessageService`, send with `link::Outbox`. `examples/message_keys` shows both directions.
 
 ### UI
-A `Window<C, D>` loads a `C: Layout` when it's pushed and drops it when it leaves the stack, and keeps optional persistent data `D` for its whole life. Layouts own layers and shared resources, Layers own what they show: `TextLayer`, `BitmapLayer`, and `DataLayer<T>` for your own state drawn by your own function.
+A `Window<C>` loads a `C: Layout` when it's pushed and drops it when it leaves the stack, and keeps optional persistent data, the layout's `Data`, for its whole life. Layouts own layers and shared resources, Layers own what they show: `TextLayer`, `BitmapLayer`, and `DataLayer<T>` for your own state drawn by your own function.
 `ui::graphics` provides `GContext` drawing functionality, and implements an `embedded-graphics` compatible framebuffer over it. 
-Navigation is queued on a `Nav` and runs once the current handler returns. Anything that could otherwise alias a window's state takes a `UiGuard` token: give your `main` a `ui: &mut UiGuard` argument to set up and push your first window, since an app with no window on the stack exits.
+Navigation is queued on a `UiQueue` and runs once the current handler returns. Anything that could otherwise alias a window's state takes a `UiGuard` token: give your `main` a `ui: &mut UiGuard` argument to set up and push your first window, since an app with no window on the stack exits.
 `examples/resources` builds a whole screen this way.
 
 ### Resources

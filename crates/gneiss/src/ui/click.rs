@@ -15,7 +15,7 @@ use crate::{
 	sys,
 	types::{Callable, ErasedFn, Sig},
 	ui::{
-		Layout, Nav, NoWindow, UiGuard, Window,
+		Layout, NoWindow, UiGuard, UiQueue, Window,
 		window::{Header, WindowData, header},
 	},
 };
@@ -118,18 +118,18 @@ pub struct ClickHandler {
 enum ClickSig {}
 
 impl Sig for ClickSig {
-	type Args<'a: 'b, 'b> = (*mut Header, Click, &'b mut Nav<'a>);
+	type Args<'a: 'b, 'b> = (*mut Header, Click, &'b mut UiQueue<'a>);
 	type Output = ();
 }
 
-impl<F: for<'n> FnMut(*mut Header, Click, &mut Nav<'n>)> Callable<ClickSig> for F {
-	fn call<'a: 'b, 'b>(&mut self, (header, click, nav): <ClickSig as Sig>::Args<'a, 'b>) {
-		self(header, click, nav);
+impl<F: for<'n> FnMut(*mut Header, Click, &mut UiQueue<'n>)> Callable<ClickSig> for F {
+	fn call<'a: 'b, 'b>(&mut self, (header, click, queue): <ClickSig as Sig>::Args<'a, 'b>) {
+		self(header, click, queue);
 	}
 }
 
 impl ClickHandler {
-	fn new<F: for<'n> FnMut(*mut Header, Click, &mut Nav<'n>) + 'static>(
+	fn new<F: for<'n> FnMut(*mut Header, Click, &mut UiQueue<'n>) + 'static>(
 		subscribed: ClickKinds,
 		closure: F,
 	) -> Self {
@@ -140,7 +140,7 @@ impl ClickHandler {
 	}
 }
 
-impl<C: Layout<D>, D> Window<C, D> {
+impl<C: Layout> Window<C> {
 	/// Replace `button`'s click handler, subscribed to `kinds`. Takes effect immediately if the
 	/// window is on screen.
 	pub fn set_click_handler(
@@ -148,21 +148,21 @@ impl<C: Layout<D>, D> Window<C, D> {
 		ui: &mut UiGuard,
 		button: Button,
 		kinds: ClickKinds,
-		mut handler: impl for<'n> FnMut(&'n mut C, Option<&'n mut D>, Click, &mut Nav<'n>)
+		mut handler: impl for<'n> FnMut(&'n mut C, Option<&'n mut C::Data>, Click, &mut UiQueue<'n>)
 		+ NoWindow
 		+ 'static,
 	) {
-		// Internally tracks C,D while not carrying that on the handler's type
+		// Internally tracks C while not carrying that on the handler's type
 		let erased = ClickHandler::new(
 			kinds,
-			move |header: *mut Header, click, nav: &mut Nav<'_>| {
-				let window = header.cast::<WindowData<C, D>>();
-				// SAFETY: the header is the start of this window's WindowData<C, D>. The trampoline
+			move |header: *mut Header, click, queue: &mut UiQueue<'_>| {
+				let window = header.cast::<WindowData<C>>();
+				// SAFETY: the header is the start of this window's WindowData<C>. The trampoline
 				// borrows only the header's handlers, so these field borrows are the only others, and its
 				// UiGuard excludes every other borrow into the window
 				let (layout, data) = unsafe { (&mut (*window).layout, &mut (*window).data) };
 				if let Some(layout) = layout {
-					handler(layout, data.as_mut(), click, nav);
+					handler(layout, data.as_mut(), click, queue);
 				}
 			},
 		);
@@ -309,6 +309,6 @@ unsafe extern "C" fn click<const KIND: u8>(
 			Click::RawUp
 		}
 	};
-	let mut nav = Nav::new(&mut ui);
-	handler.fun.call((header, click, &mut nav));
+	let mut queue = UiQueue::new(&mut ui);
+	handler.fun.call((header, click, &mut queue));
 }

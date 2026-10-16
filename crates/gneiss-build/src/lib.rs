@@ -38,10 +38,9 @@ mod pbl_image;
 mod pbl_svg;
 mod pbl_vibe;
 pub use build_pbw::{app_info, message_keys_json, package_platform};
+pub use gneiss_types::build_script::{emit_platform_cfgs, platform_features, select_platform};
 
 use crate::{pbl_font::FontSettings, pbl_svg::SvgSettings};
-
-pub use gneiss_types::build_script::{emit_platform_cfgs, platform_features, select_platform};
 
 /// Whether the app's `[features]` table declares `platform` as a build target
 pub fn declares_platform(features: &BTreeMap<String, Vec<String>>, platform: Platform) -> bool {

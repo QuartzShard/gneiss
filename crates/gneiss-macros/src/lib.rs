@@ -1,8 +1,9 @@
-//! The `#[entry]`, `#[service]` and `#[make_persistible]` attribute macros and `persist_keys!`,
-//! used through `gneiss`.
+//! The `#[entry]`, `#[service]`, `#[menu]` and `#[make_persistible]` attribute macros and
+//! `persist_keys!`, used through `gneiss`.
 #![allow(unused)]
 #![allow(clippy::needless_pass_by_value)]
 mod entry;
+mod menu;
 mod persist;
 mod service;
 
@@ -83,6 +84,25 @@ pub fn persist_keys(input: TokenStream) -> TokenStream {
 /// padding fields. Generic structs aren't supported.
 pub fn make_persistible(attr: TokenStream, item: TokenStream) -> TokenStream {
 	persist::make_persistible(attr.into(), item.into()).into()
+}
+
+#[proc_macro_attribute]
+/// Implement `Menu`: put it on the `impl Menu for` block.
+///
+/// ```ignore
+/// #[gneiss::menu]
+/// impl Menu for Settings {
+///     type Data = SettingsData;
+///     fn get_num_rows(data: &SettingsData, _section: u16) -> u16 { data.len() }
+///     fn draw_row(data: &SettingsData, cell: &MenuCanvas<'_>, index: MenuIndex, ctx: &mut GContext<'_>) {}
+/// }
+/// ```
+///
+/// Each method left out is left unset for the firmware, which then uses its own default, rather
+/// than calling the trait's default body. `get_header_height` and `draw_header` must be written
+/// together, as must `get_separator_height` and `draw_separator`.
+pub fn menu(attr: TokenStream, item: TokenStream) -> TokenStream {
+	menu::menu(attr.into(), item.into()).into()
 }
 
 /// Parse an `, ident = true` shaped input, returning the value of the bool

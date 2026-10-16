@@ -4,7 +4,7 @@
 //!
 //! - `HOME` is a static window, pushed from `main`. Its persistent data `D` owns the detail
 //!   window, and counts how often it has been opened.
-//! - Select on home pushes the detail window from a click handler, through the `Nav` it is given,
+//! - Select on home pushes the detail window from a click handler, through the `UiQueue` it is given,
 //!   with `push_with`: the detail window's `appear` gets a starting count. The push runs once the
 //!   handler returns.
 //! - On the detail window, Up and Down change that count, held by its layout. Select pops it, as
@@ -17,11 +17,11 @@ extern crate alloc;
 use core::fmt::Write;
 
 use gneiss::ui::{
-	Button, Click, ClickKinds, Layer, Layout, Nav, StaticWindow, TextBuf, TextLayer, UiGuard,
+	Button, Click, ClickKinds, HeapText, Layer, Layout, StaticWindow, TextLayer, UiGuard, UiQueue,
 	Window, WindowCtx,
 };
 
-static HOME: StaticWindow<Home, HomeData> = StaticWindow::new();
+static HOME: StaticWindow<Home> = StaticWindow::new();
 
 /// Lives as long as the home window does.
 struct HomeData {
@@ -30,7 +30,7 @@ struct HomeData {
 }
 
 struct Home {
-	text: TextLayer<TextBuf>,
+	text: TextLayer<HeapText>,
 }
 
 impl Home {
@@ -45,15 +45,17 @@ impl Home {
 	}
 }
 
-impl Layout<HomeData> for Home {
-	fn load(ctx: &mut WindowCtx<'_, Self, HomeData>) -> Self {
+impl Layout for Home {
+	type Data = HomeData;
+
+	fn load(ctx: &mut WindowCtx<'_, HomeData>) -> Self {
 		let mut root = ctx.root();
 		let mut text = TextLayer::new(root.bounds()).expect("home text layer");
 		root.add_child(&mut text);
 		Self { text }
 	}
 
-	fn appear(&mut self, ctx: &mut WindowCtx<'_, Self, HomeData>, _arg: Option<()>) {
+	fn appear(&mut self, ctx: &mut WindowCtx<'_, HomeData>, _arg: Option<()>) {
 		let opened = ctx.data().map_or(0, |data| data.opened);
 		self.show(opened);
 	}
@@ -61,7 +63,7 @@ impl Layout<HomeData> for Home {
 
 /// Rebuilt every time the detail window is pushed; `appear` sets the count it starts from.
 struct Detail {
-	text:  TextLayer<TextBuf>,
+	text:  TextLayer<HeapText>,
 	count: i32,
 }
 
@@ -82,14 +84,14 @@ impl Layout for Detail {
 	/// The count to start from.
 	type Arg = i32;
 
-	fn load(ctx: &mut WindowCtx<'_, Self>) -> Self {
+	fn load(ctx: &mut WindowCtx<'_>) -> Self {
 		let mut root = ctx.root();
 		let mut text = TextLayer::new(root.bounds()).expect("detail text layer");
 		root.add_child(&mut text);
 		Self { text, count: 0 }
 	}
 
-	fn appear(&mut self, _ctx: &mut WindowCtx<'_, Self>, start: Option<i32>) {
+	fn appear(&mut self, _ctx: &mut WindowCtx<'_>, start: Option<i32>) {
 		if let Some(start) = start {
 			self.count = start;
 		}
@@ -110,17 +112,16 @@ fn main(ui: &mut UiGuard) {
 		detail.count -= 1;
 		detail.show();
 	});
-	detail.set_click_handler(ui, Button::Select, ClickKinds::SINGLE, |_, _, _, nav| {
-		nav.pop(true);
+	detail.set_click_handler(ui, Button::Select, ClickKinds::SINGLE, |_, _, _, queue| {
+		queue.pop(true);
 	});
 
-	let mut home =
-		Window::<Home, HomeData>::new(Some(HomeData { detail, opened: 0 })).expect("home window");
+	let mut home = Window::<Home>::new(Some(HomeData { detail, opened: 0 })).expect("home window");
 	home.set_click_handler(
 		ui,
 		Button::Select,
 		ClickKinds::SINGLE | ClickKinds::LONG,
-		|home, data, click, nav| {
+		|home, data, click, queue| {
 			let Some(data) = data else { return };
 			match click {
 				Click::Long => {
@@ -129,12 +130,12 @@ fn main(ui: &mut UiGuard) {
 				}
 				_ => {
 					data.opened += 1;
-					nav.push_with(&data.detail, data.opened as i32 * 10, true);
+					queue.push_with(&data.detail, data.opened as i32 * 10, true);
 				}
 			}
 		},
 	);
 
 	HOME.set(home);
-	Nav::new(ui).push(&HOME, false);
+	UiQueue::new(ui).push(&HOME, false);
 }

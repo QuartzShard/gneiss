@@ -1,6 +1,6 @@
 [package]
 name              = "gneiss"
-version           = "0.2.0"
+version           = "0.3.0"
 description       = "Safe Rust SDK for Pebble watchapps and watchfaces"
 keywords          = ["pebble", "pebbleos", "smartwatch", "watchface"]
 categories        = ["embedded", "no-std"]
@@ -40,6 +40,8 @@ gneiss-types = { workspace = true, features = ["std"] }
 default    = ["debug-logs"]
 # Without it, `debug!`/`verbose!` (including gneiss's own) compile to nothing
 debug-logs = []
+# Log every window's load, appear, disappear, unload, handle drop and destroy, for tests
+trace-ui   = []
 # Platform selection forwards to gneiss-sys, where the mutually-exclusive check
 # lives. An app enables exactly one; `gneiss::sys` then resolves for that board.
 emery   = ["gneiss-sys/emery"]

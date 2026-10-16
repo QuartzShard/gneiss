@@ -1,0 +1,37 @@
+[package]
+name = "menus"
+# authors[0] used as the watch-menu "company"
+authors = ["quartzshard"]
+version = "0.1.0"
+edition = "2024"
+
+[package.metadata.pebble]
+uuid = "948c8ddb-df7d-4ae3-b3d4-84ea1907a09c"
+watchface = false
+# This demo exercises menus, not resources; the table must
+# still be present, just empty.
+resources = {}
+
+[dependencies.gneiss]
+path = "../../crates/gneiss"
+
+[build-dependencies.gneiss-build]
+path = "../../crates/gneiss-build"
+features = []
+
+[features]
+default = ["emery"]
+emery = ["gneiss/emery"]
+flint = ["gneiss/flint"]
+chalk = ["gneiss/chalk"]
+basalt = ["gneiss/basalt"]
+aplite = ["gneiss/aplite"]
+
+[profile.release]
+opt-level = "z"
+lto = "fat"
+codegen-units = 1
+panic = "abort"
+strip = "none"
+overflow-checks = false
+trim-paths = "all"

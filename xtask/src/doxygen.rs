@@ -32,7 +32,8 @@ fn to_markdown(comment: &str) -> String {
 	for line in comment.lines() {
 		// bindgen trims the `//` of a `//!` comment, not the `!`
 		let line = line.strip_prefix('!').unwrap_or(line);
-		if !in_code && let Some((prose, _)) = line.split_once("\\code")
+		if !in_code
+			&& let Some((prose, _)) = line.split_once("\\code")
 			&& !prose.trim().is_empty()
 		{
 			out.push(format!(" {}", rewrite_words(prose)));
@@ -85,12 +86,15 @@ fn to_markdown(comment: &str) -> String {
 /// A `<h3>`/`<h4>` line as a Markdown heading.
 fn html_heading(line: &str) -> Option<String> {
 	let line = line.trim();
-	["h3", "h4"].iter().zip(["###", "####"]).find_map(|(tag, hashes)| {
-		let text = line
-			.strip_prefix(&format!("<{tag}>"))?
-			.strip_suffix(&format!("</{tag}>"))?;
-		Some(format!(" {hashes} {}", rewrite_words(text)))
-	})
+	["h3", "h4"]
+		.iter()
+		.zip(["###", "####"])
+		.find_map(|(tag, hashes)| {
+			let text = line
+				.strip_prefix(&format!("<{tag}>"))?
+				.strip_suffix(&format!("</{tag}>"))?;
+			Some(format!(" {hashes} {}", rewrite_words(text)))
+		})
 }
 
 /// One prose line, with each inline command replaced. Whitespace is collapsed, so a continuation

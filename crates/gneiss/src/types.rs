@@ -101,7 +101,7 @@ struct BoxState<Header, F> {
 }
 
 /// The signature of an [`ErasedFn`] or [`ErasedCallback`]. `'b` is a short borrow of a context living
-/// for `'a`, such as `&'b mut Nav<'a>`
+/// for `'a`, such as `&'b mut UiQueue<'a>`
 pub(crate) trait Sig {
 	type Args<'a: 'b, 'b>: Tuple;
 	type Output;

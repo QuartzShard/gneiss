@@ -26,8 +26,14 @@ pub extern "C" fn main() {
 		let bounds = layer_get_bounds(root);
 
 		let text_layer = text_layer_create(GRect {
-			origin: GPoint { x: 0, y: (bounds.size.h - 40) / 2 },
-			size:   GSize { w: bounds.size.w, h: 40 },
+			origin: GPoint {
+				x: 0,
+				y: (bounds.size.h - 40) / 2,
+			},
+			size:   GSize {
+				w: bounds.size.w,
+				h: 40,
+			},
 		});
 		text_layer_set_text(text_layer, c"Hello from raw gneiss-sys!".as_ptr());
 		text_layer_set_text_alignment(text_layer, GTextAlignment_GTextAlignmentCenter);

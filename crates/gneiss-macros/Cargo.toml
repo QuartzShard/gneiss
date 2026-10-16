@@ -1,6 +1,6 @@
 [package]
 name              = "gneiss-macros"
-version           = "0.2.0"
+version           = "0.3.0"
 description       = "Macros for gneiss, an SDK for pebble watches"
 edition.workspace = true
 license.workspace = true

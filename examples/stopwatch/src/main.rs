@@ -15,8 +15,8 @@ use gneiss::{
 	time::{FineDuration, FineTime},
 	timer::Timer,
 	ui::{
-		Button, ClickKinds, Layer, Layout, Nav, StaticWindow, TextAlignment, TextBuf, TextLayer,
-		UiGuard, Window, WindowCtx,
+		Button, ClickKinds, HeapText, Layer, Layout, StaticWindow, TextAlignment, TextLayer,
+		UiGuard, UiQueue, Window, WindowCtx,
 		graphics::{Point, Rectangle, Size},
 	},
 };
@@ -26,7 +26,7 @@ static STOPWATCH: StaticWindow<Stopwatch> = StaticWindow::new();
 const FRAME_MS: u32 = 30;
 
 struct Stopwatch {
-	display: TextLayer<TextBuf>,
+	display: TextLayer<HeapText>,
 	/// Time from earlier runs.
 	banked:  FineDuration,
 	/// When the current run started.
@@ -36,7 +36,7 @@ struct Stopwatch {
 }
 
 impl Layout for Stopwatch {
-	fn load(ctx: &mut WindowCtx<'_, Self>) -> Self {
+	fn load(ctx: &mut WindowCtx<'_>) -> Self {
 		let mut root = ctx.root();
 		let bounds = root.bounds();
 		let mut display = TextLayer::new(Rectangle::new(
@@ -130,5 +130,5 @@ fn main(ui: &mut UiGuard) {
 		},
 	);
 	STOPWATCH.set(window);
-	Nav::new(ui).push(&STOPWATCH, false);
+	UiQueue::new(ui).push(&STOPWATCH, false);
 }

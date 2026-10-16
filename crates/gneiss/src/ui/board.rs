@@ -8,13 +8,13 @@ use crate::{
 	resource::font::Font,
 	sys,
 	ui::{
-		Layer, Layout, StaticWindow, TextAlignment, TextBuf, TextLayer, UiGuard, Window, WindowCtx,
+		HeapText, Layer, Layout, StaticWindow, TextAlignment, TextLayer, UiGuard, Window, WindowCtx,
 	},
 };
 
 /// A status board window with `SLOTS` lines. Hold it in a `static`, [`init`](Self::init) it, push
 /// it, then [`set_line`](Self::set_line) from anywhere that has a [`UiGuard`].
-pub type StatusBoard<const SLOTS: usize> = StaticWindow<BoardLayout<SLOTS>, BoardLines<SLOTS>>;
+pub type StatusBoard<const SLOTS: usize> = StaticWindow<BoardLayout<SLOTS>>;
 
 /// The board's lines. They live as long as the window, loaded or not.
 pub struct BoardLines<const SLOTS: usize> {
@@ -23,7 +23,7 @@ pub struct BoardLines<const SLOTS: usize> {
 
 /// The board's layout: one text layer showing every line that is set, in slot order.
 pub struct BoardLayout<const SLOTS: usize> {
-	text: TextLayer<TextBuf>,
+	text: TextLayer<HeapText>,
 }
 
 impl<const SLOTS: usize> BoardLayout<SLOTS> {
@@ -43,7 +43,7 @@ impl<const SLOTS: usize> BoardLayout<SLOTS> {
 	}
 
 	fn render(&mut self, lines: &BoardLines<SLOTS>) {
-		let render = |text: &mut TextBuf| {
+		let render = |text: &mut HeapText| {
 			text.clear();
 			for line in lines.lines.iter().flatten() {
 				text.push_str(line);
@@ -54,8 +54,10 @@ impl<const SLOTS: usize> BoardLayout<SLOTS> {
 	}
 }
 
-impl<const SLOTS: usize> Layout<BoardLines<SLOTS>> for BoardLayout<SLOTS> {
-	fn load(ctx: &mut WindowCtx<'_, Self, BoardLines<SLOTS>>) -> Self {
+impl<const SLOTS: usize> Layout for BoardLayout<SLOTS> {
+	type Data = BoardLines<SLOTS>;
+
+	fn load(ctx: &mut WindowCtx<'_, BoardLines<SLOTS>>) -> Self {
 		let mut root = ctx.root();
 		let mut text = TextLayer::new(root.bounds()).expect("board text layer");
 		text.set_alignment(TextAlignment::Center)
@@ -83,10 +85,7 @@ impl<const SLOTS: usize> StatusBoard<SLOTS> {
 	///
 	/// # Panics
 	/// If the slot is already set, or the firmware is out of memory.
-	pub fn init_with(
-		&self,
-		configure: impl FnOnce(&mut Window<BoardLayout<SLOTS>, BoardLines<SLOTS>>),
-	) {
+	pub fn init_with(&self, configure: impl FnOnce(&mut Window<BoardLayout<SLOTS>>)) {
 		let lines = BoardLines {
 			lines: [const { None }; SLOTS],
 		};

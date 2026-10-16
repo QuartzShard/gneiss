@@ -206,18 +206,18 @@ impl NewProject {
 			extern crate alloc;
 
 			use gneiss::ui::{
-				Layer, Layout, Nav, StaticWindow, TextAlignment, TextLayer, UiGuard, Window, WindowCtx,
+				Layer, Layout, StaticWindow, TextAlignment, TextLayer, UiGuard, UiQueue, Window, WindowCtx,
 				graphics::{Point, Rectangle, Size},
 			};
 
-			static MAIN: StaticWindow<Main, ()> = StaticWindow::new();
+			static MAIN: StaticWindow<Main> = StaticWindow::new();
 
 			struct Main {
 				_text: TextLayer,
 			}
 
 			impl Layout for Main {
-				fn load(ctx: &mut WindowCtx<'_, Self>) -> Self {
+				fn load(ctx: &mut WindowCtx<'_>) -> Self {
 					let mut root = ctx.root();
 					let bounds = root.bounds();
 					let mut text = TextLayer::new(Rectangle::new(
@@ -235,7 +235,7 @@ impl NewProject {
 			#[gneiss::entry]
 			fn main(ui: &mut UiGuard) {
 				MAIN.set(Window::new(None).expect("main window"));
-				Nav::new(ui).push(&MAIN, false);
+				UiQueue::new(ui).push(&MAIN, false);
 			}
 		};
 		// prettyplease drops the blank lines between items

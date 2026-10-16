@@ -2,12 +2,14 @@
 //!
 //! # Windows and layouts
 //!
-//! The screen shows the top window of a stack. A [`Window<C, D>`](Window) owns two things:
+//! The screen shows the top window of a stack. A [`Window<C>`](Window) owns two things:
 //!
-//! - `D`, optional data that lives as long as the window does.
 //! - `C`, its [`Layout`]: the layers and any state needed only while the window is loaded. The
 //!   firmware loads a window when it's pushed and unloads it when it leaves the stack, and gneiss
 //!   builds `C` in [`Layout::load`] and drops it after [`Layout::unload`] to match.
+//! - The layout's [`Data`](Layout::Data), optional data that lives as long as the window does.
+//!   Layouts that need none leave it as `()`. [`NoLayout<D>`](NoLayout) is a window with data `D`
+//!   and nothing to load.
 //!
 //! [`Layout::appear`] and [`Layout::disappear`] run whenever the window comes on or goes off
 //! screen, including when another window is pushed over it or popped off it.
@@ -15,12 +17,12 @@
 //! ```no_run
 //! # use gneiss::ui::*;
 //! struct Counter {
-//!     text: TextLayer<TextBuf>,
+//!     text: TextLayer<HeapText>,
 //!     count: u32,
 //! }
 //!
 //! impl Layout for Counter {
-//!     fn load(ctx: &mut WindowCtx<'_, Self>) -> Self {
+//!     fn load(ctx: &mut WindowCtx<'_>) -> Self {
 //!         let mut root = ctx.root();
 //!         let mut text = TextLayer::new(root.bounds()).expect("text layer");
 //!         text.set_text("0");
@@ -44,28 +46,29 @@
 //! # Where windows live
 //!
 //! A window that has to outlive `main` lives in a [`StaticWindow`], or inside another window's
-//! `D`. A layout can't own a window ([`NoWindow`]): layouts are dropped when their window
+//! [`Data`](Layout::Data). A layout can't own a window ([`NoWindow`]): layouts are dropped when their window
 //! unloads, which happens partway through navigation.
 //!
 //! # Buttons
 //!
 //! [`Window::set_click_handler`] gives one button a closure, subscribed to the [`ClickKinds`] it
-//! wants. It runs with the layout, the window's data, the [`Click`] that happened, and a [`Nav`].
-//! Back pops the window unless you give it a handler.
+//! wants. It runs with the layout, the window's data, the [`Click`] that happened, and a
+//! [`UiQueue`]. Back pops the window unless you give it a handler.
 //!
 //! # Navigation
 //!
 //! Pushing or popping a window fires callbacks straight away: the old window's `disappear`, maybe
 //! its `unload`, then the new one's `load` and `appear`. From inside a callback that would hand out
-//! a second `&mut` to a layout that's still in use, so navigation is queued on a [`Nav`] and runs
-//! once the callback returns. [`Nav::push_with`] also hands the pushed window an argument, which its
-//! next `appear` receives.
+//! a second `&mut` to a layout that's still in use, so navigation is queued on a [`UiQueue`] and
+//! runs once the callback returns. [`UiQueue::push_with`] also hands the pushed window an argument,
+//! which its next `appear` receives.
 //!
 //! # The UI guard
 //!
-//! [`UiGuard`] is the token behind those rules. At most one exists, every window callback holds it
-//! while it runs, and anything that reaches into a window takes it as an argument. `main` is given
-//! one; a service handler takes its own with [`UiGuard::enter`].
+//! [`UiGuard`] is the token behind those rules. At most one exists: gneiss holds it around every
+//! UI callback it runs, `main` is given one, and anything else, such as a service handler or a
+//! timer, takes its own with [`UiGuard::enter`]. Anything that reaches into a window takes it as
+//! an argument.
 //!
 //! # Updating the screen from a service
 //!
@@ -77,14 +80,20 @@
 //!
 //! [`graphics`] draws with the firmware's own primitives through
 //! [`GContext`](graphics::GContext), or with `embedded-graphics` straight into the framebuffer.
-use crate::SyncCell;
+use core::ptr::NonNull;
+
+use crate::{
+	SyncCell, sys,
+	ui::window::{WindowData, header},
+};
 
 mod bitmap;
 mod board;
 mod click;
 pub mod graphics;
 mod layer;
-mod nav;
+mod menu;
+mod simple_menu;
 mod text;
 mod window;
 
@@ -92,18 +101,32 @@ pub use bitmap::{Align, BitmapLayer};
 pub use board::{BoardLayout, BoardLines, StatusBoard};
 pub use click::{Button, Click, ClickHandler, ClickHandlers, ClickKinds};
 pub use layer::{AsLayer, DataLayer, DrawFn, Layer, RootLayer};
-pub use nav::{Nav, NavAction};
-pub use text::{TextAlignment, TextBuf, TextLayer};
+#[doc(hidden)]
+pub use menu::__trampolines as __menu;
+pub use menu::{Menu, MenuAlign, MenuCanvas, MenuIndex, MenuRef, MenuWindow};
+pub use simple_menu::{
+	MenuItem, MenuList, MenuListFill, MenuSection, Sections, SimpleMenuData, SimpleMenuWindow,
+};
+pub use text::{HeapText, StackText, TextAlignment, TextLayer};
 pub use window::{
-	AnyWindow, Layout, NoWindow, StaticWindow, TypedWindow, Window, WindowCtx, WindowRef,
+	AnyWindow, Layout, LeakWindow, NoLayout, NoWindow, StaticWindow, TypedWindow, Window,
+	WindowCtx, WindowRef,
 };
 
 static UI_HELD: SyncCell<bool> = SyncCell::new(false);
+static UI_LENT: SyncCell<u8> = SyncCell::new(0);
 
-/// Permission to touch the UI: borrowing a layout, changing click handlers, navigating. At most one
-/// exists at a time, and every window callback holds one while it runs, so a `&mut UiGuard` proves
-/// no other code holds a borrow into any window, and a shared `&UiGuard` proves none is held
-/// mutably.
+/// No guard is held or lent: no window callback or queue is running.
+pub(super) fn ui_idle() -> bool {
+	!UI_HELD.get() && UI_LENT.get() == 0
+}
+
+/// Permission to touch the UI: borrowing a window's layout or data, changing click handlers,
+/// navigating, reloading a menu. At most one exists at a time. gneiss holds it around every UI
+/// callback it runs (window lifecycle, layer drawing, clicks, every menu callback),
+/// `#[gneiss::entry]` hands one to `main`, and anything else, such as a service handler or timer,
+/// takes its own with [`enter`](Self::enter). So a `&mut UiGuard` proves no other code holds a
+/// borrow into any window, and a shared `&UiGuard` proves none is held mutably.
 ///
 /// Some window-related actions can cause reentrant firing of handlers if they're caused from within
 /// one. This causes `&mut` aliasing UB if it happens, so this type is used as a proof of "good
@@ -127,7 +150,10 @@ static UI_HELD: SyncCell<bool> = SyncCell::new(false);
 /// Holding the token does not put you at risk of panic when an event happens: there's no
 /// preemption. Only reentrance will trigger it.
 ///
-/// Forgetting or otherwise leaking a guard makes every later window callback panic.
+/// A [`Window`] dropped while a guard is held is destroyed once the guard is released.
+///
+/// Forgetting or otherwise leaking a guard makes every later window callback panic, and keeps every
+/// [`Window`] dropped afterwards from being destroyed. Don't do that
 pub struct UiGuard(());
 
 impl UiGuard {
@@ -152,7 +178,9 @@ impl UiGuard {
 	)]
 	pub(crate) fn os_lend<R>(&mut self, f: impl FnOnce() -> R) -> R {
 		UI_HELD.set(false);
+		UI_LENT.set(UI_LENT.get() + 1);
 		let result = f();
+		UI_LENT.set(UI_LENT.get() - 1);
 		assert!(
 			!UI_HELD.replace(true),
 			"UiGuard leaked by a window callback"
@@ -164,5 +192,157 @@ impl UiGuard {
 impl Drop for UiGuard {
 	fn drop(&mut self) {
 		UI_HELD.set(false);
+		// The last guard: any window dropped while it was held can go now
+		if UI_LENT.get() == 0 {
+			window::destroy_dropped();
+		}
+	}
+}
+
+/// A deferred UI action. The `bool` is `animated`.
+#[derive(Clone, Copy)]
+pub enum UiAction<'n> {
+	Push(AnyWindow<'n>, bool),
+	Pop(bool),
+	PopAll(bool),
+	Remove(AnyWindow<'n>, bool),
+	/// Reload a [`MenuWindow`](MenuWindow)'s menu.
+	Reload(NonNull<sys::MenuLayer>),
+}
+
+/// UI actions deferred until the callback queuing them is done: navigation, and menu reloads.
+/// Actions run in the order they were queued when the `UiQueue` is dropped, which in a window
+/// callback is once the handler has returned and its borrows have ended. Handlers fired by an
+/// action run their own queue at that point, before the next action.
+///
+/// Holds up to [`UiQueue::CAPACITY`] actions; queuing more logs a warning and drops the new action.
+pub struct UiQueue<'n> {
+	actions: [Option<UiAction<'n>>; UiQueue::CAPACITY],
+	len:     usize,
+	ui:      &'n mut UiGuard,
+	// The menu whose select callback this queue was made for
+	menu:    Option<NonNull<sys::MenuLayer>>,
+}
+
+impl<'n> UiQueue<'n> {
+	/// How many actions one `UiQueue` can queue.
+	pub const CAPACITY: usize = 16;
+
+	/// An empty queue. It holds `ui` until it drops and runs its actions.
+	pub fn new(ui: &'n mut UiGuard) -> Self {
+		Self {
+			actions: [None; Self::CAPACITY],
+			len: 0,
+			ui,
+			menu: None,
+		}
+	}
+
+	/// A queue for `menu`'s select callback, which [`reload`](Self::reload) reloads.
+	pub(super) fn for_menu(ui: &'n mut UiGuard, menu: NonNull<sys::MenuLayer>) -> Self {
+		let mut queue = Self::new(ui);
+		queue.menu = Some(menu);
+		queue
+	}
+
+	fn queue(&mut self, action: UiAction<'n>) {
+		let Some(slot) = self.actions.get_mut(self.len) else {
+			crate::log::warn!("queue full");
+			return;
+		};
+		*slot = Some(action);
+		self.len += 1;
+	}
+
+	/// Push `window` onto the window stack.
+	pub fn push(&mut self, window: impl Into<AnyWindow<'n>>, animated: bool) {
+		self.queue(UiAction::Push(window.into(), animated));
+	}
+
+	/// Push `window`, handing `arg` to its next [`appear`](Layout::appear): straight after this push,
+	/// or later if the push doesn't bring it on screen. A newer `push_with` replaces an `arg` that
+	/// hasn't been handed over yet.
+	pub fn push_with<W: TypedWindow<'n>>(
+		&mut self,
+		window: W,
+		arg: <W::Layout as Layout>::Arg,
+		animated: bool,
+	) {
+		let window: AnyWindow<'n> = window.into();
+		// SAFETY: a TypedWindow is a live gneiss window of these types, so its user data is this
+		// WindowData. Only `pending` is touched, through a raw pointer: a running handler holds &mut
+		// to other fields only, and `pending` is read solely by the appear trampoline, which can't
+		// run until this queue drains
+		unsafe {
+			let data = sys::window_get_user_data(window.ptr).cast::<WindowData<W::Layout>>();
+			drop((&raw mut (*data).pending).replace(Some(arg)));
+		}
+		self.queue(UiAction::Push(window, animated));
+	}
+
+	/// Pop whichever window is on top of the stack when this action runs.
+	pub fn pop(&mut self, animated: bool) {
+		self.queue(UiAction::Pop(animated));
+	}
+
+	/// Pop every window on the stack when this action runs.
+	pub fn pop_all(&mut self, animated: bool) {
+		self.queue(UiAction::PopAll(animated));
+	}
+
+	/// Remove `window` from the window stack, wherever it is when this action runs.
+	pub fn remove(&mut self, window: impl Into<AnyWindow<'n>>, animated: bool) {
+		self.queue(UiAction::Remove(window.into(), animated));
+	}
+
+	/// Reload the menu whose select callback this queue was handed to, after changing its data, as
+	/// [`MenuRef::reload`](MenuRef::reload) does. Outside a menu's select callback, logs a
+	/// warning and does nothing: use [`reload_menu`](Self::reload_menu).
+	pub fn reload(&mut self) {
+		if let Some(menu) = self.menu {
+			self.queue(UiAction::Reload(menu));
+		} else {
+			crate::log::warn!("reload outside a menu's select callback");
+		}
+	}
+
+	/// Reload `window`'s menu after changing its data. Does nothing unless `window` is a
+	/// [`MenuWindow`](MenuWindow).
+	pub fn reload_menu(&mut self, window: impl Into<AnyWindow<'n>>) {
+		let window = window.into();
+		// SAFETY: every AnyWindow is a live gneiss window. Only its menu is read, which nothing
+		// writes after the window is made
+		if let Some(menu) = unsafe { (*header(window.ptr)).menu } {
+			self.queue(UiAction::Reload(menu));
+		}
+	}
+}
+
+impl Drop for UiQueue<'_> {
+	fn drop(&mut self) {
+		let actions = &self.actions;
+		self.ui.os_lend(|| {
+			for &action in actions.iter().flatten() {
+				// SAFETY: every AnyWindow borrows a Window that outlives 'n, and no layout can own a
+				// Window (NoWindow), so no earlier action can have destroyed a later target
+				unsafe {
+					match action {
+						UiAction::Push(window, animated) => {
+							sys::window_stack_push(window.ptr, animated);
+						}
+						UiAction::Pop(animated) => {
+							sys::window_stack_pop(animated);
+						}
+						UiAction::PopAll(animated) => sys::window_stack_pop_all(animated),
+						UiAction::Remove(window, animated) => {
+							sys::window_stack_remove(window.ptr, animated);
+						}
+						// Fires the menu's callbacks, which read its window's data: the handler that
+						// queued this has returned, so nothing borrows it
+						UiAction::Reload(menu) => sys::menu_layer_reload_data(menu.as_ptr()),
+					}
+				}
+			}
+		});
 	}
 }
