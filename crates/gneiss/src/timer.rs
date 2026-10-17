@@ -6,14 +6,13 @@
 //!
 //! ```no_run
 //! # use gneiss::{
-//! #     service::TickService,
-//! #     time::FineTime,
+//! #     time::{self, Timestamp},
 //! #     timer::Timer,
 //! #     ui::{Layout, StaticWindow, UiGuard, WindowCtx},
 //! # };
 //! # static STOPWATCH: StaticWindow<Stopwatch> = StaticWindow::new();
 //! # struct Stopwatch {
-//! #     since:  Option<FineTime>,
+//! #     since:  Option<Timestamp>,
 //! #     redraw: Option<Timer>,
 //! # }
 //! # impl Layout for Stopwatch {
@@ -27,7 +26,7 @@
 //!     fn start(&mut self) {
 //!         // The clock measures the time. The timer only redraws, so a late frame never skews the
 //!         // reading
-//!         self.since = Some(TickService::fine());
+//!         self.since = Some(time::now());
 //!         self.redraw = Some(Timer::repeating(FRAME_MS, || {
 //!             STOPWATCH.with(&mut UiGuard::enter(), |stopwatch, _| {
 //!                 if let Some(stopwatch) = stopwatch {

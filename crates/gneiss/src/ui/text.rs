@@ -166,11 +166,26 @@ impl<const N: usize> StackText<N> {
 		result
 	}
 
+	/// Replace the text with what `fill` writes into the whole buffer, its N + 1 bytes, as C text:
+	/// the text ends at the first NUL, or is cut to N bytes without one.
+	pub(crate) fn fill_c(&mut self, fill: impl FnOnce(&mut [u8])) {
+		fill(self.buf_mut());
+		self.len = terminate(self.buf_mut());
+	}
+
 	/// The text, NUL-terminated.
 	pub fn as_c_str(&self) -> &CStr {
 		// SAFETY: buf[len] is the only NUL in buf[..=len]
 		unsafe { CStr::from_bytes_with_nul_unchecked(&self.buf()[..=self.len]) }
 	}
+}
+
+// Not generic over N, so every StackText size shares it. The length of the C text in `buf`, after
+// NUL-terminating its last byte
+fn terminate(buf: &mut [u8]) -> usize {
+	let last = buf.len() - 1;
+	buf[last] = 0;
+	buf.iter().position(|&b| b == 0).unwrap_or(last)
 }
 
 // Not generic over N, so every StackText size shares it

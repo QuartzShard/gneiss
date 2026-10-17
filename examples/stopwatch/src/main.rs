@@ -10,9 +10,8 @@ use core::fmt::Write;
 
 use gneiss::{
 	resource::font::Font,
-	service::TickService,
 	sys,
-	time::{FineDuration, FineTime},
+	time::{self, TimeDelta, Timestamp},
 	timer::Timer,
 	ui::{
 		Button, ClickKinds, HeapText, Layer, Layout, StaticWindow, TextAlignment, TextLayer,
@@ -28,9 +27,9 @@ const FRAME_MS: u32 = 30;
 struct Stopwatch {
 	display: TextLayer<HeapText>,
 	/// Time from earlier runs.
-	banked:  FineDuration,
+	banked:  TimeDelta,
 	/// When the current run started.
-	since:   Option<FineTime>,
+	since:   Option<Timestamp>,
 	/// Redraws the display while running. Dropping it, here or when the window unloads, stops it.
 	redraw:  Option<Timer>,
 }
@@ -51,7 +50,7 @@ impl Layout for Stopwatch {
 
 		let mut stopwatch = Self {
 			display,
-			banked: FineDuration::ZERO,
+			banked: TimeDelta::ZERO,
 			since: None,
 			redraw: None,
 		};
@@ -70,7 +69,7 @@ impl Stopwatch {
 	}
 
 	fn start(&mut self) {
-		self.since = Some(TickService::fine());
+		self.since = Some(time::now());
 		self.redraw = Some(Timer::repeating(FRAME_MS, || {
 			STOPWATCH.with(&mut UiGuard::enter(), |stopwatch, _| {
 				if let Some(stopwatch) = stopwatch {
@@ -84,16 +83,16 @@ impl Stopwatch {
 
 	fn stop(&mut self) {
 		if let Some(since) = self.since.take() {
-			self.banked += TickService::fine() - since;
+			self.banked += time::now() - since;
 		}
 		self.redraw = None;
 		self.show();
 	}
 
 	fn reset(&mut self) {
-		self.banked = FineDuration::ZERO;
+		self.banked = TimeDelta::ZERO;
 		if self.since.is_some() {
-			self.since = Some(TickService::fine());
+			self.since = Some(time::now());
 		}
 		self.show();
 	}
@@ -101,7 +100,7 @@ impl Stopwatch {
 	fn show(&mut self) {
 		let running = self
 			.since
-			.map_or(FineDuration::ZERO, |since| TickService::fine() - since);
+			.map_or(TimeDelta::ZERO, |since| time::now() - since);
 		let ms = (self.banked + running).as_millis();
 		self.display.text_mut(|text| {
 			text.clear();

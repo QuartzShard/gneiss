@@ -29,7 +29,7 @@ pub fn entry(attr: TokenStream, item: TokenStream) -> TokenStream {
 ///
 /// ```ignore
 /// #[gneiss::service(TickService, enabled_at_boot = true, time::TimeUnits::MINUTES)]
-/// fn on_minute(time: time::TickTime, _changed: time::TimeUnits) {}
+/// fn on_minute(time: time::DateTime, _changed: time::TimeUnits) {}
 /// ```
 ///
 /// The first argument names the service. An optional `enabled_at_boot` flag may be specified,

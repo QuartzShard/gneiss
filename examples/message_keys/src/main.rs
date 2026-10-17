@@ -14,7 +14,7 @@ use alloc::format;
 use gneiss::{
 	link::{AppMessageEvent, BufferSizes, Outbox, SubscribeTo},
 	service::*,
-	time::{TickTime, TimeUnits},
+	time::{DateTime, TimeUnits},
 	ui::{StatusBoard, UiGuard, UiQueue},
 };
 
@@ -98,7 +98,7 @@ fn on_message(event: AppMessageEvent, ctx: Option<&mut MsgCtx>) {
 // --- write side: build an outbox under the same keys and send it ---
 
 #[gneiss::service(TickService, TimeUnits::SECONDS)]
-fn on_tick(time: TickTime, _changed: TimeUnits) {
+fn on_tick(time: DateTime, _changed: TimeUnits) {
 	// SAFETY: no DictHandle view is live here; the buffers are open (the
 	// AppMessage service opened them at registration).
 	let Some(mut outbox) = (unsafe { Outbox::open() }) else {
@@ -110,7 +110,7 @@ fn on_tick(time: TickTime, _changed: TimeUnits) {
 		return;
 	};
 	let _ = outbox.set(message_keys::Status, c"tick");
-	let _ = outbox.set(message_keys::Uptime, &(time.tm_sec as u32));
+	let _ = outbox.set(message_keys::Uptime, &u32::from(time.second()));
 	for i in 0..8 {
 		if let Some(slot) = message_keys::Samples.get(i) {
 			let _ = outbox.set(slot, &(i as i32));
@@ -119,7 +119,7 @@ fn on_tick(time: TickTime, _changed: TimeUnits) {
 	BOARD.set_line(
 		&mut UiGuard::enter(),
 		Slot::Sent as usize,
-		format!("Sent: uptime={}s + 8 samples", time.tm_sec),
+		format!("Sent: uptime={}s + 8 samples", time.second()),
 	);
 	// outbox drops here -> app_message_outbox_send
 }

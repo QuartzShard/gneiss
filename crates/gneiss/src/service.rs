@@ -9,7 +9,7 @@
 //! # use gneiss::{service::*, time};
 //! # gneiss::__doctest_slices!();
 //! #[gneiss::service(TickService, time::TimeUnits::MINUTES)]
-//! fn on_minute(_time: time::TickTime, _changed: time::TimeUnits) {
+//! fn on_minute(_time: time::DateTime, _changed: time::TimeUnits) {
 //!     // ...
 //! }
 //! ```
@@ -44,7 +44,7 @@
 //! # use gneiss::{service::*, time};
 //! # gneiss::__doctest_slices!();
 //! #[gneiss::service(TickService, enabled_at_boot = false, time::TimeUnits::MINUTES)]
-//! fn on_tick(_time: time::TickTime, _changed: time::TimeUnits) {}
+//! fn on_tick(_time: time::DateTime, _changed: time::TimeUnits) {}
 //!
 //! fn faster() {
 //!     TickService::subscribe(time::TimeUnits::SECONDS);
@@ -58,7 +58,7 @@
 //!
 //! A service only exists on watches with the hardware behind it: [`CompassService`] with
 //! `cfg(pbl_compass)`, [`HealthService`] with `cfg(pbl_health)` and [`TouchService`] with
-//! `cfg(pbl_touch)`.
+//! `cfg(pbl_touch)`. [`UnobstructedService`] exists on every watch but aplite.
 use core::{ffi, marker::PhantomData, mem::MaybeUninit, ptr};
 
 #[cfg(any(pbl_touch, pbl_health))]
@@ -67,6 +67,8 @@ use crate::SyncCell;
 use crate::health;
 #[cfg(pbl_touch)]
 use crate::touch;
+#[cfg(not(pbl_platform_aplite))]
+use crate::unobstructed;
 use crate::{accel, battery, compass, connection, focus, link, sys, time, wakeup};
 
 /// The context of a service that carries none.
@@ -225,7 +227,7 @@ pub trait Peekable: Service {
 /// # use gneiss::{service::*, time};
 /// # gneiss::__doctest_slices!();
 /// #[gneiss::service(TickService, time::TimeUnits::HOURS)]
-/// fn hourly(_time: time::TickTime, _changed: time::TimeUnits) {
+/// fn hourly(_time: time::DateTime, _changed: time::TimeUnits) {
 ///     // ...
 /// }
 /// ```
@@ -233,7 +235,7 @@ pub struct TickService;
 impl Sealed for TickService {}
 impl Service for TickService {
 	type Context = NoneT;
-	type Handler = fn(time::TickTime, time::TimeUnits);
+	type Handler = fn(time::DateTime, time::TimeUnits);
 	type RawHandler = unsafe extern "C" fn(*mut sys::tm, sys::TimeUnits);
 	type SubscribeArg = time::TimeUnits;
 
@@ -244,12 +246,12 @@ impl Service for TickService {
 }
 runtime_subscribe!(TickService, tick_timer_service_unsubscribe);
 impl Peekable for TickService {
-	type Output = time::TickTime;
+	type Output = time::DateTime;
 	type PeekArgs = ();
 
+	/// The local date and time now.
 	fn peek(_arg: Self::PeekArgs) -> Self::Output {
-		// SAFETY: Time returns i32, &i32 is always valid, localtime has no documented fail state
-		unsafe { *sys::localtime(&sys::time(ptr::null_mut())) }
+		time::now().local()
 	}
 }
 #[macro_export]
@@ -261,7 +263,7 @@ macro_rules! TickService_raw {
 			// SAFETY: *mut tm is valid for the duration of the callback, after which it is
 			// cleaned up - reading now is valid and correct, passing as a ref could escape.
 			$f(
-				unsafe { tm.read() },
+				unsafe { $crate::time::DateTime::from_raw(tm.read()) },
 				::gneiss::time::TimeUnits::from_bits_retain(unit),
 			)
 		}
@@ -649,6 +651,77 @@ macro_rules! ConnectionService_raw {
 				}
 			}
 			(__gneiss_connection_app, __gneiss_connection_pebblekit)
+		}
+	};
+}
+
+/// Called as the unobstructed area changes: as a system overlay, such as Timeline Quick View, slides
+/// over the bottom of the screen or away again. Lay the window out to
+/// [`Layer::unobstructed_bounds`](crate::ui::Layer::unobstructed_bounds) to keep it visible.
+#[cfg(not(pbl_platform_aplite))]
+pub struct UnobstructedService;
+#[cfg(not(pbl_platform_aplite))]
+impl Sealed for UnobstructedService {}
+#[cfg(not(pbl_platform_aplite))]
+impl Service for UnobstructedService {
+	type Context = NoneT;
+	type Handler = fn(unobstructed::Event);
+	type RawHandler = fn() -> (
+		unsafe extern "C" fn(sys::GRect, *mut ffi::c_void),
+		unsafe extern "C" fn(sys::AnimationProgress, *mut ffi::c_void),
+		unsafe extern "C" fn(*mut ffi::c_void),
+	);
+	type SubscribeArg = unobstructed::SubscribeTo;
+
+	fn register(f: Self::RawHandler, a: Self::SubscribeArg) {
+		crate::log::debug!("Registering UnobstructedService handler;");
+		let handlers = f();
+		let handlers = sys::UnobstructedAreaHandlers {
+			will_change: a
+				.contains(unobstructed::SubscribeTo::WILL)
+				.then_some(handlers.0),
+			change:      a
+				.contains(unobstructed::SubscribeTo::CHANGING)
+				.then_some(handlers.1),
+			did_change:  a
+				.contains(unobstructed::SubscribeTo::DID)
+				.then_some(handlers.2),
+		};
+		unsafe { sys::unobstructed_area_service_subscribe(handlers, ptr::null_mut()) }
+	}
+}
+#[cfg(not(pbl_platform_aplite))]
+runtime_subscribe!(UnobstructedService, unobstructed_area_service_unsubscribe);
+#[macro_export]
+#[doc(hidden)]
+macro_rules! UnobstructedService_raw {
+	(handler: $f: ident, raw_handler: $r: ident, service: $s: ty, config: $c: ident) => {
+		$crate::__export_handler!(UnobstructedService, $s, $r);
+		fn $r() -> (
+			unsafe extern "C" fn($crate::sys::GRect, *mut ::core::ffi::c_void),
+			unsafe extern "C" fn($crate::sys::AnimationProgress, *mut ::core::ffi::c_void),
+			unsafe extern "C" fn(*mut ::core::ffi::c_void),
+		) {
+			unsafe extern "C" fn __gneiss_unobstructed_will(
+				area: $crate::sys::GRect,
+				_: *mut ::core::ffi::c_void,
+			) {
+				$f($crate::unobstructed::Event::__will_change(area))
+			}
+			unsafe extern "C" fn __gneiss_unobstructed_changing(
+				progress: $crate::sys::AnimationProgress,
+				_: *mut ::core::ffi::c_void,
+			) {
+				$f($crate::unobstructed::Event::__changing(progress))
+			}
+			unsafe extern "C" fn __gneiss_unobstructed_did(_: *mut ::core::ffi::c_void) {
+				$f($crate::unobstructed::Event::DidChange)
+			}
+			(
+				__gneiss_unobstructed_will,
+				__gneiss_unobstructed_changing,
+				__gneiss_unobstructed_did,
+			)
 		}
 	};
 }

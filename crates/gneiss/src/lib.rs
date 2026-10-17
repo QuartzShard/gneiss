@@ -91,10 +91,12 @@ pub use ufmt;
 
 pub mod alloc;
 
+pub mod light;
 pub mod log;
 pub mod service;
 pub mod timer;
 pub mod ui;
+pub mod vibes;
 
 pub mod link;
 

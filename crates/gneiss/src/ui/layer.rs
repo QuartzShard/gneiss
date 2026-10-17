@@ -29,6 +29,10 @@ pub trait Layer: AsLayer {
 	fn mark_dirty(&mut self);
 	/// The layer's own coordinate space, which its drawing uses.
 	fn bounds(&self) -> Rectangle;
+	/// The part of [`bounds`](Self::bounds) not covered by system overlays, such as Timeline Quick
+	/// View. [`UnobstructedService`](crate::service::UnobstructedService) reports changes.
+	#[cfg(not(pbl_platform_aplite))]
+	fn unobstructed_bounds(&self) -> Rectangle;
 	/// The layer's position and size in its parent.
 	fn frame(&self) -> Rectangle;
 	/// Move or resize the layer within its parent.
@@ -48,6 +52,11 @@ impl<T: AsLayer> Layer for T {
 
 	fn bounds(&self) -> Rectangle {
 		rect(unsafe { sys::layer_get_bounds(self.as_ptr()) })
+	}
+
+	#[cfg(not(pbl_platform_aplite))]
+	fn unobstructed_bounds(&self) -> Rectangle {
+		rect(unsafe { sys::layer_get_unobstructed_bounds(self.as_ptr()) })
 	}
 
 	fn frame(&self) -> Rectangle {

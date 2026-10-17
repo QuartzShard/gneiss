@@ -7,8 +7,11 @@ pub mod dict;
 pub mod focus;
 pub mod health;
 pub mod status;
+pub mod system;
 pub mod time;
 pub mod touch;
+#[cfg(not(pbl_platform_aplite))]
+pub mod unobstructed;
 pub mod wakeup;
 
 extern crate alloc;

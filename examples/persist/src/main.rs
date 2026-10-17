@@ -12,7 +12,7 @@ use gneiss::{
 	},
 	service::TickService,
 	sys,
-	time::{TickTime, TimeUnits},
+	time::{DateTime, TimeUnits},
 	ui::{
 		HeapText, Layer, Layout, StaticWindow, TextAlignment, TextLayer, UiGuard, UiQueue, Window,
 		WindowCtx,
@@ -72,7 +72,7 @@ fn hh_mm_ss(seconds: i32) -> [u8; 8] {
 }
 
 #[gneiss::service(TickService, TimeUnits::SECONDS)]
-fn on_tick(_time: TickTime, _changed: TimeUnits) {
+fn on_tick(_time: DateTime, _changed: TimeUnits) {
 	TOTAL.set(TOTAL.get() + 1);
 	ROOT.with(&mut UiGuard::enter(), |lifetime, _| {
 		if let Some(lifetime) = lifetime {

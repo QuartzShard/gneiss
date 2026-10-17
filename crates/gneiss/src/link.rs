@@ -43,13 +43,13 @@
 //! # gneiss::__doctest_slices!();
 //! # mod message_keys { use gneiss::dict::SingleKey; pub const Status: SingleKey = SingleKey::new(1); pub const Minute: SingleKey = SingleKey::new(2); }
 //! #[gneiss::service(TickService, TimeUnits::MINUTES)]
-//! fn on_minute(time: TickTime, _changed: TimeUnits) {
+//! fn on_minute(time: DateTime, _changed: TimeUnits) {
 //!     // SAFETY: no DictHandle is live outside the AppMessage handler
 //!     let Some(mut outbox) = (unsafe { Outbox::open() }) else {
 //!         return; // the last message is still in flight
 //!     };
 //!     let _ = outbox.set(message_keys::Status, c"tick");
-//!     let _ = outbox.set(message_keys::Minute, &time.tm_min);
+//!     let _ = outbox.set(message_keys::Minute, &i32::from(time.minute()));
 //! } // sends here
 //! ```
 //!

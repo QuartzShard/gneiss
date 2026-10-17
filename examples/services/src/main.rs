@@ -18,7 +18,7 @@ use gneiss::{
 	SyncCell, accel, battery, connection, focus, health,
 	link::{self, AppMessageEvent},
 	service::*,
-	time::{TickTime, TimeUnits},
+	time::{DateTime, TimeUnits},
 	ui::{BoardLayout, BoardLines, Button, ClickKinds, StatusBoard, UiGuard, UiQueue},
 	wakeup,
 };
@@ -136,13 +136,15 @@ fn set_sensors(on: bool) {
 // --- config + handler ---
 
 #[gneiss::service(TickService, TimeUnits::SECONDS)]
-fn on_tick(time: TickTime, _changed: TimeUnits) {
+fn on_tick(time: DateTime, _changed: TimeUnits) {
 	BOARD.set_line(
 		&mut UiGuard::enter(),
 		Slot::Tick as usize,
 		format!(
 			"Tick: {:02}:{:02}:{:02}",
-			time.tm_hour, time.tm_min, time.tm_sec
+			time.hour(),
+			time.minute(),
+			time.second()
 		),
 	);
 }

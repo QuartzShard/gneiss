@@ -64,7 +64,7 @@ pub enum Button {
 impl Button {
 	const ALL: [Self; 4] = [Self::Back, Self::Up, Self::Select, Self::Down];
 
-	fn from_raw(id: sys::ButtonId) -> Option<Self> {
+	pub(crate) fn from_raw(id: sys::ButtonId) -> Option<Self> {
 		match id {
 			sys::ButtonId_BUTTON_ID_BACK => Some(Self::Back),
 			sys::ButtonId_BUTTON_ID_UP => Some(Self::Up),
