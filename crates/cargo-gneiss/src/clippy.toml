@@ -1,0 +1,12 @@
+# Under -Cpanic=immediate-abort these print no diagnostics: point at gneiss's logging versions
+disallowed-methods = [
+	{ path = "core::option::Option::unwrap", reason = "use pbl_unwrap() from gneiss::prelude: under immediate-abort, unwrap() prints no diagnostics" },
+	{ path = "core::option::Option::expect", reason = "use pbl_expect(c\"...\") from gneiss::prelude: under immediate-abort, expect() prints no diagnostics" },
+	{ path = "core::result::Result::unwrap", reason = "use pbl_unwrap() from gneiss::prelude: under immediate-abort, unwrap() prints no diagnostics" },
+	{ path = "core::result::Result::expect", reason = "use pbl_expect(c\"...\") from gneiss::prelude: under immediate-abort, expect() prints no diagnostics" },
+]
+disallowed-macros = [
+	{ path = "core::panic", reason = "use pbl_panic! from gneiss::prelude: under immediate-abort, panic! prints no diagnostics" },
+	{ path = "core::assert", reason = "use pbl_assert! from gneiss::prelude: under immediate-abort, assert! prints no diagnostics" },
+	{ path = "core::unreachable", reason = "use pbl_panic! from gneiss::prelude: under immediate-abort, unreachable! prints no diagnostics" },
+]

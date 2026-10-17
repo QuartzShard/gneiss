@@ -21,11 +21,7 @@ impl From<sys::HealthEventType> for Event {
 			sys::HealthEventType_HealthEventSleepUpdate => Self::Sleep,
 			sys::HealthEventType_HealthEventHeartRateUpdate => Self::HeartRate,
 			sys::HealthEventType_HealthEventHRVUpdate => Self::HRV,
-			#[expect(
-				clippy::panic,
-				reason = "FFI Boundary: Value outside of known variants"
-			)]
-			_ => panic!("Invalid Event variant"),
+			_ => crate::fail::gneiss_panic!("invalid health Event variant"),
 		}
 	}
 }

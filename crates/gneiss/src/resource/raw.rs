@@ -3,7 +3,7 @@ extern crate alloc;
 use alloc::{boxed::Box, vec::Vec};
 use core::{alloc::Allocator, ops::Deref};
 
-use crate::{resource::RawBytesKey, sys};
+use crate::{fail::PblUnwrap, resource::RawBytesKey, sys};
 
 #[derive(Clone, Copy)]
 /// A raw bytes resource, opened for reading.
@@ -104,8 +104,10 @@ impl<const SIZE: usize> Deref for Chunk<SIZE> {
 ///
 /// # Panics
 /// If handed an invalid `ResourceID` (but any resource type may be used as a `RawBytesKey`)
+#[track_caller]
 pub fn load_all<A: Allocator>(key: RawBytesKey, alloc: A) -> Option<Box<[u8], A>> {
-	let ResourceHandle { handle, len } = ResourceHandle::load(key).expect("Invalid resource id");
+	let ResourceHandle { handle, len } =
+		ResourceHandle::load(key).pbl_expect(c"invalid resource id");
 
 	if len == 0 {
 		return None;

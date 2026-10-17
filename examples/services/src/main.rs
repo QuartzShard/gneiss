@@ -7,19 +7,18 @@
 //! Companion to the `resources` example.
 extern crate alloc;
 
-use alloc::format;
 use core::num::NonZeroU32;
 
 #[cfg(pbl_compass)]
-use gneiss::compass;
+use gneiss::prelude::*;
 #[cfg(pbl_touch)]
 use gneiss::touch;
 use gneiss::{
-	SyncCell, accel, battery, connection, focus, health,
+	SyncCell, accel, battery, compass, connection, focus, health,
 	link::{self, AppMessageEvent},
 	service::*,
 	time::{DateTime, TimeUnits},
-	ui::{BoardLayout, BoardLines, Button, ClickKinds, StatusBoard, UiGuard, UiQueue},
+	ui::{BoardLayout, BoardLines, Button, ClickKinds, HeapText, StatusBoard, UiGuard, UiQueue},
 	wakeup,
 };
 
@@ -50,7 +49,8 @@ const TICK_UNITS: [(TimeUnits, &str); 3] = [
 	(TimeUnits::MINUTES, "min"),
 	(TimeUnits::HOURS, "hour"),
 ];
-const ACCEL_BATCH: NonZeroU32 = NonZeroU32::new(25).unwrap();
+// SAFETY: 25 isn't 0
+const ACCEL_BATCH: NonZeroU32 = unsafe { NonZeroU32::new(25).unwrap_unchecked() };
 
 /// What the buttons have set.
 #[derive(Clone, Copy)]
@@ -61,8 +61,8 @@ struct Controls {
 }
 
 impl Controls {
-	fn line(self) -> alloc::string::String {
-		format!(
+	fn line(self) -> HeapText {
+		pbl_fmt_alloc!(
 			"Sensors: {} | Tick: {}",
 			if self.sensors { "on" } else { "off" },
 			TICK_UNITS[self.tick].1
@@ -90,9 +90,17 @@ fn main(ui: &mut UiGuard) {
 				set_sensors(now.sensors);
 				if let Some(lines) = lines {
 					let state = if now.sensors { "on" } else { "off" };
-					board.set_line(lines, Slot::Accel as usize, format!("Accel: {state}"));
+					board.set_line(
+						lines,
+						Slot::Accel as usize,
+						pbl_fmt_alloc!("Accel: {state}"),
+					);
 					#[cfg(pbl_compass)]
-					board.set_line(lines, Slot::Compass as usize, format!("Compass: {state}"));
+					board.set_line(
+						lines,
+						Slot::Compass as usize,
+						pbl_fmt_alloc!("Compass: {state}"),
+					);
 					show(board, lines, now);
 				}
 			},
@@ -125,7 +133,7 @@ fn set_sensors(on: bool) {
 	if on {
 		AccelDataService::subscribe(ACCEL_BATCH);
 		#[cfg(pbl_compass)]
-		CompassService::subscribe(compass::DeltaAngle::from_degrees(10).unwrap());
+		CompassService::subscribe(compass::DeltaAngle::from_degrees(10).pbl_unwrap());
 	} else {
 		AccelDataService::unsubscribe();
 		#[cfg(pbl_compass)]
@@ -140,7 +148,7 @@ fn on_tick(time: DateTime, _changed: TimeUnits) {
 	BOARD.set_line(
 		&mut UiGuard::enter(),
 		Slot::Tick as usize,
-		format!(
+		pbl_fmt_alloc!(
 			"Tick: {:02}:{:02}:{:02}",
 			time.hour(),
 			time.minute(),
@@ -155,13 +163,13 @@ fn on_accel(batch: &[accel::AccelData]) {
 		BOARD.set_line(
 			&mut UiGuard::enter(),
 			Slot::Accel as usize,
-			format!("Accel: {},{},{}", s.x(), s.y(), s.z()),
+			pbl_fmt_alloc!("Accel: {},{},{}", s.x(), s.y(), s.z()),
 		);
 	}
 }
 
 #[cfg(pbl_compass)]
-#[gneiss::service(CompassService, compass::DeltaAngle::from_degrees(10).unwrap())]
+#[gneiss::service(CompassService, compass::DeltaAngle::from_degrees(10).pbl_unwrap())]
 fn on_compass(heading: compass::HeadingData) {
 	// The emulator's compass calls this from inside a subscribe, which Select does from its click
 	// handler while the guard is held
@@ -178,7 +186,7 @@ fn on_compass(heading: compass::HeadingData) {
 				225..315 => "W",
 				_ => "?",
 			};
-			format!("Compass: {deg} {dir}")
+			pbl_fmt_alloc!("Compass: {deg} {dir}")
 		}
 		_ => "Compass: unavailable".into(),
 	};
@@ -199,7 +207,7 @@ fn on_battery(charge: battery::BatteryChargeState) {
 	BOARD.set_line(
 		&mut UiGuard::enter(),
 		Slot::Battery as usize,
-		format!("Batt: {}%{}", charge.charge_percent, tag),
+		pbl_fmt_alloc!("Batt: {}%{}", charge.charge_percent, tag),
 	);
 }
 
@@ -210,7 +218,7 @@ fn on_backlight(on: bool) {
 	BOARD.set_line(
 		&mut UiGuard::enter(),
 		Slot::Backlight as usize,
-		format!("Light: {}", if on { "on" } else { "off" }),
+		pbl_fmt_alloc!("Light: {}", if on { "on" } else { "off" }),
 	);
 }
 
@@ -228,7 +236,7 @@ fn on_tap(axis: accel::Axis, dir: accel::Direction) {
 	BOARD.set_line(
 		&mut UiGuard::enter(),
 		Slot::Tap as usize,
-		format!("Tap: {axis}{sign}"),
+		pbl_fmt_alloc!("Tap: {axis}{sign}"),
 	);
 }
 
@@ -245,7 +253,7 @@ fn on_focus(event: focus::Event) {
 	BOARD.set_line(
 		&mut UiGuard::enter(),
 		Slot::Focus as usize,
-		format!("Focus: {s}"),
+		pbl_fmt_alloc!("Focus: {s}"),
 	);
 }
 
@@ -260,7 +268,7 @@ fn on_connection(event: connection::Event) {
 	BOARD.set_line(
 		&mut UiGuard::enter(),
 		Slot::Connection as usize,
-		format!("Conn: {s}"),
+		pbl_fmt_alloc!("Conn: {s}"),
 	);
 }
 
@@ -271,7 +279,7 @@ fn on_wake(id: wakeup::WakeupId, cookie: wakeup::Cookie) {
 	BOARD.set_line(
 		&mut UiGuard::enter(),
 		Slot::Wakeup as usize,
-		format!("Wake: id={} cookie={}", id.0, cookie.0),
+		pbl_fmt_alloc!("Wake: id={} cookie={}", id.0, cookie.0),
 	);
 }
 
@@ -292,7 +300,7 @@ fn on_touch(event: touch::Event, ctx: Option<&mut TouchCtx>) {
 	BOARD.set_line(
 		&mut UiGuard::enter(),
 		Slot::Touch as usize,
-		format!("Touch: #{} {kind} ({},{})", ctx.0, event.x, event.y),
+		pbl_fmt_alloc!("Touch: #{} {kind} ({},{})", ctx.0, event.x, event.y),
 	);
 }
 
@@ -311,7 +319,7 @@ fn on_health(event: health::Event, ctx: Option<&mut HealthCtx>) {
 	BOARD.set_line(
 		&mut UiGuard::enter(),
 		Slot::Health as usize,
-		format!("Health: #{} {s}", ctx.0),
+		pbl_fmt_alloc!("Health: #{} {s}", ctx.0),
 	);
 }
 
@@ -321,7 +329,7 @@ fn on_message(event: AppMessageEvent<'_>, _ctx: Option<&mut ()>) {
 		BOARD.set_line(
 			&mut UiGuard::enter(),
 			Slot::Message as usize,
-			format!("Msg: {} tuples", inbox.iter().count()),
+			pbl_fmt_alloc!("Msg: {} tuples", inbox.iter().count()),
 		);
 	}
 }

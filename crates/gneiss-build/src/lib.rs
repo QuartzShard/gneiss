@@ -33,11 +33,13 @@ pub const RELEASE_TRAIN: &str = concat!(
 use uuid::Uuid;
 
 mod build_pbw;
+mod fmt_check;
 mod pbl_font;
 mod pbl_image;
 mod pbl_svg;
 mod pbl_vibe;
 pub use build_pbw::{app_info, message_keys_json, package_platform};
+pub use fmt_check::{FmtReport, fmt_report};
 pub use gneiss_types::build_script::{emit_platform_cfgs, platform_features, select_platform};
 
 use crate::{pbl_font::FontSettings, pbl_svg::SvgSettings};
@@ -245,8 +247,9 @@ impl ResourceType {
 			ResourceType::Svg(_) | ResourceType::Pdc if pdc_was_animated => quote!(PdcSeqKey),
 			ResourceType::Svg(_) | ResourceType::Pdc => quote!(PdcKey),
 		};
+		// SAFETY (of the generated code): resource ids start at 1, so `pos` is never 0
 		quote! {
-			resource::#key = resource::#key(NonZeroU32::new(#pos).expect("resource ids start at 1"))
+			resource::#key = resource::#key(unsafe { NonZeroU32::new(#pos).unwrap_unchecked() })
 		}
 	}
 }

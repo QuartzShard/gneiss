@@ -9,13 +9,12 @@
 //! - writing: `Outbox::open` + `set` build a reply/message under the same keys.
 extern crate alloc;
 
-use alloc::format;
-
 use gneiss::{
 	link::{AppMessageEvent, BufferSizes, Outbox, SubscribeTo},
+	prelude::*,
 	service::*,
 	time::{DateTime, TimeUnits},
-	ui::{StatusBoard, UiGuard, UiQueue},
+	ui::{HeapText, StatusBoard, UiGuard, UiQueue},
 };
 
 #[repr(usize)]
@@ -64,7 +63,11 @@ fn on_message(event: AppMessageEvent, ctx: Option<&mut MsgCtx>) {
 			BOARD.set_line(
 				&mut guard,
 				Slot::Recv as usize,
-				format!("Recv #{n}: cmd={cmd:?} s0={first_sample:?} tuples={tuples}"),
+				pbl_fmt_alloc!(
+					"Recv #{n}: cmd={} s0={} tuples={tuples}",
+					or_none(cmd),
+					or_none(first_sample)
+				),
 			);
 		}
 		AppMessageEvent::Sent { .. } => {
@@ -75,23 +78,31 @@ fn on_message(event: AppMessageEvent, ctx: Option<&mut MsgCtx>) {
 			BOARD.set_line(
 				&mut guard,
 				Slot::Event as usize,
-				format!("Event: sent {n} ok"),
+				pbl_fmt_alloc!("Event: sent {n} ok"),
 			);
 		}
 		AppMessageEvent::Failed { reason, .. } => {
 			BOARD.set_line(
 				&mut guard,
 				Slot::Event as usize,
-				format!("Event: send failed {reason:#x}"),
+				pbl_fmt_alloc!("Event: send failed {:#x}", reason.bits()),
 			);
 		}
 		AppMessageEvent::Dropped { reason } => {
 			BOARD.set_line(
 				&mut guard,
 				Slot::Event as usize,
-				format!("Event: inbox dropped {reason:#x}"),
+				pbl_fmt_alloc!("Event: inbox dropped {:#x}", reason.bits()),
 			);
 		}
+	}
+}
+
+/// `value`, or `none`
+fn or_none(value: Option<impl Into<i32>>) -> HeapText {
+	match value {
+		Some(value) => pbl_fmt_alloc!("{}", value.into()),
+		None => "none".into(),
 	}
 }
 
@@ -119,7 +130,7 @@ fn on_tick(time: DateTime, _changed: TimeUnits) {
 	BOARD.set_line(
 		&mut UiGuard::enter(),
 		Slot::Sent as usize,
-		format!("Sent: uptime={}s + 8 samples", time.second()),
+		pbl_fmt_alloc!("Sent: uptime={}s + 8 samples", time.second()),
 	);
 	// outbox drops here -> app_message_outbox_send
 }

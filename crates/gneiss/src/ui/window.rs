@@ -6,6 +6,7 @@ use core::{any::TypeId, cell::Cell, ffi::c_void, marker::PhantomData, mem, ptr::
 use crate::{
 	SyncCell,
 	alloc::PebbleAlloc,
+	fail::PblUnwrap,
 	sys,
 	ui::{ClickHandlers, UiGuard, layer::RootLayer},
 };
@@ -369,7 +370,7 @@ fn trace(event: &str, window: *mut sys::Window, layout: &str) {
 // once per call; UiGuard rules out reentrancy
 impl<C: Layout> Window<C> {
 	unsafe extern "C" fn __load(window: *mut sys::Window) {
-		let _ui = UiGuard::enter();
+		let _ui = UiGuard::enter_internal();
 		trace_ui!("load", window, C);
 		let (layout, data) = unsafe {
 			let w = Self::window_data(window);
@@ -380,7 +381,7 @@ impl<C: Layout> Window<C> {
 	}
 
 	unsafe extern "C" fn __appear(window: *mut sys::Window) {
-		let _ui = UiGuard::enter();
+		let _ui = UiGuard::enter_internal();
 		trace_ui!("appear", window, C);
 		let (layout, data, pending) = unsafe {
 			let w = Self::window_data(window);
@@ -392,7 +393,7 @@ impl<C: Layout> Window<C> {
 	}
 
 	unsafe extern "C" fn __disappear(window: *mut sys::Window) {
-		let _ui = UiGuard::enter();
+		let _ui = UiGuard::enter_internal();
 		trace_ui!("disappear", window, C);
 		let (layout, data) = unsafe {
 			let w = Self::window_data(window);
@@ -404,7 +405,7 @@ impl<C: Layout> Window<C> {
 	}
 
 	unsafe extern "C" fn __unload(window: *mut sys::Window) {
-		let _ui = UiGuard::enter();
+		let _ui = UiGuard::enter_internal();
 		trace_ui!("unload", window, C);
 		let (layout, data) = unsafe {
 			let w = Self::window_data(window);
@@ -551,6 +552,7 @@ impl<C: Layout> StaticWindow<C> {
 	///
 	/// # Panics
 	/// If the slot is already set.
+	#[track_caller]
 	pub fn set(&self, window: impl LeakWindow<C>) {
 		slot_set(&self.inner, window.leak());
 	}
@@ -559,6 +561,7 @@ impl<C: Layout> StaticWindow<C> {
 	///
 	/// # Panics
 	/// If the slot has not been set.
+	#[track_caller]
 	pub fn get(&self) -> AnyWindow<'static> {
 		slot_get(&self.inner)
 	}
@@ -567,6 +570,7 @@ impl<C: Layout> StaticWindow<C> {
 	///
 	/// # Panics
 	/// If the slot has not been set.
+	#[track_caller]
 	pub fn borrow<'g>(&self, ui: &'g UiGuard) -> Option<WindowRef<'g, C>> {
 		self.get().downcast(ui)
 	}
@@ -576,6 +580,7 @@ impl<C: Layout> StaticWindow<C> {
 	///
 	/// # Panics
 	/// If the slot has not been set.
+	#[track_caller]
 	pub fn with<R>(
 		&self,
 		_ui: &mut UiGuard,
@@ -611,13 +616,15 @@ unsafe impl<C: Layout> LeakWindow<C> for Window<C> {
 	}
 }
 
+#[track_caller]
 fn slot_set(slot: &Cell<Option<AnyWindow<'static>>>, window: AnyWindow<'static>) {
-	assert!(slot.get().is_none(), "StaticWindow set twice");
+	crate::pbl_assert!(slot.get().is_none(), "StaticWindow set twice");
 	slot.set(Some(window));
 }
 
+#[track_caller]
 fn slot_get(slot: &Cell<Option<AnyWindow<'static>>>) -> AnyWindow<'static> {
-	slot.get().expect("StaticWindow used before set")
+	slot.get().pbl_expect(c"StaticWindow used before set")
 }
 
 impl<C: Layout> Default for StaticWindow<C> {
@@ -643,6 +650,7 @@ impl<'w, C: Layout> TypedWindow<'w> for &'w StaticWindow<C> {
 
 impl<C: Layout> From<&StaticWindow<C>> for AnyWindow<'_> {
 	fn from(slot: &StaticWindow<C>) -> Self {
-		slot.get()
+		// Not get(): navigation calls this from inside gneiss, so the location would be gneiss's
+		crate::fail::gneiss_expect!(slot.inner.get(), "StaticWindow used before set")
 	}
 }

@@ -27,11 +27,7 @@ impl From<sys::TouchEvent> for Event {
 			sys::TouchEventType_TouchEvent_Touchdown => EventType::TouchDown,
 			sys::TouchEventType_TouchEvent_Liftoff => EventType::LiftOff,
 			sys::TouchEventType_TouchEvent_PositionUpdate => EventType::PositionUpdate,
-			#[expect(
-				clippy::panic,
-				reason = "FFI Boundary: Value outside of known variants"
-			)]
-			_ => panic!("Invalid TouchEvent variant"),
+			_ => crate::fail::gneiss_panic!("invalid TouchEvent variant"),
 		};
 		Self {
 			event_type,

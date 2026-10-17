@@ -6,6 +6,7 @@ extern crate alloc;
 
 use gneiss::{
 	SyncCell,
+	prelude::*,
 	resource::{
 		font::Font,
 		persist::{Persist, Recover},
@@ -34,7 +35,7 @@ struct Lifetime {
 impl Layout for Lifetime {
 	fn load(ctx: &mut WindowCtx<'_>) -> Self {
 		let mut root = ctx.root();
-		let mut text = TextLayer::new(root.bounds()).expect("text layer");
+		let mut text = TextLayer::new(root.bounds()).pbl_expect(c"text layer");
 		text.set_font(Font::system(sys::FONT_KEY_GOTHIC_28_BOLD))
 			.set_alignment(TextAlignment::Center);
 		root.add_child(&mut text);
@@ -84,6 +85,6 @@ fn on_tick(_time: DateTime, _changed: TimeUnits) {
 #[gneiss::entry]
 fn main(ui: &mut UiGuard) {
 	TOTAL.set(i32::recover_or_default(SECONDS));
-	ROOT.set(Window::new(None).expect("window"));
+	ROOT.set(Window::new(None).pbl_expect(c"window"));
 	UiQueue::new(ui).push(&ROOT, false);
 }

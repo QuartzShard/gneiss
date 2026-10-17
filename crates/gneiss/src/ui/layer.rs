@@ -185,7 +185,7 @@ impl<T> DataLayer<T> {
 }
 
 unsafe extern "C" fn draw_trampoline(layer: *mut sys::Layer, ctx: *mut sys::GContext) {
-	let _ui = UiGuard::enter();
+	let _ui = UiGuard::enter_internal();
 	// SAFETY: only registered on DataLayer layers, whose data is a repr(C) LayerData<T> with draw at
 	// offset 0 and val at VAL_OFFSET; render never overlaps a &mut from layer_data
 	let (draw, val) = unsafe {

@@ -5,7 +5,6 @@ use syn::parse_quote;
 
 #[derive(darling::FromMeta, Debug, Default)]
 struct EntryArgs {
-	panic:        Option<syn::Path>,
 	global_alloc: Option<syn::Path>,
 }
 
@@ -22,12 +21,6 @@ pub fn entry(attr: TokenStream, item: TokenStream) -> TokenStream {
 	let mut out = item.clone();
 	let input: Option<syn::ItemFn> = errs.handle(syn::parse2(item).map_err(darling::Error::from));
 
-	let handler = args.panic.unwrap_or_else(|| {
-		parse_quote! {
-			::gneiss::sys::panic::panic_fmt
-		}
-	});
-
 	let allocator = args.global_alloc.unwrap_or_else(|| {
 		parse_quote! {
 			::gneiss::alloc::PebbleAlloc
@@ -40,9 +33,6 @@ pub fn entry(attr: TokenStream, item: TokenStream) -> TokenStream {
 	});
 
 	out.extend(quote! {
-		#[panic_handler]
-		fn __gneiss_panic_handler(info: &::core::panic::PanicInfo) -> ! { #handler(info) }
-
 		#[doc = " Generated consts naming each bundled resource by index"]
 		#[allow(unused)]
 		mod resources {

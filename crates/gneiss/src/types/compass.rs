@@ -230,11 +230,7 @@ impl From<sys::CompassStatus> for CompassStatus {
 			sys::CompassStatus_CompassStatusDataInvalid => Self::DataInvalid,
 			sys::CompassStatus_CompassStatusCalibrating => Self::Calibrating,
 			sys::CompassStatus_CompassStatusCalibrated => Self::Calibrated,
-			#[expect(
-				clippy::panic,
-				reason = "FFI Boundary: Value outside of known variants"
-			)]
-			_other => panic!("Invalid CompassStatus Variant"),
+			_other => crate::fail::gneiss_panic!("invalid CompassStatus variant"),
 		}
 	}
 }

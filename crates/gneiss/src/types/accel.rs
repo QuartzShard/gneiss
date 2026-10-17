@@ -81,11 +81,7 @@ impl From<sys::AccelAxisType> for Axis {
 			sys::AccelAxisType_ACCEL_AXIS_X => Self::X,
 			sys::AccelAxisType_ACCEL_AXIS_Y => Self::Y,
 			sys::AccelAxisType_ACCEL_AXIS_Z => Self::Z,
-			#[expect(
-				clippy::panic,
-				reason = "FFI Boundary: Value outside of known variants"
-			)]
-			_ => panic!("Invalid Axis variant"),
+			_ => crate::fail::gneiss_panic!("invalid accel Axis variant"),
 		}
 	}
 }

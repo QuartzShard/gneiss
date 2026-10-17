@@ -71,6 +71,8 @@ impl NewProject {
 		Self::build_rs(path).wrap_err("Failed to write build.rs")?;
 		std::fs::write(path.join(".gitignore"), "/target\n")
 			.wrap_err("Failed to write .gitignore")?;
+		std::fs::write(path.join("clippy.toml"), include_str!("clippy.toml"))
+			.wrap_err("Failed to write clippy.toml")?;
 		Ok(())
 	}
 
@@ -106,7 +108,7 @@ impl NewProject {
 		]
 		.into_iter()
 		.flat_map(|f| ["-C", f])
-		.chain(["-Zfmt-debug=none"])
+		.chain(["-Zfmt-debug=none", "-Zunstable-options", "-Cpanic=immediate-abort"])
 		.map(String::from)
 		.collect();
 		let target = BTreeMap::from_iter(vec![(
@@ -205,9 +207,12 @@ impl NewProject {
 
 			extern crate alloc;
 
-			use gneiss::ui::{
-				Layer, Layout, StaticWindow, TextAlignment, TextLayer, UiGuard, UiQueue, Window, WindowCtx,
-				graphics::{Point, Rectangle, Size},
+			use gneiss::{
+				prelude::*,
+				ui::{
+					Layer, Layout, StaticWindow, TextAlignment, TextLayer, UiGuard, UiQueue, Window,
+					WindowCtx, graphics::{Point, Rectangle, Size},
+				},
 			};
 
 			static MAIN: StaticWindow<Main> = StaticWindow::new();
@@ -224,7 +229,7 @@ impl NewProject {
 						Point::new(0, (bounds.size.height as i32 - 40) / 2),
 						Size::new(bounds.size.width, 40),
 					))
-					.expect("text layer");
+					.pbl_expect(c"text layer");
 					text.set_text(c"Write a cool watch app!")
 						.set_alignment(TextAlignment::Center);
 					root.add_child(&mut text);
@@ -234,7 +239,7 @@ impl NewProject {
 
 			#[gneiss::entry]
 			fn main(ui: &mut UiGuard) {
-				MAIN.set(Window::new(None).expect("main window"));
+				MAIN.set(Window::new(None).pbl_expect(c"main window"));
 				UiQueue::new(ui).push(&MAIN, false);
 			}
 		};

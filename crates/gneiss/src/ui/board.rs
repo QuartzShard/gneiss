@@ -1,10 +1,7 @@
-//! A multi-line status board: a ready-made window showing one `String` line per slot. Held in a
+//! A multi-line status board: a ready-made window showing one line of text per slot. Held in a
 //! `static` so service handlers can update it.
-extern crate alloc;
-
-use alloc::string::String;
-
 use crate::{
+	fail::PblUnwrap,
 	resource::font::Font,
 	sys,
 	ui::{
@@ -18,7 +15,7 @@ pub type StatusBoard<const SLOTS: usize> = StaticWindow<BoardLayout<SLOTS>>;
 
 /// The board's lines. They live as long as the window, loaded or not.
 pub struct BoardLines<const SLOTS: usize> {
-	lines: [Option<String>; SLOTS],
+	lines: [Option<HeapText>; SLOTS],
 }
 
 /// The board's layout: one text layer showing every line that is set, in slot order.
@@ -36,7 +33,7 @@ impl<const SLOTS: usize> BoardLayout<SLOTS> {
 		&mut self,
 		lines: &mut BoardLines<SLOTS>,
 		slot: usize,
-		line: impl Into<String>,
+		line: impl Into<HeapText>,
 	) {
 		lines.lines[slot] = Some(line.into());
 		self.render(lines);
@@ -46,7 +43,7 @@ impl<const SLOTS: usize> BoardLayout<SLOTS> {
 		let render = |text: &mut HeapText| {
 			text.clear();
 			for line in lines.lines.iter().flatten() {
-				text.push_str(line);
+				text.push_bytes(line.as_c_str().to_bytes());
 				text.push_str("\n");
 			}
 		};
@@ -59,7 +56,7 @@ impl<const SLOTS: usize> Layout for BoardLayout<SLOTS> {
 
 	fn load(ctx: &mut WindowCtx<'_, BoardLines<SLOTS>>) -> Self {
 		let mut root = ctx.root();
-		let mut text = TextLayer::new(root.bounds()).expect("board text layer");
+		let mut text = crate::fail::gneiss_expect!(TextLayer::new(root.bounds()), "board text layer");
 		text.set_alignment(TextAlignment::Center)
 			.set_font(Font::system(sys::FONT_KEY_GOTHIC_18));
 		root.add_child(&mut text);
@@ -76,6 +73,7 @@ impl<const SLOTS: usize> StatusBoard<SLOTS> {
 	///
 	/// # Panics
 	/// If the slot is already set, or the firmware is out of memory.
+	#[track_caller]
 	pub fn init(&self) {
 		self.init_with(|_| {});
 	}
@@ -85,11 +83,12 @@ impl<const SLOTS: usize> StatusBoard<SLOTS> {
 	///
 	/// # Panics
 	/// If the slot is already set, or the firmware is out of memory.
+	#[track_caller]
 	pub fn init_with(&self, configure: impl FnOnce(&mut Window<BoardLayout<SLOTS>>)) {
 		let lines = BoardLines {
 			lines: [const { None }; SLOTS],
 		};
-		let mut window = Window::new(Some(lines)).expect("board window");
+		let mut window = Window::new(Some(lines)).pbl_expect(c"board window");
 		configure(&mut window);
 		self.set(window);
 	}
@@ -98,7 +97,8 @@ impl<const SLOTS: usize> StatusBoard<SLOTS> {
 	///
 	/// # Panics
 	/// If `slot >= SLOTS`, or the board hasn't been [`init`](Self::init)ed.
-	pub fn set_line(&self, ui: &mut UiGuard, slot: usize, line: impl Into<String>) {
+	#[track_caller]
+	pub fn set_line(&self, ui: &mut UiGuard, slot: usize, line: impl Into<HeapText>) {
 		self.with(ui, |board, ctx| {
 			let Some(lines) = ctx.data() else { return };
 			match board {

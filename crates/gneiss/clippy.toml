@@ -1,0 +1,21 @@
+# The workspace's clippy.toml, plus the lints gneiss's apps get, but for assert!: gneiss's are
+# compile-time checks, and runtime ones use pbl_assert!. clippy reads only the nearest clippy.toml
+allow-unwrap-in-tests = true
+allow-panic-in-tests = true
+
+# Product names and acronyms that read as prose, not code. `..` keeps clippy's
+# own default list (GitHub, OAuth, JavaScript, ...) rather than replacing it.
+doc-valid-idents = ["PebbleOS", "PebbleKit", "PebbleKitJS", "AppMessage", "SoC", "RockyJS", ".."]
+
+
+# Under -Cpanic=immediate-abort these print no diagnostics: point at gneiss's logging versions
+disallowed-methods = [
+	{ path = "core::option::Option::unwrap", reason = "use pbl_unwrap() from gneiss::prelude: under immediate-abort, unwrap() prints no diagnostics" },
+	{ path = "core::option::Option::expect", reason = "use pbl_expect(c\"...\") from gneiss::prelude: under immediate-abort, expect() prints no diagnostics" },
+	{ path = "core::result::Result::unwrap", reason = "use pbl_unwrap() from gneiss::prelude: under immediate-abort, unwrap() prints no diagnostics" },
+	{ path = "core::result::Result::expect", reason = "use pbl_expect(c\"...\") from gneiss::prelude: under immediate-abort, expect() prints no diagnostics" },
+]
+disallowed-macros = [
+	{ path = "core::panic", reason = "use pbl_panic! from gneiss::prelude: under immediate-abort, panic! prints no diagnostics" },
+	{ path = "core::unreachable", reason = "use pbl_panic! from gneiss::prelude: under immediate-abort, unreachable! prints no diagnostics" },
+]

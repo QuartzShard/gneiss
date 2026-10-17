@@ -1,6 +1,6 @@
 [package]
 name              = "gneiss"
-version           = "0.3.0"
+version           = "0.4.0"
 description       = "Safe Rust SDK for Pebble watchapps and watchfaces"
 keywords          = ["pebble", "pebbleos", "smartwatch", "watchface"]
 categories        = ["embedded", "no-std"]
@@ -29,10 +29,6 @@ bytemuck      = { workspace = true, features = ["derive", "min_const_generics"] 
 bitflags = "2.13.2"
 embedded-graphics-core = "0.4"
 
-# Only with -Cpanic=immediate-abort
-[target.'cfg(panic = "immediate-abort")'.dependencies]
-ufmt = "0.2"
-
 [build-dependencies]
 gneiss-types = { workspace = true, features = ["std"] }
 
@@ -42,6 +38,8 @@ default    = ["debug-logs"]
 debug-logs = []
 # Log every window's load, appear, disappear, unload, handle drop and destroy, for tests
 trace-ui   = []
+# The app brings its own #[panic_handler], and needn't build with -Cpanic=immediate-abort
+user-panic-handler = []
 # Platform selection forwards to gneiss-sys, where the mutually-exclusive check
 # lives. An app enables exactly one; `gneiss::sys` then resolves for that board.
 emery   = ["gneiss-sys/emery"]
@@ -51,5 +49,5 @@ aplite  = ["gneiss-sys/aplite"]
 basalt  = ["gneiss-sys/basalt"]
 chalk   = ["gneiss-sys/chalk"]
 diorite = ["gneiss-sys/diorite"]
-# Only for `cargo test --doc`: a panic handler and allocator for the examples to link against
+# Only for `cargo test --doc`: an allocator for the examples to link against
 __doctest = []

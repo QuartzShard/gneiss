@@ -2,7 +2,7 @@
 target = "thumbv7m-pebble.json"
 
 [target.thumbv7m-pebble]
-rustflags = ["-C", "link-arg=-Tpebble_app.ld", "-C", "link-arg=--gc-sections", "-C", "link-arg=--emit-relocs", "-Zfmt-debug=none"]
+rustflags = ["-C", "link-arg=-Tpebble_app.ld", "-C", "link-arg=--gc-sections", "-C", "link-arg=--emit-relocs", "-Zfmt-debug=none", "-Zunstable-options", "-Cpanic=immediate-abort"]
 
 [unstable]
 build-std = ["core", "alloc"]

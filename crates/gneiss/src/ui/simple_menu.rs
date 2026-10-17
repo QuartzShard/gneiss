@@ -160,7 +160,7 @@ unsafe extern "C" fn simple_menu_select(_row: c_int, context: *mut c_void) {
 /// # Safety
 /// `context` must be a live `SimpleMenuData<S, D>`, with no reference into it held.
 unsafe fn dispatch<S, D>(context: *mut c_void, index: MenuIndex) {
-	let mut ui = UiGuard::enter();
+	let mut ui = UiGuard::enter_internal();
 	let data = context.cast::<SimpleMenuData<S, D>>();
 	// SAFETY: the guard excludes every other borrow into the window. Only D is borrowed: the
 	// firmware reads the sections, which a queued reload does once this returns

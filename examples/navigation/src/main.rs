@@ -14,11 +14,12 @@
 //!   that button, matching on the `Click` it gets.
 extern crate alloc;
 
-use core::fmt::Write;
-
-use gneiss::ui::{
-	Button, Click, ClickKinds, HeapText, Layer, Layout, StaticWindow, TextLayer, UiGuard, UiQueue,
-	Window, WindowCtx,
+use gneiss::{
+	prelude::*,
+	ui::{
+		Button, Click, ClickKinds, HeapText, Layer, Layout, StaticWindow, TextLayer, UiGuard,
+		UiQueue, Window, WindowCtx,
+	},
 };
 
 static HOME: StaticWindow<Home> = StaticWindow::new();
@@ -37,7 +38,7 @@ impl Home {
 	fn show(&mut self, opened: u32) {
 		self.text.text_mut(|text| {
 			text.clear();
-			let _ = write!(
+			let _ = pbl_fmt_write!(
 				text,
 				"Home\n\nSelect opens the detail window, hold it to reset.\n\nOpened {opened} times."
 			);
@@ -50,7 +51,7 @@ impl Layout for Home {
 
 	fn load(ctx: &mut WindowCtx<'_, HomeData>) -> Self {
 		let mut root = ctx.root();
-		let mut text = TextLayer::new(root.bounds()).expect("home text layer");
+		let mut text = TextLayer::new(root.bounds()).pbl_expect(c"home text layer");
 		root.add_child(&mut text);
 		Self { text }
 	}
@@ -72,7 +73,7 @@ impl Detail {
 		let count = self.count;
 		self.text.text_mut(|text| {
 			text.clear();
-			let _ = write!(
+			let _ = pbl_fmt_write!(
 				text,
 				"Detail\n\nUp/Down: {count}\n\nSelect or Back goes home."
 			);
@@ -86,7 +87,7 @@ impl Layout for Detail {
 
 	fn load(ctx: &mut WindowCtx<'_>) -> Self {
 		let mut root = ctx.root();
-		let mut text = TextLayer::new(root.bounds()).expect("detail text layer");
+		let mut text = TextLayer::new(root.bounds()).pbl_expect(c"detail text layer");
 		root.add_child(&mut text);
 		Self { text, count: 0 }
 	}
@@ -103,7 +104,7 @@ impl Layout for Detail {
 fn main(ui: &mut UiGuard) {
 	// Handlers are set up before the windows are stored away: afterwards nothing outside their
 	// own callbacks can reach them mutably.
-	let mut detail = Window::<Detail>::new(None).expect("detail window");
+	let mut detail = Window::<Detail>::new(None).pbl_expect(c"detail window");
 	detail.set_click_handler(ui, Button::Up, ClickKinds::SINGLE, |detail, _, _, _| {
 		detail.count += 1;
 		detail.show();
@@ -116,7 +117,8 @@ fn main(ui: &mut UiGuard) {
 		queue.pop(true);
 	});
 
-	let mut home = Window::<Home>::new(Some(HomeData { detail, opened: 0 })).expect("home window");
+	let mut home =
+		Window::<Home>::new(Some(HomeData { detail, opened: 0 })).pbl_expect(c"home window");
 	home.set_click_handler(
 		ui,
 		Button::Select,

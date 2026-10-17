@@ -83,7 +83,9 @@
 use core::ptr::NonNull;
 
 use crate::{
-	SyncCell, sys,
+	SyncCell,
+	fail::PblUnwrap,
+	sys,
 	ui::window::{WindowData, header},
 };
 
@@ -161,8 +163,15 @@ impl UiGuard {
 	///
 	/// # Panics
 	/// If a guard is already held, e.g. from inside a window callback.
+	#[track_caller]
 	pub fn enter() -> Self {
-		Self::try_enter().expect("UiGuard already held")
+		Self::try_enter().pbl_expect(c"UiGuard already held")
+	}
+
+	/// [`enter`](Self::enter) for gneiss's own callbacks, failing at `gneiss:<line>` rather than
+	/// recording where it was called.
+	pub(crate) fn enter_internal() -> Self {
+		crate::fail::gneiss_expect!(Self::try_enter(), "UiGuard already held")
 	}
 
 	/// Take the guard. `None` if one is already held, e.g. from inside a window callback.
@@ -181,7 +190,7 @@ impl UiGuard {
 		UI_LENT.set(UI_LENT.get() + 1);
 		let result = f();
 		UI_LENT.set(UI_LENT.get() - 1);
-		assert!(
+		crate::fail::gneiss_assert!(
 			!UI_HELD.replace(true),
 			"UiGuard leaked by a window callback"
 		);
@@ -247,7 +256,7 @@ impl<'n> UiQueue<'n> {
 
 	fn queue(&mut self, action: UiAction<'n>) {
 		let Some(slot) = self.actions.get_mut(self.len) else {
-			crate::log::warn!("queue full");
+			crate::log::gneiss_log!(Warn, "queue full");
 			return;
 		};
 		*slot = Some(action);
@@ -302,7 +311,7 @@ impl<'n> UiQueue<'n> {
 		if let Some(menu) = self.menu {
 			self.queue(UiAction::Reload(menu));
 		} else {
-			crate::log::warn!("reload outside a menu's select callback");
+			crate::log::gneiss_log!(Warn, "reload outside a menu's select callback");
 		}
 	}
 

@@ -85,9 +85,11 @@ fn build_syscall_vtable_map(
 	// occupy a slot, like removed/deprecated fns.
 	let slot_count = exported_fns.len();
 	let to_skip = |func: &Function| -> bool {
-		// The allocator family and mem* are `skipDefinition` in the SDK but we still want shims
-		// for them: gneiss's GlobalAlloc binds the former, gneiss-sys's mem module the latter.
-		const FORCE_EMIT: &[&str] = &["malloc", "free", "realloc", "memcpy", "memmove", "memset"];
+		// The allocator family, mem* and snprintf are `skipDefinition` in the SDK but we still want
+		// shims for them: gneiss's GlobalAlloc binds the first, gneiss-sys's mem module the second,
+		// pbl_fmt! the last.
+		const FORCE_EMIT: &[&str] =
+			&["malloc", "free", "realloc", "memcpy", "memmove", "memset", "snprintf"];
 		func.removed.is_set()
 			|| func.deprecated.is_set()
 			|| (func.skip_definition && !FORCE_EMIT.contains(&func.name.as_str()))

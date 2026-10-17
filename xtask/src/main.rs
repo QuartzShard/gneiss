@@ -184,7 +184,12 @@ fn regen_sys() -> Result<()> {
 			"#pragma once\n#include <stddef.h>\n\
 			 void *malloc(size_t);\nvoid free(void *);\nvoid *realloc(void *, size_t);\n",
 		),
-		("stdio.h", "#pragma once\n"),
+		// snprintf is `skipDefinition` but exported too; gneiss's pbl_fmt! formats through it
+		(
+			"stdio.h",
+			"#pragma once\n#include <stddef.h>\n\
+			 int snprintf(char *, size_t, const char *, ...);\n",
+		),
 		// Like the allocator family, mem* is `skipDefinition` but exported; gneiss routes
 		// compiler_builtins' mem* through these
 		(

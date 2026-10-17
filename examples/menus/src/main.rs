@@ -20,12 +20,15 @@
 //! - Back pops, as on any window: menus leave it alone.
 extern crate alloc;
 
-use core::{ffi::CStr, fmt::Write};
+use core::ffi::CStr;
 
-use gneiss::ui::{
-	Layer, Layout, Menu, MenuCanvas, MenuIndex, MenuItem, MenuList, MenuListFill, MenuSection,
-	MenuWindow, SimpleMenuWindow, StackText, StaticWindow, TextLayer, UiGuard, UiQueue, Window,
-	WindowCtx, graphics::GContext,
+use gneiss::{
+	prelude::*,
+	ui::{
+		Layer, Layout, Menu, MenuCanvas, MenuIndex, MenuItem, MenuList, MenuListFill, MenuSection,
+		MenuWindow, SimpleMenuWindow, StackText, StaticWindow, TextLayer, UiGuard, UiQueue, Window,
+		WindowCtx, graphics::GContext,
+	},
 };
 
 static ROOT: StaticWindow<Root> = StaticWindow::new();
@@ -45,7 +48,7 @@ impl Layout for Detail {
 
 	fn load(ctx: &mut WindowCtx<'_>) -> Self {
 		let mut root = ctx.root();
-		let mut text = TextLayer::new(root.bounds()).expect("detail text layer");
+		let mut text = TextLayer::new(root.bounds()).pbl_expect(c"detail text layer");
 		root.add_child(&mut text);
 		Self { text }
 	}
@@ -171,10 +174,10 @@ impl Menu for Deeper {
 	fn draw_row(level: &Level, cell: &MenuCanvas<'_>, index: MenuIndex, ctx: &mut GContext<'_>) {
 		let mut text = StackText::<24>::new();
 		if index.row == 0 {
-			let _ = write!(text, "Opens level {}", level.number + 1);
+			let _ = pbl_fmt_write!(text, "Opens level {}", level.number + 1);
 			cell.draw_basic(ctx, c"Deeper", Some(&text));
 		} else {
-			let _ = write!(text, "Item {}.{}", level.number, index.row);
+			let _ = pbl_fmt_write!(text, "Item {}.{}", level.number, index.row);
 			cell.draw_basic(ctx, &text, None);
 		}
 	}
@@ -243,9 +246,9 @@ fn laps() -> Option<MenuList> {
 
 fn lap_row(list: &mut MenuListFill<'_>, lap: usize, ms: u32) {
 	let mut title = StackText::<12>::new();
-	let _ = write!(title, "Lap {}", lap + 1);
+	let _ = pbl_fmt_write!(title, "Lap {}", lap + 1);
 	let mut time = StackText::<12>::new();
-	let _ = write!(
+	let _ = pbl_fmt_write!(
 		time,
 		"{}:{:02}.{:03}",
 		ms / 60_000,
@@ -257,23 +260,23 @@ fn lap_row(list: &mut MenuListFill<'_>, lap: usize, ms: u32) {
 
 #[gneiss::entry]
 fn main(ui: &mut UiGuard) {
-	DETAIL.set(Window::<Detail>::new(None).expect("detail window"));
+	DETAIL.set(Window::<Detail>::new(None).pbl_expect(c"detail window"));
 	let fruit = SimpleMenuWindow::new(&FRUIT, (), |_, index, queue| {
 		let about = ABOUT_FRUIT[usize::from(index.section)][usize::from(index.row)];
 		queue.push_with(&DETAIL, about, true);
 	})
-	.expect("fruit menu");
-	let laps = SimpleMenuWindow::new(laps().expect("laps list"), (), |_, _, queue| {
+	.pbl_expect(c"fruit menu");
+	let laps = SimpleMenuWindow::new(laps().pbl_expect(c"laps list"), (), |_, _, queue| {
 		queue.pop(true);
 	})
-	.expect("laps menu");
+	.pbl_expect(c"laps menu");
 	ROOT.set(
 		MenuWindow::<Root>::new(RootData {
 			fruit,
 			laps,
 			deeper: None,
 		})
-		.expect("root menu"),
+		.pbl_expect(c"root menu"),
 	);
 	UiQueue::new(ui).push(&ROOT, false);
 }

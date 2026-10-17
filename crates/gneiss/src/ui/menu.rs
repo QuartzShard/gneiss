@@ -283,7 +283,7 @@ pub mod __trampolines {
 		context: *mut c_void,
 		f: for<'n> fn(&'n mut M::Layout, &'n mut M::Data, MenuIndex, &mut UiQueue<'n>),
 	) {
-		let mut ui = UiGuard::enter();
+		let mut ui = UiGuard::enter_internal();
 		let index = unsafe { *index }.into();
 		// SAFETY: the guard excludes every other borrow into the window, and these are disjoint
 		// fields
@@ -306,7 +306,7 @@ pub mod __trampolines {
 		context: *mut c_void,
 		f: impl FnOnce(&M::Data, &MenuCanvas<'_>, &mut GContext<'_>),
 	) {
-		let _ui = UiGuard::enter();
+		let _ui = UiGuard::enter_internal();
 		let mut ctx = unsafe { GContext::new(ctx, cell.cast_mut()) };
 		let cell = MenuCanvas {
 			ptr:     cell,

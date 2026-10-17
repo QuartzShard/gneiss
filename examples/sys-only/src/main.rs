@@ -15,7 +15,7 @@ use gneiss_sys::*;
 /// See `gneiss_sys::panic` for options
 #[panic_handler]
 fn pbl_panic(info: &core::panic::PanicInfo<'_>) -> ! {
-	gneiss_sys::panic::panic_fmt(info)
+	gneiss_sys::panic::panic_halt(info)
 }
 
 #[unsafe(no_mangle)]

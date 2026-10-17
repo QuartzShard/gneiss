@@ -44,6 +44,8 @@
 //! - `trace-ui`: every window logs its `load`, `appear`, `disappear` and `unload`, the drop of its
 //!   handle and its destruction, as `ui <event> <window> <layout type>`, for tests to follow the UI
 //!   from the log. Without it, none of this is compiled in.
+//! - `user-panic-handler`: gneiss defines no `#[panic_handler]` and doesn't require
+//!   `-Cpanic=immediate-abort`, for an app that brings its own.
 //!
 //! # Concurrency & Cross-Task Sync
 //!
@@ -55,9 +57,10 @@
 //!
 //! # Panics
 //!
-//! A panic logs its message and location to the app log, and the firmware closes the app.
-//! Building with `-Cpanic=immediate-abort` drops the panic machinery, a few KiB, at the cost of
-//! silent panics; it also makes `gneiss::ufmt` available, for formatting without `core::fmt`.
+//! Apps build with `-Zunstable-options -Cpanic=immediate-abort`, which drops the panic machinery
+//! and `core::fmt` with it, a few KiB: a panic closes the app and prints no diagnostics. The
+//! `user-panic-handler` feature lifts that requirement for an app that brings its own
+//! `#[panic_handler]`, such as one that formats the message.
 #![no_std]
 #![doc(test(attr(no_std, no_main)))]
 #![deny(
@@ -81,15 +84,22 @@
 /// For [`AsBytes`](resource::persist::AsBytes) and [`make_persistible`]. Derive its traits through
 /// this re-export with `#[bytemuck(crate = "gneiss::bytemuck")]`.
 pub use bytemuck;
-pub use gneiss_macros::{entry, make_persistible, menu, persist_keys, service};
+pub use gneiss_macros::{entry, make_persistible, menu, pbl_fmt_write, persist_keys, service};
+#[doc(hidden)]
+pub use gneiss_macros::__pbl_log;
+// gneiss's own macro output names `::gneiss`, as an app's does
+extern crate self as gneiss;
 pub use gneiss_sys as sys;
 pub use linkme;
-/// Present when building with `-Cpanic=immediate-abort`. `use gneiss::ufmt;` puts it in scope for
-/// `ufmt`'s macros.
-#[cfg(panic = "immediate-abort")]
-pub use ufmt;
 
 pub mod alloc;
+pub mod fail;
+pub mod fmt;
+
+/// What most apps use everywhere: `use gneiss::prelude::*;`
+pub mod prelude {
+	pub use crate::{fail::PblUnwrap, pbl_assert, pbl_fmt_alloc, pbl_fmt_write, pbl_panic};
+}
 
 pub mod light;
 pub mod log;
@@ -107,11 +117,17 @@ pub mod resource;
 mod types;
 pub use types::*;
 
-#[cfg(feature = "__doctest")]
+#[cfg(not(feature = "user-panic-handler"))]
 #[panic_handler]
-fn __doctest_panic(info: &core::panic::PanicInfo) -> ! {
-	gneiss_sys::panic::panic_fmt(info)
+fn __gneiss_panic(info: &core::panic::PanicInfo) -> ! {
+	gneiss_sys::panic::panic_halt(info)
 }
+
+#[cfg(all(not(panic = "immediate-abort"), not(feature = "user-panic-handler")))]
+compile_error!(
+	"gneiss apps build with `-Zunstable-options -Cpanic=immediate-abort` in their rustflags, or \
+	 enable gneiss's `user-panic-handler` feature and bring a panic handler"
+);
 
 #[cfg(feature = "__doctest")]
 #[global_allocator]

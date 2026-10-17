@@ -160,16 +160,10 @@ impl<'msg> Outbox<'msg> {
 				handle: unsafe { DictHandle::from_raw(dict_ptr) },
 			})
 		} else if result.intersects(AppMessageError::BUSY | AppMessageError::INVALID_STATE) {
-			log::warn!("Outbox already open");
+			log::gneiss_log!(Warn, "Outbox already open");
 			None
 		} else {
-			unsafe {
-				log::log_sys_fmt!(
-					log::LogLevel::Error,
-					"Unexpected response opening outbox: 0x%x",
-					core::ffi::c_uint::from(result.bits())
-				);
-			};
+			log::gneiss_log!(Error, "Unexpected response opening outbox: {:#x}", result.bits());
 			None
 		}
 	}
@@ -193,13 +187,7 @@ impl Drop for Outbox<'_> {
 		// SAFETY: sends the built message; the handle is not used afterward.
 		let res = unsafe { AppMessageError::from_bits_retain(sys::app_message_outbox_send()) };
 		if !res.is_empty() {
-			unsafe {
-				log::log_sys_fmt!(
-					log::LogLevel::Error,
-					"Error on outbox close: 0x%x",
-					core::ffi::c_int::from(res.bits())
-				);
-			}
+			log::gneiss_log!(Error, "Error on outbox close: {:#x}", res.bits());
 		}
 	}
 }

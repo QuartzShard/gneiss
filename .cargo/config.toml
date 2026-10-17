@@ -14,3 +14,9 @@ clippy-sys = ["clippy", "-p", "gneiss-sys", "--features", "emery", "--target", "
 doc-sys    = ["doc",    "-p", "gneiss-sys", "-p", "gneiss-types", "-p", "gneiss", "--features", "gneiss/emery", "--target", "crates/cargo-gneiss/thumbv7m-pebble.json", "-Zbuild-std=core,alloc", "-Zjson-target-spec"]
 # Compiles (doesn't run) gneiss's doc examples on the app target
 doc-test   = ["test", "--doc", "-p", "gneiss", "--features", "gneiss/emery,gneiss/__doctest", "--target", "crates/cargo-gneiss/thumbv7m-pebble.json", "-Zbuild-std=core,alloc", "-Zjson-target-spec"]
+
+# gneiss requires -Cpanic=immediate-abort (or its `user-panic-handler` feature), for every watch
+# build here: ci, doc-test, and in-crate builds under crates/
+[target.thumbv7m-pebble]
+rustflags    = ["-Zunstable-options", "-Cpanic=immediate-abort"]
+rustdocflags = ["-Zunstable-options", "-Cpanic=immediate-abort"]

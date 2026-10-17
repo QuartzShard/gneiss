@@ -1,8 +1,10 @@
 //! The `#[entry]`, `#[service]`, `#[menu]` and `#[make_persistible]` attribute macros and
 //! `persist_keys!`, used through `gneiss`.
 #![allow(unused)]
+#![feature(proc_macro_diagnostic)]
 #![allow(clippy::needless_pass_by_value)]
 mod entry;
+mod fmt;
 mod menu;
 mod persist;
 mod service;
@@ -10,14 +12,12 @@ mod service;
 use proc_macro::TokenStream;
 use syn::Token;
 #[proc_macro_attribute]
-/// Takes a `fn main() {}` or `fn main(&mut UiGuard) {}` and wraps it in the required ceremony to be a valid entry for the watch,
-/// as well as assigning a panic handler.
+/// Takes a `fn main() {}` or `fn main(&mut UiGuard) {}` and wraps it in the required ceremony to be a valid entry for the watch.
 ///
 /// Your main fn MUST return or the `sys::app_event_loop` call after it in init is unreachable. You build
 /// your UI and state here, you don't drive execution.
 ///
 /// Takes the following optional arguments:
-/// - panic: path to a `fn(&core::panic::PanicInfo) -> !`, defaults to `::gneiss::sys::panic::panic_fmt`
 /// - `global_alloc`: path to a unit-struct `GlobalAlloc` to register as the global allocator,
 ///   defaults to `::gneiss::alloc::PebbleAlloc`.
 pub fn entry(attr: TokenStream, item: TokenStream) -> TokenStream {
@@ -39,6 +39,30 @@ pub fn entry(attr: TokenStream, item: TokenStream) -> TokenStream {
 /// Subscribing the same service twice in one app is a link error.
 pub fn service(attr: TokenStream, item: TokenStream) -> TokenStream {
 	service::service(attr.into(), item.into()).into()
+}
+
+#[proc_macro]
+/// `write!` through the firmware's `snprintf`, with no `core::fmt`: append `format!`-style text to
+/// a `StackText` or `HeapText`, returning `Err` if it didn't fit.
+///
+/// ```ignore
+/// let (lap, secs, ms) = (3, 5, 20);
+/// let _ = pbl_fmt_write!(text, "Lap {}: {:02}.{:03}", lap, secs, ms);
+/// // text ends "Lap 3: 05.020"
+/// ```
+///
+/// See `gneiss::fmt` for what it formats, the `{:s}`/`{:d}` letters, and how it differs from
+/// `write!`.
+pub fn pbl_fmt_write(input: TokenStream) -> TokenStream {
+	fmt::pbl_fmt_write(input.into()).into()
+}
+
+#[proc_macro]
+#[doc(hidden)]
+/// `level, file, line, "format", args...`: log through `app_log` with `pbl_fmt_write!`'s format
+/// language. Called by `gneiss::log`'s macros.
+pub fn __pbl_log(input: TokenStream) -> TokenStream {
+	fmt::pbl_log(input.into()).into()
 }
 
 #[proc_macro]

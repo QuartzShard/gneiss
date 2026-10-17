@@ -195,7 +195,7 @@ unsafe fn replace(
 }
 
 unsafe extern "C" fn click_config(context: *mut ffi::c_void) {
-	let _ui = UiGuard::enter();
+	let _ui = UiGuard::enter_internal();
 	// SAFETY: we never set a click context, so the firmware passes the window
 	let clicks = unsafe { &mut (*header(context.cast())).clicks };
 	let mut back_overridden = clicks.back_overridden;
@@ -269,14 +269,14 @@ unsafe extern "C" fn click_config(context: *mut ffi::c_void) {
 /// Pops the window, as the firmware's own Back handling does until Back is first subscribed.
 unsafe extern "C" fn back_pop(_recognizer: sys::ClickRecognizerRef, _context: *mut ffi::c_void) {
 	// SAFETY: popping fires this window's callbacks synchronously, so the guard is lent for it
-	UiGuard::enter().os_lend(|| unsafe { sys::window_stack_pop(true) });
+	UiGuard::enter_internal().os_lend(|| unsafe { sys::window_stack_pop(true) });
 }
 
 unsafe extern "C" fn click<const KIND: u8>(
 	recognizer: sys::ClickRecognizerRef,
 	context: *mut ffi::c_void,
 ) {
-	let mut ui = UiGuard::enter();
+	let mut ui = UiGuard::enter_internal();
 	// SAFETY: recognizer is valid for the duration of the handler
 	let id = unsafe { sys::click_recognizer_get_button_id(recognizer) };
 	let Some(button) = Button::from_raw(id) else {

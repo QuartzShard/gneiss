@@ -19,8 +19,7 @@ pub struct WakeupId(pub i32);
 ///     match (id, cookie) {
 ///         (WakeupId(1), cookie) => handle_alarm_one(AlarmReason::from(cookie)),
 ///         (WakeupId(2), cookie) => increment_counter(cookie.0),
-///         (id, cookie) => unsafe { log::log_sys_fmt!(log::LogLevel::Warn, "Got unknown wakeup: Id(%d):Cookie(%d)",
-///         id.0, cookie.0) }
+///         (id, cookie) => log::warn!("Got unknown wakeup: Id({}):Cookie({})", id.0, cookie.0),
 ///     }
 /// }
 /// ```

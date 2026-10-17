@@ -11,6 +11,7 @@ use alloc::{ffi::CString, vec::Vec};
 use gneiss::{
 	SyncCell,
 	alloc::PebbleAlloc,
+	prelude::*,
 	resource::{
 		font::Font,
 		image::{DrawCommand, DrawCommandSequence, GBitMap},
@@ -52,21 +53,22 @@ impl Layout for Resources {
 
 		// raw: a handle validates the resource once and holds its length, then
 		// streams it SIZE bytes at a time (the last chunk is short).
-		let handle = raw::ResourceHandle::load(resources::DATA_RAW).expect("DATA_RAW declared");
+		let handle =
+			raw::ResourceHandle::load(resources::DATA_RAW).pbl_expect(c"DATA_RAW declared");
 		let mut bytes = Vec::with_capacity(handle.len());
 		for chunk in handle.iter::<8>() {
 			bytes.extend_from_slice(&chunk);
 		}
 		// the whole thing in one call, for when it fits in the app heap
-		let _whole = raw::load_all(resources::DATA_RAW, PebbleAlloc).expect("DATA_RAW loaded");
+		let _whole = raw::load_all(resources::DATA_RAW, PebbleAlloc).pbl_expect(c"DATA_RAW loaded");
 		// DATA_RAW is text, a NUL, then some trailing bytes: keep the text and its NUL. flint gets
 		// data~flint.bin, aplite data~bw.bin, the rest data.bin, so the title differs per watch.
 		let nul = bytes
 			.iter()
 			.position(|&b| b == 0)
-			.expect("DATA_RAW has a NUL");
+			.pbl_expect(c"DATA_RAW has a NUL");
 		bytes.truncate(nul + 1);
-		let text = CString::from_vec_with_nul(bytes).expect("one NUL, at the end");
+		let text = CString::from_vec_with_nul(bytes).pbl_expect(c"one NUL, at the end");
 
 		// font: a rasterised .pbf. The title owns it below, and unloads it when it drops.
 		let font = Font::load(resources::FONT_ROBOTO_18);
@@ -81,7 +83,7 @@ impl Layout for Resources {
 			Point::new(inset as i32, 0),
 			Size::new(width - 2 * inset, 38),
 		))
-		.expect("title layer");
+		.pbl_expect(c"title layer");
 		title
 			.set_font(font)
 			.set_text(text)
@@ -94,21 +96,22 @@ impl Layout for Resources {
 		// IMAGE_BITMAP compiles the one shared logo.png. Dropping a GBitMap
 		// destroys the OS-side bitmap: `_from_bitmap` frees itself at the end of
 		// `load`, while the layers own the two they show.
-		let _from_bitmap = GBitMap::load(resources::IMAGE_BITMAP).expect("IMAGE_BITMAP declared");
+		let _from_bitmap =
+			GBitMap::load(resources::IMAGE_BITMAP).pbl_expect(c"IMAGE_BITMAP declared");
 		let mut image = BitmapLayer::new(Rectangle::new(Point::new(0, 40), Size::new(width, 56)))
-			.expect("image layer");
-		image.set_bitmap(GBitMap::load(resources::IMAGE_PNG).expect("IMAGE_PNG declared"));
+			.pbl_expect(c"image layer");
+		image.set_bitmap(GBitMap::load(resources::IMAGE_PNG).pbl_expect(c"IMAGE_PNG declared"));
 		root.add_child(&mut image);
 
 		let mut pbi = BitmapLayer::new(Rectangle::new(Point::new(0, 98), Size::new(width, 28)))
-			.expect("pbi layer");
-		pbi.set_bitmap(GBitMap::load(resources::IMAGE_PBI).expect("IMAGE_PBI declared"));
+			.pbl_expect(c"pbi layer");
+		pbi.set_bitmap(GBitMap::load(resources::IMAGE_PBI).pbl_expect(c"IMAGE_PBI declared"));
 		root.add_child(&mut pbi);
 
 		// svg: one file compiles to a draw command image. The firmware strokes and
 		// fills it from the resource at draw time, so it scales with no palette
 		// and no decode buffer. The layer owns the image and draws it itself.
-		let ferris = DrawCommand::load(resources::FERRIS_PDC).expect("FERRIS_PDC declared");
+		let ferris = DrawCommand::load(resources::FERRIS_PDC).pbl_expect(c"FERRIS_PDC declared");
 		let ferris_size = ferris.bounds();
 		let mut ferris_layer = DataLayer::new_with_data(
 			Rectangle::new(
@@ -117,7 +120,7 @@ impl Layout for Resources {
 			),
 			ferris,
 		)
-		.expect("ferris layer");
+		.pbl_expect(c"ferris layer");
 		ferris_layer.set_draw(draw_ferris);
 		root.add_child(&mut ferris_layer);
 
@@ -125,7 +128,7 @@ impl Layout for Resources {
 		// layer draws the frame for the elapsed time, and a repeating timer
 		// advances that time.
 		let sequence =
-			DrawCommandSequence::load(resources::SPINNER_PDCS).expect("SPINNER_PDCS declared");
+			DrawCommandSequence::load(resources::SPINNER_PDCS).pbl_expect(c"SPINNER_PDCS declared");
 		let spinner_size = sequence.bounds();
 		let mut spinner = DataLayer::new_with_data(
 			Rectangle::new(
@@ -134,7 +137,7 @@ impl Layout for Resources {
 			),
 			sequence,
 		)
-		.expect("spinner layer");
+		.pbl_expect(c"spinner layer");
 		spinner.set_draw(draw_spinner);
 		root.add_child(&mut spinner);
 		let spinner_timer = Timer::repeating(SPINNER_STEP_MS, advance_spinner);
@@ -142,7 +145,7 @@ impl Layout for Resources {
 		// a prebaked .pdc loads identically, image or sequence; nothing keeps this
 		// one, so it drops (and is destroyed) at the end of `load`
 		let _prebaked = DrawCommandSequence::load(resources::SPINNER_PREBAKED)
-			.expect("SPINNER_PREBAKED declared");
+			.pbl_expect(c"SPINNER_PREBAKED declared");
 
 		// vibe: the score compiles and gets a handle, but the current SDK has no
 		// public "play this score" call; apps use the in-memory vibes_* API
@@ -165,7 +168,7 @@ impl Layout for Resources {
 
 #[gneiss::entry]
 fn main(ui: &mut UiGuard) {
-	ROOT.set(Window::new(None).expect("window created"));
+	ROOT.set(Window::new(None).pbl_expect(c"window created"));
 	UiQueue::new(ui).push(&ROOT, false);
 }
 

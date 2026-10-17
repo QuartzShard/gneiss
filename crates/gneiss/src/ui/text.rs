@@ -23,8 +23,7 @@ pub enum TextAlignment {
 }
 
 /// Growable text on the heap, for a [`TextLayer`] whose text changes: edit it in place through
-/// [`TextLayer::text_mut`], e.g. with `write!`. NUL bytes are dropped. With
-/// `-Cpanic=immediate-abort` it is also a `ufmt::uWrite`, for `uwrite!` without `core::fmt`.
+/// [`TextLayer::text_mut`], e.g. with [`pbl_fmt_write!`](crate::pbl_fmt_write). NUL bytes are dropped.
 ///
 /// For text built and used straight away, such as a menu row formatted while it's drawn,
 /// [`StackText`] needs no allocation.
@@ -55,10 +54,36 @@ impl HeapText {
 	/// Append `s`, dropping any NUL bytes.
 	#[inline(never)]
 	pub fn push_str(&mut self, s: &str) {
+		self.push_bytes(s.as_bytes());
+	}
+
+	/// Append `bytes`, dropping any NUL bytes.
+	pub(crate) fn push_bytes(&mut self, bytes: &[u8]) {
 		self.bytes.pop();
-		self.bytes.reserve(s.len() + 1);
-		self.bytes.extend(s.bytes().filter(|&b| b != 0));
+		self.bytes.reserve(bytes.len() + 1);
+		self.bytes.extend(bytes.iter().filter(|&&b| b != 0));
 		self.bytes.push(0);
+	}
+
+	/// Append what `fill` writes into the spare buffer it's given, as C text, `snprintf` style:
+	/// `fill` returns the length it needed, and is called again with a buffer that fits if the
+	/// first was too small. False if `fill` failed.
+	pub(crate) fn append_c(&mut self, fill: impl Fn(&mut [u8]) -> i32) -> bool {
+		let start = self.bytes.len().saturating_sub(1);
+		let room = (self.bytes.capacity() - start).max(16);
+		self.bytes.resize(start + room, 0);
+		let Ok(needed) = usize::try_from(fill(&mut self.bytes[start..])) else {
+			self.bytes.truncate(start);
+			self.bytes.push(0);
+			return false;
+		};
+		if needed >= room {
+			self.bytes.resize(start + needed + 1, 0);
+			fill(&mut self.bytes[start..]);
+		}
+		let len = start + terminate(&mut self.bytes[start..=start + needed]);
+		self.bytes.truncate(len + 1);
+		true
 	}
 
 	/// The text, NUL-terminated.
@@ -87,16 +112,6 @@ impl fmt::Write for HeapText {
 	}
 }
 
-#[cfg(panic = "immediate-abort")]
-impl ufmt::uWrite for HeapText {
-	type Error = core::convert::Infallible;
-
-	fn write_str(&mut self, s: &str) -> Result<(), Self::Error> {
-		self.push_str(s);
-		Ok(())
-	}
-}
-
 impl From<&str> for HeapText {
 	fn from(s: &str) -> Self {
 		let mut buf = Self::with_capacity(s.len());
@@ -116,8 +131,8 @@ impl From<String> for HeapText {
 }
 
 /// Text of up to `N` bytes, held inline, so it needs no allocation: for text built and used
-/// straight away, such as a menu row formatted while it's drawn. Write to it with `write!`, or
-/// `uwrite!` with `-Cpanic=immediate-abort`.
+/// straight away, such as a menu row formatted while it's drawn. Write to it with
+/// [`pbl_fmt_write!`](crate::pbl_fmt_write).
 ///
 /// Text that doesn't fit is cut at a character boundary, and the write returns an error. NUL bytes
 /// are dropped.
@@ -173,6 +188,16 @@ impl<const N: usize> StackText<N> {
 		self.len = terminate(self.buf_mut());
 	}
 
+	/// Append what `fill` writes into the spare buffer it's given, as C text, `snprintf` style:
+	/// `fill` returns the length it needed. False if that didn't fit, cutting it short, or `fill`
+	/// failed.
+	pub(crate) fn append_c(&mut self, fill: impl FnOnce(&mut [u8]) -> i32) -> bool {
+		let start = self.len;
+		let needed = fill(&mut self.buf_mut()[start..]);
+		self.len = start + terminate(&mut self.buf_mut()[start..]);
+		usize::try_from(needed).is_ok_and(|needed| start + needed == self.len)
+	}
+
 	/// The text, NUL-terminated.
 	pub fn as_c_str(&self) -> &CStr {
 		// SAFETY: buf[len] is the only NUL in buf[..=len]
@@ -224,15 +249,6 @@ impl<const N: usize> Deref for StackText<N> {
 
 impl<const N: usize> fmt::Write for StackText<N> {
 	fn write_str(&mut self, s: &str) -> fmt::Result {
-		self.push_str(s)
-	}
-}
-
-#[cfg(panic = "immediate-abort")]
-impl<const N: usize> ufmt::uWrite for StackText<N> {
-	type Error = fmt::Error;
-
-	fn write_str(&mut self, s: &str) -> Result<(), Self::Error> {
 		self.push_str(s)
 	}
 }

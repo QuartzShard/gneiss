@@ -152,6 +152,18 @@ impl BuildProject {
 			let out_dir = out_dir.ok_or_eyre("No out dir")?;
 			log::debug!("ELF output at {elf_path}");
 			let elf_bytes = std::fs::read(&elf_path)?;
+			if let Some(fmt) = gneiss_build::fmt_report(&elf_bytes)? {
+				let callers = if fmt.callers.is_empty() {
+					String::from("\n  (no caller found)")
+				} else {
+					format!("\n  {}", fmt.callers.join("\n  "))
+				};
+				log::warn!(
+					"core::fmt is linked ({}), pulled in by:{callers}\n\
+					 Switch their write!/format!/{{:?}} to pbl_fmt_write!/pbl_fmt_alloc!",
+					bytes_readable(fmt.bytes as usize)
+				);
+			}
 
 			let pbpack = PbPack::from_bytes(&std::fs::read(
 				out_dir.join(format!("{platform}_app_resources.pbpack")),

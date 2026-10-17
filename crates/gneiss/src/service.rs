@@ -240,7 +240,7 @@ impl Service for TickService {
 	type SubscribeArg = time::TimeUnits;
 
 	fn register(f: Self::RawHandler, a: Self::SubscribeArg) {
-		crate::log::debug!("Registering TickService handler;");
+		crate::log::gneiss_log!(Debug, "Registering TickService handler;");
 		unsafe { sys::tick_timer_service_subscribe(a.bits(), Some(f)) }
 	}
 }
@@ -280,7 +280,7 @@ impl Service for BatteryService {
 	type SubscribeArg = ();
 
 	fn register(f: Self::RawHandler, _a: Self::SubscribeArg) {
-		crate::log::debug!("Registering BatteryService handler;");
+		crate::log::gneiss_log!(Debug, "Registering BatteryService handler;");
 		unsafe { sys::battery_state_service_subscribe(Some(f)) }
 	}
 }
@@ -323,7 +323,7 @@ impl Service for BacklightService {
 	type SubscribeArg = ();
 
 	fn register(f: Self::RawHandler, _a: Self::SubscribeArg) {
-		crate::log::debug!("Registering BacklightService handler;");
+		crate::log::gneiss_log!(Debug, "Registering BacklightService handler;");
 		unsafe { sys::backlight_service_subscribe(Some(f)) }
 	}
 }
@@ -351,7 +351,7 @@ impl Service for AccelTapService {
 	type SubscribeArg = ();
 
 	fn register(f: Self::RawHandler, _a: Self::SubscribeArg) {
-		crate::log::debug!("Registering AccelTapService handler;");
+		crate::log::gneiss_log!(Debug, "Registering AccelTapService handler;");
 		unsafe { sys::accel_tap_service_subscribe(Some(f)) }
 	}
 }
@@ -378,7 +378,7 @@ impl Service for AccelDataService {
 	type SubscribeArg = core::num::NonZeroU32;
 
 	fn register(f: Self::RawHandler, a: Self::SubscribeArg) {
-		crate::log::debug!("Registering AccelDataService handler;");
+		crate::log::gneiss_log!(Debug, "Registering AccelDataService handler;");
 		unsafe { sys::accel_data_service_subscribe(a.get(), Some(f)) }
 	}
 }
@@ -427,7 +427,7 @@ impl Service for AccelRawDataService {
 	type SubscribeArg = core::num::NonZeroU32;
 
 	fn register(f: Self::RawHandler, a: Self::SubscribeArg) {
-		crate::log::debug!("Registering AccelRawDataService handler;");
+		crate::log::gneiss_log!(Debug, "Registering AccelRawDataService handler;");
 		unsafe { sys::accel_raw_data_service_subscribe(a.get(), Some(f)) }
 	}
 }
@@ -508,7 +508,7 @@ impl Service for CompassService {
 	type SubscribeArg = compass::DeltaAngle;
 
 	fn register(f: Self::RawHandler, a: Self::SubscribeArg) {
-		crate::log::debug!("Registering CompassService handler;");
+		crate::log::gneiss_log!(Debug, "Registering CompassService handler;");
 		unsafe {
 			sys::compass_service_set_heading_filter(a.inner().abs());
 			sys::compass_service_subscribe(Some(f));
@@ -526,9 +526,9 @@ impl Peekable for CompassService {
 	fn peek(_arg: Self::PeekArgs) -> Self::Output {
 		let mut data = MaybeUninit::uninit();
 
-		assert!(
+		crate::fail::gneiss_assert!(
 			unsafe { sys::compass_service_peek(data.as_mut_ptr()) } == 0,
-			"Expected infallible, please report bug uptstream"
+			"compass peek failed, which the firmware documents as infallible: please report upstream"
 		);
 
 		// SAFETY: peek deocumented to be infallible, we panic if it lied
@@ -557,7 +557,7 @@ impl Service for AppFocusService {
 	type SubscribeArg = focus::SubscribeTo;
 
 	fn register(f: Self::RawHandler, a: Self::SubscribeArg) {
-		crate::log::debug!("Registering AppFocusService handler;");
+		crate::log::gneiss_log!(Debug, "Registering AppFocusService handler;");
 		let handlers = f();
 		let handlers = sys::AppFocusHandlers {
 			will_focus: a.contains(focus::SubscribeTo::WILL).then_some(handlers.0),
@@ -602,7 +602,7 @@ impl Service for ConnectionService {
 	type SubscribeArg = connection::SubscribeTo;
 
 	fn register(f: Self::RawHandler, a: Self::SubscribeArg) {
-		crate::log::debug!("Registering ConnectionService handler;");
+		crate::log::gneiss_log!(Debug, "Registering ConnectionService handler;");
 		let handlers = f();
 		let handlers = sys::ConnectionHandlers {
 			pebble_app_connection_handler: a
@@ -674,7 +674,7 @@ impl Service for UnobstructedService {
 	type SubscribeArg = unobstructed::SubscribeTo;
 
 	fn register(f: Self::RawHandler, a: Self::SubscribeArg) {
-		crate::log::debug!("Registering UnobstructedService handler;");
+		crate::log::gneiss_log!(Debug, "Registering UnobstructedService handler;");
 		let handlers = f();
 		let handlers = sys::UnobstructedAreaHandlers {
 			will_change: a
@@ -737,7 +737,7 @@ impl Service for WakeupService {
 	type SubscribeArg = ();
 
 	fn register(f: Self::RawHandler, _a: Self::SubscribeArg) {
-		crate::log::debug!("Registering WakeupService handler;");
+		crate::log::gneiss_log!(Debug, "Registering WakeupService handler;");
 		unsafe { sys::wakeup_service_subscribe(Some(f)) }
 	}
 }
@@ -794,7 +794,7 @@ impl<T> Service for TouchService<T> {
 #[cfg(pbl_touch)]
 impl<T> TouchService<T> {
 	fn __subscribe(f: <Self as Service>::RawHandler, ctx: *mut ffi::c_void) {
-		crate::log::debug!("Registering TouchService handler;");
+		crate::log::gneiss_log!(Debug, "Registering TouchService handler;");
 		// SAFETY: ctx is null or a context we leaked
 		unsafe { sys::touch_service_subscribe(Some(f), ctx) }
 	}
@@ -847,10 +847,10 @@ impl<T> Service for HealthService<T> {
 #[cfg(pbl_health)]
 impl<T> HealthService<T> {
 	fn __subscribe(f: <Self as Service>::RawHandler, ctx: *mut ffi::c_void) {
-		crate::log::debug!("Registering HealthService handler;");
+		crate::log::gneiss_log!(Debug, "Registering HealthService handler;");
 		// SAFETY: ctx is null or a context we leaked
 		if !unsafe { sys::health_service_events_subscribe(Some(f), ctx) } {
-			crate::log::error!("Health service subscribe failed, not enough heap.");
+			crate::log::gneiss_log!(Error, "Health service subscribe failed, not enough heap.");
 		}
 	}
 }
@@ -906,7 +906,7 @@ impl<T> AppMessageService<T> {
 		a: &<Self as Service>::SubscribeArg,
 		ctx: *mut ffi::c_void,
 	) {
-		crate::log::debug!("Registering AppMessageService handler;");
+		crate::log::gneiss_log!(Debug, "Registering AppMessageService handler;");
 		let mut handlers = f();
 		// SAFETY: ctx is null or a pointer we leaked; the handlers are valid fn pointers.
 		unsafe {
@@ -951,7 +951,7 @@ impl<T> AppMessageService<T> {
 				reason = "log macro emits its own `unsafe`, trips if called in an unsafe block"
 			)]
 			if sys::app_message_open(inbox_size, outbox_size) != sys::AppMessageResult_APP_MSG_OK {
-				crate::log::error!("AppMessage open failed");
+				crate::log::gneiss_log!(Error, "AppMessage open failed");
 			}
 		}
 	}

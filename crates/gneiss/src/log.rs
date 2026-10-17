@@ -1,21 +1,27 @@
 //! Logging from the watch
 //!
-//! [`info!`], [`warn!`](macro@warn), [`error!`], [`debug!`] and [`verbose!`] each log a `&str`,
-//! tagged with the caller's file and line. They don't format: build a `String` with `format!`
-//! first, or use [`log_sys_fmt!`] for the firmware's own `printf`-style formatting.
+//! [`info!`], [`warn!`](macro@warn), [`error!`], [`debug!`] and [`verbose!`] log a message,
+//! tagged with the caller's file and line: a format string and its arguments, in
+//! [`pbl_fmt_write!`](crate::pbl_fmt_write)'s format language (see [`fmt`](crate::fmt)), or a
+//! single string, logged as it is. Each is one `app_log` call, so no `core::fmt`.
 //!
 //! ```no_run
 //! # fn _example() {
-//! # extern crate alloc;
-//! # use alloc::format;
-//! # let charge = gneiss::service::BatteryService::peek(());
 //! # use gneiss::service::Peekable;
+//! # let charge = gneiss::service::BatteryService::peek(());
 //! use gneiss::log;
 //!
 //! log::info!("App started");
-//! log::warn!(&format!("Battery at {}%", charge.charge_percent));
+//! log::warn!("Battery at {}%", charge.charge_percent);
+//! // logs "Battery at 80%", with the caller's file and line
+//! # let name = "Lewis";
+//! log::info!(name);
 //! # }
 //! ```
+//!
+//! A single argument that isn't a string literal is logged as a string, braces and all:
+//! `info!(name)` is `info!("{:s}", name)`. `concat!(..)` isn't a literal to a macro, so it's
+//! logged that way too, rather than read as a format.
 //!
 //! [`debug!`] and [`verbose!`] compile to nothing when debug-logs is not enabled.
 //!
@@ -38,121 +44,98 @@ pub const fn __macro_check_log_level(l: LogLevel) -> u8 {
 	l as u8
 }
 
-/// Log a `&str` at an explicit [`LogLevel`]. Binds `$msg` as a `&str` (one eval,
-/// and a type gate), then `%.*s` performs a bounded read so no nul terminator is
-/// needed. `file!()`/`line!()` resolve to the call site, and the `app_log` call
-/// is sound, so it wraps its own `unsafe`.
+/// Log at an explicit [`LogLevel`]: a format string and its arguments, in
+/// [`pbl_fmt_write!`](crate::pbl_fmt_write)'s format language, or a single string, logged as it is.
 #[macro_export]
 macro_rules! log {
-	($level:expr, $msg:expr $(,)?) => {{
-		let msg: &str = $msg;
-		let level = $crate::log::__macro_check_log_level($level);
-		// const concat a nul-byte onto the str == valid cstr literal
-		let file: *const u8 = concat!(file!(), "\0").as_ptr();
-		let line = line!() as i32;
-		unsafe {
-			$crate::sys::app_log(
-				level,
-				file,
-				line,
-				// %.*s takes a len and performs a bounded read, no nul-terminal needed
-				c"%.*s".as_ptr(),
-				msg.len() as i32,
-				msg.as_ptr(),
-			);
-		}
-	}};
+	($level: expr, $fmt: literal $(, $($args: tt)*)?) => {
+		$crate::__pbl_log!(
+			$crate::log::__macro_check_log_level($level),
+			concat!(file!(), "\0"),
+			line!() as i32,
+			$fmt $(, $($args)*)?
+		)
+	};
+	($level: expr, $msg: expr $(,)?) => {
+		$crate::log!($level, "{:s}", $msg)
+	};
 }
 pub use log;
 
-/// Log a `&str` at [`LogLevel::Info`].
+/// [`log!`](crate::log!) at [`LogLevel::Info`].
 #[macro_export]
 macro_rules! info {
-	($msg:expr $(,)?) => {
-		$crate::log!($crate::log::LogLevel::Info, $msg)
+	($($args: tt)*) => {
+		$crate::log!($crate::log::LogLevel::Info, $($args)*)
 	};
 }
 pub use info;
 
-/// Log a `&str` at [`LogLevel::Warn`].
+/// [`log!`](crate::log!) at [`LogLevel::Warn`].
 #[macro_export]
 macro_rules! warn {
-	($msg:expr $(,)?) => {
-		$crate::log!($crate::log::LogLevel::Warn, $msg)
+	($($args: tt)*) => {
+		$crate::log!($crate::log::LogLevel::Warn, $($args)*)
 	};
 }
 // conflicts with a builtin ;-;
 pub use super::warn;
 
-/// Log a `&str` at [`LogLevel::Error`].
+/// [`log!`](crate::log!) at [`LogLevel::Error`].
 #[macro_export]
 macro_rules! error {
-	($msg:expr $(,)?) => {
-		$crate::log!($crate::log::LogLevel::Error, $msg)
+	($($args: tt)*) => {
+		$crate::log!($crate::log::LogLevel::Error, $($args)*)
 	};
 }
 pub use error;
 
-/// Log a `&str` at [`LogLevel::Debug`] if cfg!(feature = "debug-logs")
+/// [`log!`](crate::log!) at [`LogLevel::Debug`], if the `debug-logs` feature is on.
 #[macro_export]
 macro_rules! debug {
-	($msg:expr $(,)?) => {
+	($($args: tt)*) => {
 		if $crate::log::DEBUG {
-			$crate::log!($crate::log::LogLevel::Debug, $msg)
+			$crate::log!($crate::log::LogLevel::Debug, $($args)*)
 		}
 	};
 }
 pub use debug;
 
-/// Log a `&str` at [`LogLevel::Verbose`] if cfg!(feature = "debug-logs")
+/// [`log!`](crate::log!) at [`LogLevel::Verbose`], if the `debug-logs` feature is on.
 #[macro_export]
 macro_rules! verbose {
-	($msg:expr $(,)?) => {
+	($($args: tt)*) => {
 		if $crate::log::DEBUG {
-			$crate::log!($crate::log::LogLevel::Verbose, $msg)
+			$crate::log!($crate::log::LogLevel::Verbose, $($args)*)
 		}
 	};
 }
 pub use verbose;
 
-/// Call through to the variadic `sys::app_log` for formatting runtime values.
-///
-/// # Safety
-/// You must ensure that `fmt` is a valid `vsnprintf` fmt string (see upstream Pebble docs), and
-/// that you have passed the correct number and type of varargs.
-/// Pay special attention to the interaction between `%s` and rust `&str`:
-/// ```ignore
-/// let name_str: &str = "quartzshard";
-/// let name_cstr: &CStr = c"quartzshard";
-/// unsafe {
-///     // OK: cstr is NUL terminated
-///     log_sys_fmt!(LogLevel::Info, "Hello %s!", name_cstr);
-///     // OK: %.*s is a bounded read
-///     log_sys_fmt!(LogLevel::Info, "Hello %.*s!", name_str.len(), name_str.as_ptr());
-///     // BAD: Str is not NUL terminated and this can read past the end. UB!
-///     log_sys_fmt!(LogLevel::Info, "Hello %s!", name_str);
-///     // BAD: &str is (ptr,len), so actually passes ptr, len to the internal call.
-///     // We also can't rely on this behaviour because that decomp order is not stable
-///     // This actually prints "Hello name! (name len as hex)", not "Hello name! beef"
-///     log_sys_fmt!(LogLevel::Info, "Hello %.*s! %x", name_str.len(), name_str, 0xBEEF);
-///
-/// }
-/// ```
-///
-/// If you'd rather not deal with all of this, pass it `&CStr` - those are NUL terminated and %s reads
-/// them no-fuss
-#[macro_export]
-macro_rules! log_sys_fmt {
-	($level:expr, $fmt:literal $(, $arg:expr)* $(,)?) => {
-		$crate::sys::app_log(
-			$crate::log::__macro_check_log_level($level),
-			// const concat a nul-byte onto the str == valid cstr literal
-			concat!(file!(), "\0").as_ptr(),
+/// [`log!`](crate::log!) for gneiss's own messages, logged as from `gneiss`: `file!()` would put
+/// gneiss's long source paths into every app. `Debug` and `Verbose` follow the `debug-logs`
+/// feature, as [`debug!`](crate::log::debug) does.
+macro_rules! gneiss_log {
+	(Debug, $($args: tt)*) => {
+		if $crate::log::DEBUG {
+			$crate::log::gneiss_log!(@ Debug, $($args)*)
+		}
+	};
+	(Verbose, $($args: tt)*) => {
+		if $crate::log::DEBUG {
+			$crate::log::gneiss_log!(@ Verbose, $($args)*)
+		}
+	};
+	(@ $level: ident, $fmt: literal $(, $($args: tt)*)?) => {
+		$crate::__pbl_log!(
+			$crate::log::__macro_check_log_level($crate::log::LogLevel::$level),
+			c"gneiss",
 			line!() as i32,
-			// if the thing we got was already NUL terminated, this is harmless.
-			concat!($fmt, "\0").as_ptr(),
-			$($arg),*
+			$fmt $(, $($args)*)?
 		)
 	};
+	($level: ident, $($args: tt)*) => {
+		$crate::log::gneiss_log!(@ $level, $($args)*)
+	};
 }
-pub use log_sys_fmt;
+pub(crate) use gneiss_log;

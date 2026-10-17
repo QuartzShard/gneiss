@@ -10,8 +10,9 @@ use core::{
 use bytemuck::AnyBitPattern;
 
 use super::PebbleAlloc;
+use crate::fail::PblUnwrap;
 
-const FOREIGN: &str = "handle from another arena";
+const FOREIGN: &CStr = c"handle from another arena";
 
 /// One allocation holding data that's built once and never changed: strings, values and slices of
 /// any `Copy` types, side by side. Filled through an [`ArenaFill`], read back through the
@@ -125,7 +126,7 @@ impl Arena {
 	/// If `handle` is from a different arena and doesn't fit this one.
 	#[track_caller]
 	pub fn get<T: AnyBitPattern>(&self, handle: Handle<T>) -> &T {
-		self.try_get(handle).expect(FOREIGN)
+		self.try_get(handle).pbl_expect(FOREIGN)
 	}
 
 	/// The value at `handle`, or `None` if it's from a different arena and doesn't fit this one.
@@ -151,7 +152,7 @@ impl Arena {
 	/// If `handle` is from a different arena and doesn't fit this one.
 	#[track_caller]
 	pub fn slice<T: AnyBitPattern>(&self, handle: Handle<[T]>) -> &[T] {
-		self.try_slice(handle).expect(FOREIGN)
+		self.try_slice(handle).pbl_expect(FOREIGN)
 	}
 
 	/// The slice at `handle`, or `None` if it's from a different arena and doesn't fit this one.
@@ -177,7 +178,7 @@ impl Arena {
 	/// If `handle` is from a different arena and doesn't fit this one.
 	#[track_caller]
 	pub fn str(&self, handle: Handle<CStr>) -> &CStr {
-		self.try_str(handle).expect(FOREIGN)
+		self.try_str(handle).pbl_expect(FOREIGN)
 	}
 
 	/// The string at `handle`, or `None` if it's from a different arena and doesn't fit this one.

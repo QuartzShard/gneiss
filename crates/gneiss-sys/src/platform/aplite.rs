@@ -619,26 +619,74 @@ pub const FONT_KEY_FONT_FALLBACK: &::core::ffi::CStr = c"RESOURCE_ID_FONT_FALLBA
 pub const __bool_true_false_are_defined: u32 = 1;
 pub const true_: u32 = 1;
 pub const false_: u32 = 0;
+/** The largest value that can result from a call to `sin_lookup` or `cos_lookup`.
+For a code example, see the detailed description at the top of this chapter: `Math`*/
 pub const TRIG_MAX_RATIO: u32 = 65535;
+/** Angle value that corresponds to 360 degrees or 2 PI radians
+
+See `sin_lookup`
+
+See `cos_lookup`*/
 pub const TRIG_MAX_ANGLE: u32 = 65536;
+/// The maximum length for a timezone full name (e.g. America/Chicago)
 pub const TIMEZONE_NAME_LENGTH: u32 = 32;
 pub const UUID_SIZE: u32 = 16;
+/// The minimum required length of a string used to hold a uuid (including null).
 pub const UUID_STRING_BUFFER_LENGTH: u32 = 39;
+/** As long as the firmware maintains its current major version, inboxes of this size or smaller will be allowed.
+
+See app_message_inbox_size_maximum()
+
+See APP_MESSAGE_OUTBOX_SIZE_MINIMUM*/
 pub const APP_MESSAGE_INBOX_SIZE_MINIMUM: u32 = 124;
+/** As long as the firmware maintains its current major version, outboxes of this size or smaller will be allowed.
+
+See app_message_outbox_size_maximum()
+
+See APP_MESSAGE_INBOX_SIZE_MINIMUM*/
 pub const APP_MESSAGE_OUTBOX_SIZE_MINIMUM: u32 = 636;
+/** Flag to enable XS instrumentation logging over Bluetooth.
+When set, the Moddable XS engine will log instrumentation data (e.g. memory
+usage, slot/chunk/stack statistics) via app_log. Logging is only active when
+a Bluetooth log listener is connected; otherwise this flag has no effect.
+
+See ModdableCreationRecord*/
 pub const kModdableCreationFlagLogInstrumentation: u32 = 1;
+/** Flag to enable XS debugging using xsbug.
+Should be used in combination with pebble build --debug
+
+See ModdableCreationRecord*/
 pub const kModdableCreationFlagDebug: u32 = 2;
+/// The maximum size of a persist value in bytes
 pub const PERSIST_DATA_MAX_LENGTH: u32 = 256;
+/// The maximum size of a persist string in bytes including the NULL terminator
 pub const PERSIST_STRING_MAX_LENGTH: u32 = 256;
+/// The default request timeout in milliseconds (see `smartstrap_set_timeout`).
 pub const SMARTSTRAP_TIMEOUT_DEFAULT: u32 = 250;
+/// The service_id to specify in order to read/write raw data to the smartstrap.
 pub const SMARTSTRAP_RAW_DATA_SERVICE_ID: u32 = 0;
+/// The attribute_id to specify in order to read/write raw data to the smartstrap.
 pub const SMARTSTRAP_RAW_DATA_ATTRIBUTE_ID: u32 = 0;
+/// The normalized distance at the start of the animation.
 pub const ANIMATION_NORMALIZED_MIN: u32 = 0;
+/// The normalized distance at the end of the animation.
 pub const ANIMATION_NORMALIZED_MAX: u32 = 65535;
+/// The maximum number of action bar items.
 pub const NUM_ACTION_BAR_ITEMS: u32 = 3;
+/// Maximum number of notes in a single speaker_play_notes() call.
 pub const SPEAKER_MAX_NOTES: u32 = 256;
+/// Maximum number of parallel tracks in a single speaker_play_tracks() call.
 pub const SPEAKER_MAX_TRACKS: u32 = 4;
+/** Maximum total sample-data bytes across all tracks in one speaker_play_tracks()
+call.*/
 pub const SPEAKER_MAX_SAMPLE_BYTES_TOTAL: u32 = 16384;
+/** Standard system time functions
+
+This module contains standard time functions and formatters for printing.
+Note that Pebble now supports both local time and UTC time
+(including timezones and daylight savings time).
+Most of these functions are part of the C standard library which is documented at
+https://sourceware.org/newlib/libc.html#Timefns*/
 pub const TZ_LEN: u32 = 6;
 pub const SECONDS_PER_MINUTE: u32 = 60;
 pub const MINUTES_PER_HOUR: u32 = 60;
@@ -652,7 +700,7 @@ pub type wchar_t = ::core::ffi::c_uint;
 gneiss: Vtable Slot 161, Offset 644*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.malloc")]
-pub unsafe extern "C" fn malloc(arg1: ::core::ffi::c_uint) -> *mut ::core::ffi::c_void {
+pub unsafe extern "C" fn malloc(arg1: u32) -> *mut ::core::ffi::c_void {
 	core::arch::naked_asm!(
 		"push  {{r0-r3}}", "ldr   r1, =644", "b     {resolver}", resolver = sym crate
 		::shim::jump_to_pbl_function,
@@ -676,7 +724,7 @@ gneiss: Vtable Slot 323, Offset 1292*/
 #[unsafe(link_section = ".text.realloc")]
 pub unsafe extern "C" fn realloc(
 	arg1: *mut ::core::ffi::c_void,
-	arg2: ::core::ffi::c_uint,
+	arg2: u32,
 ) -> *mut ::core::ffi::c_void {
 	core::arch::naked_asm!(
 		"push  {{r0-r3}}", "ldr   r1, =1292", "b     {resolver}", resolver = sym crate
@@ -701,6 +749,22 @@ pub type int_fast8_t = i8;
 pub type uint_fast8_t = u8;
 pub type intmax_t = ::core::ffi::c_longlong;
 pub type uintmax_t = ::core::ffi::c_ulonglong;
+/** snprintf
+  -> Added in 0
+gneiss: Vtable Slot 239, Offset 956*/
+#[unsafe(naked)]
+#[unsafe(link_section = ".text.snprintf")]
+pub unsafe extern "C" fn snprintf(
+	arg1: *mut ::core::ffi::c_char,
+	arg2: u32,
+	arg3: *const ::core::ffi::c_char,
+	args: ...
+) -> ::core::ffi::c_int {
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =956", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
+}
 /** memcpy
   -> Added in 0
 gneiss: Vtable Slot 162, Offset 648*/
@@ -709,7 +773,7 @@ gneiss: Vtable Slot 162, Offset 648*/
 pub unsafe extern "C" fn memcpy(
 	arg1: *mut ::core::ffi::c_void,
 	arg2: *const ::core::ffi::c_void,
-	arg3: ::core::ffi::c_uint,
+	arg3: u32,
 ) -> *mut ::core::ffi::c_void {
 	core::arch::naked_asm!(
 		"push  {{r0-r3}}", "ldr   r1, =648", "b     {resolver}", resolver = sym crate
@@ -724,7 +788,7 @@ gneiss: Vtable Slot 163, Offset 652*/
 pub unsafe extern "C" fn memmove(
 	arg1: *mut ::core::ffi::c_void,
 	arg2: *const ::core::ffi::c_void,
-	arg3: ::core::ffi::c_uint,
+	arg3: u32,
 ) -> *mut ::core::ffi::c_void {
 	core::arch::naked_asm!(
 		"push  {{r0-r3}}", "ldr   r1, =652", "b     {resolver}", resolver = sym crate
@@ -739,7 +803,7 @@ gneiss: Vtable Slot 164, Offset 656*/
 pub unsafe extern "C" fn memset(
 	arg1: *mut ::core::ffi::c_void,
 	arg2: ::core::ffi::c_int,
-	arg3: ::core::ffi::c_uint,
+	arg3: u32,
 ) -> *mut ::core::ffi::c_void {
 	core::arch::naked_asm!(
 		"push  {{r0-r3}}", "ldr   r1, =656", "b     {resolver}", resolver = sym crate

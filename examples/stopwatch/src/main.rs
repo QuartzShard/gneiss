@@ -6,9 +6,8 @@
 #![no_main]
 extern crate alloc;
 
-use core::fmt::Write;
-
 use gneiss::{
+	prelude::*,
 	resource::font::Font,
 	sys,
 	time::{self, TimeDelta, Timestamp},
@@ -42,7 +41,7 @@ impl Layout for Stopwatch {
 			Point::new(0, bounds.size.height as i32 / 2 - 20),
 			Size::new(bounds.size.width, 40),
 		))
-		.expect("display layer");
+		.pbl_expect(c"display layer");
 		display
 			.set_font(Font::system(sys::FONT_KEY_GOTHIC_28_BOLD))
 			.set_alignment(TextAlignment::Center);
@@ -104,14 +103,14 @@ impl Stopwatch {
 		let ms = (self.banked + running).as_millis();
 		self.display.text_mut(|text| {
 			text.clear();
-			let _ = write!(text, "{}.{:03}", ms / 1000, ms % 1000);
+			let _ = pbl_fmt_write!(text, "{}.{:03}", ms / 1000, ms % 1000);
 		});
 	}
 }
 
 #[gneiss::entry]
 fn main(ui: &mut UiGuard) {
-	let mut window = Window::<Stopwatch>::new(None).expect("window");
+	let mut window = Window::<Stopwatch>::new(None).pbl_expect(c"window");
 	window.set_click_handler(
 		ui,
 		Button::Select,
