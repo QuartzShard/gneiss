@@ -1,6 +1,8 @@
 //! A cargo-subcommand utility for building and packaging rust binaries using `gneiss-sys`.
 #![allow(incomplete_features)]
 pub mod build_project;
+#[cfg(unix)]
+pub mod emulator;
 pub mod install;
 pub mod template;
 
@@ -21,6 +23,8 @@ enum Task {
 	New(NewProject),
 	Build(BuildProject),
 	Install(Install),
+	#[cfg(unix)]
+	Emulator(emulator::Emulator),
 }
 
 fn main() -> Result<()> {
@@ -48,6 +52,8 @@ fn main() -> Result<()> {
 
 	match cmd.task {
 		Task::New(project) => project.create(),
+		#[cfg(unix)]
+		Task::Emulator(emulator) => emulator.run(),
 		Task::Build(project) => project.build(),
 		Task::Install(install) => install.install(),
 	}?;

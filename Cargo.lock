@@ -407,6 +407,7 @@ dependencies = [
 name = "cargo-gneiss"
 version = "0.1.3"
 dependencies = [
+ "bzip2",
  "cargo_metadata",
  "clap",
  "color-eyre",
