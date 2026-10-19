@@ -414,6 +414,7 @@ dependencies = [
  "env_logger",
  "gneiss-build",
  "gneiss-types",
+ "libc",
  "log",
  "prettyplease",
  "proc-macro2",
@@ -425,6 +426,7 @@ dependencies = [
  "tungstenite",
  "unix-time",
  "uuid",
+ "windows-sys",
  "zip",
 ]
 

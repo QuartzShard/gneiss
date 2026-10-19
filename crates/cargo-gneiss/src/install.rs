@@ -5,7 +5,7 @@
 //! each binary message is an endpoint byte, then its payload. The phone installs a bundle itself;
 //! Pebble Protocol packets to and from the watch ride inside relay messages.
 use std::{
-	net::{SocketAddr, TcpStream, ToSocketAddrs},
+	net::{Ipv6Addr, SocketAddr, SocketAddrV6, TcpStream, ToSocketAddrs},
 	path::PathBuf,
 	sync::{
 		Arc,
@@ -77,7 +77,9 @@ pub struct Install {
 #[derive(Debug, Clone, clap::Args)]
 #[group(required = true, multiple = false)]
 struct Target {
-	/// The phone's address, `host` or `host:port`, with the Pebble app's developer connection on
+	/// The phone's address, `host` or `host:port`, with the Pebble app's developer connection on.
+	/// An IPv6 address goes bare or bracketed, `[addr]:port` to give a port. A link-local one
+	/// names its interface, as `fe80::1%wlan0`
 	#[arg(long)]
 	phone:    Option<String>,
 	/// The platform of an emulator that pebble-tool already has running
@@ -88,8 +90,7 @@ struct Target {
 impl Target {
 	fn host(&self) -> Result<String> {
 		match (&self.phone, self.emulator) {
-			(Some(phone), _) if phone.contains(':') => Ok(phone.clone()),
-			(Some(phone), _) => Ok(format!("{phone}:{PHONE_PORT}")),
+			(Some(phone), _) => phone_host(phone),
 			(None, Some(platform)) => Ok(format!("127.0.0.1:{}", emulator_port(platform)?)),
 			(None, None) => bail!("Pass --phone or --emulator"),
 		}
@@ -203,6 +204,66 @@ fn emulator_port(platform: Platform) -> Result<u16> {
 	}
 }
 
+/// `phone` as `host:port`, with [`PHONE_PORT`] if it has none. An IPv6 zone, `%wlan0` or `%3`,
+/// becomes its interface index.
+fn phone_host(phone: &str) -> Result<String> {
+	let (addr, port) = match phone
+		.strip_prefix('[')
+		.and_then(|rest| rest.split_once(']'))
+	{
+		Some((addr, "")) => (addr, PHONE_PORT),
+		Some((addr, port)) => {
+			let port = port
+				.strip_prefix(':')
+				.and_then(|port| port.parse().ok())
+				.ok_or_eyre(format!("{phone}: expected [address]:port"))?;
+			(addr, port)
+		}
+		None if phone.matches(':').count() > 1 => (phone, PHONE_PORT),
+		None if phone.contains(':') => return Ok(phone.to_owned()),
+		None => return Ok(format!("{phone}:{PHONE_PORT}")),
+	};
+	let (ip, zone) = addr
+		.split_once('%')
+		.map_or((addr, None), |(ip, zone)| (ip, Some(zone)));
+	let ip: Ipv6Addr = ip
+		.parse()
+		.wrap_err_with(|| format!("{ip} isn't an IPv6 address"))?;
+	let scope = match zone {
+		None => 0,
+		Some(zone) => match zone.parse() {
+			Ok(index) => index,
+			Err(_) => interface_index(zone)?,
+		},
+	};
+	if ip.is_unicast_link_local() && scope == 0 {
+		bail!("{ip} is link-local, so it needs the interface to reach it on, such as {ip}%wlan0");
+	}
+	Ok(SocketAddrV6::new(ip, port, 0, scope).to_string())
+}
+
+#[cfg(unix)]
+fn interface_index(name: &str) -> Result<u32> {
+	let c_name = std::ffi::CString::new(name)?;
+	// SAFETY: a NUL-terminated string
+	match unsafe { libc::if_nametoindex(c_name.as_ptr()) } {
+		0 => bail!("No network interface {name}"),
+		index => Ok(index),
+	}
+}
+
+#[cfg(windows)]
+fn interface_index(name: &str) -> Result<u32> {
+	let c_name = std::ffi::CString::new(name)?;
+	// SAFETY: a NUL-terminated string
+	match unsafe {
+		windows_sys::Win32::NetworkManagement::IpHelper::if_nametoindex(c_name.as_ptr().cast())
+	} {
+		0 => bail!("No network interface {name}"),
+		index => Ok(index),
+	}
+}
+
 fn connect(host: &str) -> Result<WebSocket<TcpStream>> {
 	let addr = host
 		.to_socket_addrs()
@@ -212,7 +273,13 @@ fn connect(host: &str) -> Result<WebSocket<TcpStream>> {
 	let stream = TcpStream::connect_timeout(&addr, Duration::from_secs(5)).wrap_err_with(|| {
 		format!("Can't reach {host}: is the Pebble app's developer connection on?")
 	})?;
-	let (mut ws, _) = tungstenite::client(format!("ws://{host}/"), stream)
+	let url_host = match addr {
+		SocketAddr::V6(v6) if v6.scope_id() != 0 => {
+			SocketAddrV6::new(*v6.ip(), v6.port(), 0, 0).to_string()
+		}
+		_ => host.to_owned(),
+	};
+	let (mut ws, _) = tungstenite::client(format!("ws://{url_host}/"), stream)
 		.map_err(|e| eyre!("WebSocket handshake with {host} failed: {e}"))?;
 	// After the handshake, which a timeout would interrupt
 	ws.get_mut().set_read_timeout(Some(POLL))?;

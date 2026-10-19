@@ -36,3 +36,9 @@ proc-macro2.workspace = true
 serde_json = { workspace = true }
 tungstenite = { version = "0.30.0", default-features = false, features = ["handshake"] }
 ctrlc = "3.5.2"
+
+[target.'cfg(unix)'.dependencies]
+libc = "0.2.189"
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61.2", features = ["Win32_NetworkManagement_IpHelper"] }
