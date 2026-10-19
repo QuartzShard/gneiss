@@ -18,15 +18,14 @@ watchface = false
 # Siblings of `file` named `<stem>~<tag>.<ext>` override it on the platforms
 # carrying those tags (the platform name, `color`/`bw`, `rect`/`round`, `200w`,
 # `touch`, ...); a name match wins, then the most tags, then `file` itself.
-# Built for emery, flint, chalk, basalt and aplite, which between them cover
-# colour and black and white, round and rect, and both SDK vintages.
+# Built for every platform.
 
 # The menu icon: a special-case bitmap, at most one per app, wired into the app
 # header automatically. You do not normally load it from code.
 [package.metadata.pebble.resources.APP_ICON]
 type = "icon"
 file = "icon.png"
-target_platforms = ["emery", "flint", "chalk", "basalt", "aplite"]
+target_platforms = ["emery", "flint", "gabbro", "chalk", "basalt", "diorite", "aplite"]
 
 # Arbitrary bytes, copied verbatim. Read back at runtime with resource_load.
 # flint matches both data~flint.bin and data~bw.bin and takes the name; aplite
@@ -35,7 +34,7 @@ target_platforms = ["emery", "flint", "chalk", "basalt", "aplite"]
 [package.metadata.pebble.resources.DATA_RAW]
 type = "raw"
 file = "data.bin"
-target_platforms = ["emery", "flint", "chalk", "basalt", "aplite"]
+target_platforms = ["emery", "flint", "gabbro", "chalk", "basalt", "diorite", "aplite"]
 
 # Any `image`-supported file -> an indexed PNG the firmware decodes on load.
 # Both built platforms have a variant (image~emery.png / image~flint.png), each
@@ -44,7 +43,7 @@ target_platforms = ["emery", "flint", "chalk", "basalt", "aplite"]
 [package.metadata.pebble.resources.IMAGE_PNG]
 type = "png"
 file = "image.png"
-target_platforms = ["emery", "flint", "chalk", "basalt", "aplite"]
+target_platforms = ["emery", "flint", "gabbro", "chalk", "basalt", "diorite", "aplite"]
 
 # Any `image`-supported file -> a .pbi (raw pebble bitmap, no runtime decode).
 # Points at logo.png, which has no siblings, so every platform compiles that
@@ -52,7 +51,7 @@ target_platforms = ["emery", "flint", "chalk", "basalt", "aplite"]
 [package.metadata.pebble.resources.IMAGE_BITMAP]
 type = "bitmap"
 file = "logo.png"
-target_platforms = ["emery", "flint", "chalk", "basalt", "aplite"]
+target_platforms = ["emery", "flint", "gabbro", "chalk", "basalt", "diorite", "aplite"]
 
 # An already-baked .pbi, copied verbatim (only validated). Loads like a bitmap.
 # A .pbi is quantised for a colour depth rather than for a watch, so the
@@ -62,14 +61,14 @@ target_platforms = ["emery", "flint", "chalk", "basalt", "aplite"]
 [package.metadata.pebble.resources.IMAGE_PBI]
 type = "pbi"
 file = "logo.pbi"
-target_platforms = ["emery", "flint", "chalk", "basalt", "aplite"]
+target_platforms = ["emery", "flint", "gabbro", "chalk", "basalt", "diorite", "aplite"]
 
 # A freetype-rasterised font -> .pbf. FontSettings (camelCase) tune it:
 #   pixelHeight, characterRegex / characterList, compress, extended, trackingAdjust
 [package.metadata.pebble.resources.FONT_ROBOTO_18]
 type = "font"
 file = "font.ttf"
-target_platforms = ["emery", "flint", "chalk", "basalt", "aplite"]
+target_platforms = ["emery", "flint", "gabbro", "chalk", "basalt", "diorite", "aplite"]
 pixelHeight = 18
 characterRegex = "[ -~]"
 compress = true
@@ -78,7 +77,7 @@ compress = true
 [package.metadata.pebble.resources.FONT_PBF]
 type = "pbf"
 file = "font.pbf"
-target_platforms = ["emery", "flint", "chalk", "basalt", "aplite"]
+target_platforms = ["emery", "flint", "gabbro", "chalk", "basalt", "diorite", "aplite"]
 
 # SVGs compiled to Pebble Draw Commands: vectors the firmware strokes and fills
 # at draw time rather than a bitmap. A single file becomes a .pdc image, a
@@ -88,7 +87,7 @@ target_platforms = ["emery", "flint", "chalk", "basalt", "aplite"]
 [package.metadata.pebble.resources.FERRIS_PDC]
 type = "svg"
 file = "ferris.svg"
-target_platforms = ["emery", "flint", "chalk", "basalt", "aplite"]
+target_platforms = ["emery", "flint", "gabbro", "chalk", "basalt", "diorite", "aplite"]
 
 # Curves are subdivided to `tolerance` pixels, which is what a vector costs you
 # in bytes: 0.5px halves this spinner against the default. A 0xFFFF play count
@@ -96,7 +95,7 @@ target_platforms = ["emery", "flint", "chalk", "basalt", "aplite"]
 [package.metadata.pebble.resources.SPINNER_PDCS]
 type = "svg"
 file = "spinner"
-target_platforms = ["emery", "flint", "chalk", "basalt", "aplite"]
+target_platforms = ["emery", "flint", "gabbro", "chalk", "basalt", "diorite", "aplite"]
 tolerance = 0.5
 frameDurationMs = 60
 playCount = 65535
@@ -110,13 +109,13 @@ playCount = 65535
 [package.metadata.pebble.resources.SPINNER_PREBAKED]
 type = "pdc"
 file = "spinner.pdc"
-target_platforms = ["emery", "flint", "chalk", "basalt", "aplite"]
+target_platforms = ["emery", "flint", "gabbro", "chalk", "basalt", "diorite", "aplite"]
 
 # A vibration score compiled from a JSON pattern (see buzz.json).
 [package.metadata.pebble.resources.BUZZ]
 type = "vibe"
 file = "buzz.json"
-target_platforms = ["emery", "flint", "chalk", "basalt", "aplite"]
+target_platforms = ["emery", "flint", "gabbro", "chalk", "basalt", "diorite", "aplite"]
 
 [dependencies.gneiss]
 path = "../../crates/gneiss"
@@ -131,8 +130,10 @@ features = []
 default = ["emery"]
 emery = ["gneiss/emery"]
 flint = ["gneiss/flint"]
+gabbro = ["gneiss/gabbro"]
 chalk = ["gneiss/chalk"]
 basalt = ["gneiss/basalt"]
+diorite = ["gneiss/diorite"]
 aplite = ["gneiss/aplite"]
 
 [profile.release]

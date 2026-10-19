@@ -1,5 +1,6 @@
 Source: https://github.com/coredevices/PebbleOS
 License: Apache-2.0 (Copyright Google LLC) — see LICENSE.apache-2.0
 PebbleOS Commit: 9d755fe3485c50b3f36d41443e05cccdfd931800
+PebbleOS Release: v4.41.2
 Snapshot made: 2026-10-18T17:40:58.511091798+01:00
 aplite, basalt, chalk, diorite: frozen SDKs, kept from the snapshot of PebbleOS f1a41a468ef9016a41b22171cb15fd046a2cd45e (v4.36.2)

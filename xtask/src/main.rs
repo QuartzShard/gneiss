@@ -296,8 +296,12 @@ fn regen_sys() -> Result<()> {
 
 	let bits = platform_table::process_info_bits(&bindings)?;
 	let versions = platform_table::header_versions(&vendor)?;
+	let release = platform_table::firmware_release(&vendor)?;
 	let config = workspace_root().join("crates/gneiss-types/src/config.rs");
-	std::fs::write(&config, platform_table::render(&platforms, &bits, &versions)?)?;
+	std::fs::write(
+		&config,
+		platform_table::render(&platforms, &bits, &versions, &release)?,
+	)?;
 	rustfmt(&config)?;
 	Ok(())
 }
@@ -391,6 +395,25 @@ fn snapshot_vendor(repo: &Path) -> Result<()> {
 		.map_or("NotAGitRepo".into(), |output| {
 			String::from_utf8_lossy(&output.stdout).into_owned()
 		});
+	// The release it is, or the last one before it, for the emulator's firmware images
+	let release = |args: &[&str]| {
+		Command::new("git")
+			.current_dir(repo)
+			.args(["describe", "--tags"])
+			.args(args)
+			.output()
+			.ok()
+			.filter(|output| output.status.success())
+			.map(|output| String::from_utf8_lossy(&output.stdout).trim().to_owned())
+	};
+	let release = release(&["--exact-match", "HEAD"]).unwrap_or_else(|| {
+		let tag = release(&["--abbrev=0", "HEAD"]).unwrap_or_else(|| "none".into());
+		log::warn!(
+			"PebbleOS HEAD isn't a release: the emulator will run {tag}, whose firmware may predate \
+			 these headers"
+		);
+		tag
+	});
 	// ...and write out a fingerprint file
 	let now = chrono::Local::now().to_rfc3339();
 	std::fs::write(
@@ -398,7 +421,7 @@ fn snapshot_vendor(repo: &Path) -> Result<()> {
 		format!(
 			"Source: https://github.com/coredevices/PebbleOS\n\
              License: Apache-2.0 (Copyright Google LLC) — see LICENSE.apache-2.0\n\
-             PebbleOS Commit: {}\nSnapshot made: {}\n\
+             PebbleOS Commit: {}\nPebbleOS Release: {release}\nSnapshot made: {}\n\
              {LEGACY_NOTE}",
 			hash.trim(),
 			now

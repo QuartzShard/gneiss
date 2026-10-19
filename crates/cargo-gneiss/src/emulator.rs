@@ -19,6 +19,8 @@ use color_eyre::{
 use gneiss_types::Platform;
 
 mod assets;
+pub mod install;
+mod link;
 mod state;
 
 use state::{Entry, State};
@@ -30,7 +32,7 @@ const CONSOLE_SOCKET: &str = "console.sock";
 pub const MONITOR_SOCKET: &str = "monitor.sock";
 const GDB_SOCKET: &str = "gdb.sock";
 const LOG: &str = "qemu.log";
-const BOOT_TIMEOUT: Duration = Duration::from_secs(30);
+const BOOT_TIMEOUT: Duration = Duration::from_secs(10);
 const STOP_TIMEOUT: Duration = Duration::from_secs(10);
 /// What the firmware prints on its console once it's up, by version
 const BOOTED: [&[u8]; 3] = [b"<SDK Home>", b"<Launcher>", b"Ready for communication"];
@@ -50,6 +52,9 @@ enum EmulatorCommand {
 		/// Start from a fresh flash image, losing the apps installed on it
 		#[arg(long)]
 		wipe:     bool,
+		/// Download the emulator without asking, if it isn't cached
+		#[arg(short, long)]
+		yes:      bool,
 	},
 	/// Stop an emulator, or all of them
 	Stop { platform: Option<Platform> },
@@ -58,7 +63,11 @@ enum EmulatorCommand {
 impl Emulator {
 	pub fn run(&self) -> Result<()> {
 		match &self.command {
-			EmulatorCommand::Start { platform, wipe } => start(*platform, *wipe).map(|_| ()),
+			EmulatorCommand::Start {
+				platform,
+				wipe,
+				yes,
+			} => start(*platform, *wipe, *yes).map(|_| ()),
 			EmulatorCommand::Stop {
 				platform: Some(platform),
 			} => stop(*platform),
@@ -79,12 +88,20 @@ pub fn socket_dir(platform: Platform) -> PathBuf {
 
 /// Start `platform`'s emulator if it isn't running, and wait for it to boot. Returns the directory
 /// with its sockets.
-pub fn start(platform: Platform, wipe: bool) -> Result<PathBuf> {
+pub fn start(platform: Platform, wipe: bool, yes: bool) -> Result<PathBuf> {
 	let mut state = State::load()?;
 	let dir = socket_dir(platform);
 	if let Some(entry) = state.get(platform) {
 		if wipe {
 			bail!("The {platform} emulator is running: stop it before wiping its flash");
+		}
+		let wanted = assets::version(platform);
+		if entry.version != wanted {
+			bail!(
+				"The {platform} emulator running is firmware {}, not {wanted}: stop it with `cargo \
+				 gneiss emulator stop {platform}`",
+				entry.version
+			);
 		}
 		log::info!(
 			"The {platform} emulator is already running ({})",
@@ -93,13 +110,13 @@ pub fn start(platform: Platform, wipe: bool) -> Result<PathBuf> {
 		return Ok(dir);
 	}
 
-	let assets = assets::locate(platform)?;
+	let assets = assets::locate(platform, yes)?;
 	let flash = data_dir()?
 		.join(&assets.version)
 		.join(platform.as_str())
 		.join("qemu_spi_flash.bin");
 	if wipe || !flash.exists() {
-		unpack_flash(&assets.spi_flash_bz2, &flash)?;
+		fresh_flash(&assets.spi_flash, &flash)?;
 	}
 
 	if dir.exists() {
@@ -247,18 +264,12 @@ fn option_path(path: &Path) -> Result<String> {
 	Ok(path_str(path)?.replace(',', ",,"))
 }
 
-fn unpack_flash(bz2: &Path, flash: &Path) -> Result<()> {
-	log::info!("Unpacking a fresh flash image to {}", flash.display());
+fn fresh_flash(image: &Path, flash: &Path) -> Result<()> {
+	log::info!("Copying a fresh flash image to {}", flash.display());
 	let parent = flash.parent().ok_or_eyre("Flash image has no directory")?;
 	std::fs::create_dir_all(parent)
 		.wrap_err_with(|| format!("Can't create {}", parent.display()))?;
-	let mut source = bzip2::read::BzDecoder::new(
-		File::open(bz2).wrap_err_with(|| format!("Can't read {}", bz2.display()))?,
-	);
-	let mut out =
-		File::create(flash).wrap_err_with(|| format!("Can't write {}", flash.display()))?;
-	std::io::copy(&mut source, &mut out)
-		.wrap_err_with(|| format!("Can't unpack {}", bz2.display()))?;
+	std::fs::copy(image, flash).wrap_err_with(|| format!("Can't write {}", flash.display()))?;
 	Ok(())
 }
 

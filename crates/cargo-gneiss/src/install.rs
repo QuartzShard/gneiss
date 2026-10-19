@@ -57,7 +57,7 @@ impl Endpoint {
 }
 
 /// Pebble Protocol endpoint for app logs: the shipping switch towards the watch, log lines back
-const APP_LOGS: u16 = 2006;
+pub const APP_LOGS: u16 = 2006;
 const PHONE_PORT: u16 = 9000;
 /// As long as pebble-tool gives the phone to transfer and install a bundle
 const INSTALL_TIMEOUT: Duration = Duration::from_secs(300);
@@ -74,6 +74,9 @@ pub struct Install {
 	/// Stay connected and print the watch's app logs until interrupted
 	#[arg(long)]
 	logs:   bool,
+	/// Download the emulator without asking, if it isn't cached
+	#[arg(short, long)]
+	yes:    bool,
 }
 
 #[derive(Debug, Clone, clap::Args)]
@@ -84,7 +87,7 @@ struct Target {
 	/// names its interface, as `fe80::1%wlan0`
 	#[arg(long)]
 	phone:    Option<String>,
-	/// The platform of an emulator that pebble-tool already has running
+	/// The platform of an emulator to install on, started if it isn't running
 	#[arg(long)]
 	emulator: Option<Platform>,
 	/// The Pebble app on an Android phone over USB, through the adb server. Alone, the one phone
@@ -97,7 +100,7 @@ impl Target {
 	fn connect(&self) -> Result<WebSocket<TcpStream>> {
 		match (&self.phone, self.emulator, &self.adb) {
 			(Some(phone), ..) => connect(&phone_host(phone)?),
-			(_, Some(platform), _) => connect(&format!("127.0.0.1:{}", emulator_port(platform)?)),
+			(_, Some(_), _) => bail!("The emulator runs on Linux and macOS only"),
 			(.., Some(device)) => {
 				let (stream, serial) = adb::open(Some(device.as_str()).filter(|d| !d.is_empty()))?;
 				handshake(stream, &format!("localhost:{PHONE_PORT}"), &serial)
@@ -115,16 +118,22 @@ impl Install {
 		};
 		let pbw = std::fs::read(&pbw_path)
 			.wrap_err_with(|| format!("Can't read {}", pbw_path.display()))?;
-		let mut ws = self.target.connect()?;
 
 		let stop = Arc::new(AtomicBool::new(false));
 		if self.logs {
 			let stop = Arc::clone(&stop);
 			ctrlc::set_handler(move || stop.store(true, Ordering::Relaxed))?;
-			set_log_shipping(&mut ws, true)?;
+		}
+		log::info!("Installing {}...", pbw_path.display());
+		#[cfg(unix)]
+		if let Some(platform) = self.target.emulator {
+			return crate::emulator::install::install(platform, &pbw, self.logs, self.yes, &stop);
 		}
 
-		log::info!("Installing {}...", pbw_path.display());
+		let mut ws = self.target.connect()?;
+		if self.logs {
+			set_log_shipping(&mut ws, true)?;
+		}
 		ws.send(Message::binary(frame(Endpoint::InstallBundle, &pbw)))?;
 		let deadline = Instant::now() + INSTALL_TIMEOUT;
 		loop {
@@ -172,46 +181,6 @@ fn default_pbw() -> Result<PathBuf> {
 		bail!("No bundle at {path}: run `cargo gneiss build` first, or name a .pbw");
 	}
 	Ok(path.into())
-}
-
-/// The pypkjs port of the one running emulator for `platform`, from the state file pebble-tool
-/// keeps in the temp directory.
-fn emulator_port(platform: Platform) -> Result<u16> {
-	let path = std::env::temp_dir().join("pb-emulator.json");
-	let no_emulator = || {
-		eyre!(
-			"No {platform} emulator is running. Start one with pebble-tool, e.g. `pebble install \
-			 --emulator {platform}`"
-		)
-	};
-	let info: serde_json::Value =
-		serde_json::from_slice(&std::fs::read(&path).map_err(|_| no_emulator())?)?;
-	let versions = info
-		.get(platform.as_str())
-		.and_then(serde_json::Value::as_object)
-		.ok_or_else(no_emulator)?;
-	// An entry outlives its emulator, so only count one whose pypkjs still answers
-	let alive: Vec<(&String, u16)> = versions
-		.iter()
-		.filter_map(|(version, entry)| {
-			let port = u16::try_from(entry.get("pypkjs")?.get("port")?.as_u64()?).ok()?;
-			let addr = SocketAddr::from(([127, 0, 0, 1], port));
-			TcpStream::connect_timeout(&addr, Duration::from_millis(500)).ok()?;
-			Some((version, port))
-		})
-		.collect();
-	match alive.as_slice() {
-		[] => Err(no_emulator()),
-		[(_, port)] => Ok(*port),
-		_ => bail!(
-			"Several {platform} emulators are running (SDK {}); stop all but one",
-			alive
-				.iter()
-				.map(|(version, _)| version.as_str())
-				.collect::<Vec<_>>()
-				.join(", ")
-		),
-	}
 }
 
 /// `phone` as `host:port`, with [`PHONE_PORT`] if it has none. An IPv6 zone, `%wlan0` or `%3`,
@@ -351,7 +320,7 @@ fn handle(data: &[u8], logs: bool) {
 
 /// An app log line: uuid (16), timestamp u32, level u8, message length u8, line u16, filename (16,
 /// NUL-padded), message.
-fn print_app_log(payload: &[u8]) {
+pub fn print_app_log(payload: &[u8]) {
 	let Some(fields) = payload.get(..40) else {
 		return;
 	};

@@ -37,6 +37,11 @@ serde_json = { workspace = true }
 tungstenite = { version = "0.30.0", default-features = false, features = ["handshake"] }
 ctrlc = "3.5.2"
 bzip2 = "0.4"
+bytemuck = { workspace = true }
+ureq = "3.4.2"
+tar = "0.4.46"
+sha2 = "0.10"
+flate2 = "1"
 
 [target.'cfg(unix)'.dependencies]
 libc = "0.2.189"

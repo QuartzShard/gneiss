@@ -293,11 +293,22 @@ pub fn process_info_bits(bindings: &str) -> Result<Vec<(Platform, u8)>> {
 	}
 	Ok(bits)
 }
+/// The PebbleOS release the vendored headers came from, as `vendor/UPSTREAM` records it.
+pub fn firmware_release(vendor: &Path) -> Result<String> {
+	let upstream = std::fs::read_to_string(vendor.join("UPSTREAM"))?;
+	upstream
+		.lines()
+		.find_map(|line| line.strip_prefix("PebbleOS Release: "))
+		.map(|release| release.trim().to_owned())
+		.ok_or_eyre("No PebbleOS Release in vendor/UPSTREAM: rerun `cargo xtask snapshot-vendor`")
+}
+
 /// Render the whole of `gneiss-types`'s `config.rs`.
 pub fn render(
 	table: &PlatformTable,
 	bits: &[(Platform, u8)],
 	versions: &[(Platform, HeaderVersions)],
+	release: &str,
 ) -> Result<String> {
 	let capabilities = capabilities_struct();
 	let consts = table
@@ -321,6 +332,10 @@ pub fn render(
 
 	let tokens = quote! {
 		use crate::{Platform, pebble_process_info::Version};
+
+		#[doc = " The PebbleOS release the vendored headers came from. Its firmware runs the"]
+		#[doc = " emulators for the platforms that aren't frozen."]
+		pub const FIRMWARE_RELEASE: &str = #release;
 
 		#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 		pub enum DisplayShape {

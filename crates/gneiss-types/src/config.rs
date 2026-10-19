@@ -6,6 +6,9 @@
 //! Do not hand-edit: see `xtask/src/platform_table.rs`
 #![allow(clippy::pedantic)]
 use crate::{Platform, pebble_process_info::Version};
+/// The PebbleOS release the vendored headers came from. Its firmware runs the
+/// emulators for the platforms that aren't frozen.
+pub const FIRMWARE_RELEASE: &str = "v4.41.2";
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum DisplayShape {
 	Rect,
