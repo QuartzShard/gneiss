@@ -1,6 +1,6 @@
 [package]
 name              = "cargo-gneiss"
-version           = "0.2.1"
+version           = "0.2.2"
 description       = "Create, build and install gneiss Pebble apps"
 rust-version      = "1.98"
 keywords          = ["pebble", "pebbleos", "cargo"]

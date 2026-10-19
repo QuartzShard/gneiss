@@ -126,9 +126,12 @@ pub struct Install {
 	pbw:    Option<PathBuf>,
 	#[command(flatten)]
 	target: Target,
-	/// Stay connected and print the watch's app logs until interrupted
+	/// Stay connected and print the app's logs until interrupted
 	#[arg(long)]
 	logs:   bool,
+	/// With `--logs`, print every app's logs, not only this one's
+	#[arg(long, requires = "logs")]
+	all:    bool,
 	/// Download the emulator without asking, if it isn't cached
 	#[arg(short, long)]
 	yes:    bool,
@@ -175,7 +178,9 @@ impl Install {
 			.wrap_err_with(|| format!("Can't read {}", pbw_path.display()))?;
 
 		let stop = if self.logs { ctrl_c()? } else { Arc::default() };
-		let mut printer = self.logs.then(|| LogPrinter::new(Some((&pbw_path, &pbw))));
+		let mut printer = self
+			.logs
+			.then(|| LogPrinter::new(Some((&pbw_path, &pbw)), self.all));
 		log::info!("Installing {}...", pbw_path.display());
 		#[cfg(unix)]
 		if let Some(platform) = self.target.emulator {
@@ -216,11 +221,14 @@ impl Install {
 #[derive(Debug, Clone, clap::Parser)]
 /// Print a watch's app logs until interrupted, without installing anything
 pub struct Logs {
-	/// The app whose hard faults to put source lines to. Defaults to this project's `cargo gneiss
-	/// build` output, if there is one
+	/// The app whose logs to print and hard faults to put source lines to. Defaults to this
+	/// project's `cargo gneiss build` output, if there is one
 	pbw:    Option<PathBuf>,
 	#[command(flatten)]
 	target: Target,
+	/// Print every app's logs, not only this one's
+	#[arg(long)]
+	all:    bool,
 }
 
 impl Logs {
@@ -238,13 +246,15 @@ impl Logs {
 			.transpose()?;
 		if bundle.is_none() {
 			log::info!(
-				"No app bundle to put crashes to source lines: name one, or run in its project"
+				"No app bundle, so printing every app's logs without source lines for crashes: \
+				 name one, or run in its project"
 			);
 		}
 		let mut printer = LogPrinter::new(
 			bundle
 				.as_ref()
 				.map(|(path, pbw)| (path.as_path(), pbw.as_slice())),
+			self.all,
 		);
 		let stop = ctrl_c()?;
 		#[cfg(unix)]
@@ -443,7 +453,7 @@ fn handle(data: &[u8], printer: Option<&mut LogPrinter>) {
 			}
 		}
 		Some((Endpoint::PhoneAppLog, message)) => {
-			println!("[phone] {}", String::from_utf8_lossy(message));
+			printer.print_phone(&String::from_utf8_lossy(message));
 		}
 		_ => {}
 	}
@@ -459,22 +469,25 @@ fn watch_platform(payload: &[u8]) -> Option<Platform> {
 	Platform::from_hardware(version.hw_platform)
 }
 
-/// Prints app logs, and puts source lines to the installed app's hard faults.
+/// Prints an app's logs, and puts source lines to its hard faults.
 pub struct LogPrinter {
-	app: Option<Uuid>,
+	app: Option<AppInfo>,
 	pbw: Option<PathBuf>,
 	/// The ELF to look faults up in, once the watch's platform is known
 	elf: Option<PathBuf>,
+	/// Print every app's logs
+	all: bool,
 }
 
 impl LogPrinter {
-	/// A printer for logs, putting source lines to the faults of `bundle`'s app, given its path and
-	/// contents.
-	pub fn new(bundle: Option<(&Path, &[u8])>) -> Self {
+	/// A printer for the logs of `bundle`'s app, given its path and contents, or of every app's if
+	/// `all` or there's no bundle.
+	pub fn new(bundle: Option<(&Path, &[u8])>, all: bool) -> Self {
 		Self {
-			app: bundle.and_then(|(_, pbw)| bundle_uuid(pbw)),
+			app: bundle.and_then(|(_, pbw)| AppInfo::read(pbw)),
 			pbw: bundle.map(|(path, _)| path.to_owned()),
 			elf: None,
+			all,
 		}
 	}
 
@@ -500,19 +513,39 @@ impl LogPrinter {
 		let filename = &fields[24..40];
 		let filename = &filename[..filename.iter().position(|&b| b == 0).unwrap_or(16)];
 		let message = String::from_utf8_lossy(&payload[40..payload.len().min(40 + message_len)]);
+		// The firmware logs a fault as whichever app is in front by then
+		let fault = blame::Fault::parse(&message)
+			.filter(|fault| self.app.as_ref().is_some_and(|app| app.uuid == fault.uuid));
+		if fault.is_none() && !self.shows(|app| app.uuid.as_bytes() == &fields[..16]) {
+			return;
+		}
 		println!(
 			"{level:>7} {}:{line}> {message}",
 			String::from_utf8_lossy(filename)
 		);
-		if let Some(fault) = blame::Fault::parse(&message) {
+		if let Some(fault) = fault {
 			self.blame(&fault);
 		}
 	}
 
-	fn blame(&self, fault: &blame::Fault) {
-		if Some(fault.uuid) != self.app {
-			return;
+	/// A log line from the phone: an app's JavaScript logs it as `{long name}:{line} {message}`.
+	fn print_phone(&self, message: &str) {
+		let ours = |app: &AppInfo| {
+			message
+				.strip_prefix(&app.name)
+				.is_some_and(|rest| rest.starts_with(':'))
+		};
+		if self.shows(ours) {
+			println!("[phone] {message}");
 		}
+	}
+
+	/// Whether to print a line, given whether it's `from` this printer's app.
+	fn shows(&self, from: impl FnOnce(&AppInfo) -> bool) -> bool {
+		self.all || self.app.as_ref().is_none_or(from)
+	}
+
+	fn blame(&self, fault: &blame::Fault) {
 		let lines = if fault.worker {
 			vec![String::from(
 				"Worker faults aren't blamed: gneiss builds no workers",
@@ -535,16 +568,27 @@ impl LogPrinter {
 	}
 }
 
-/// The app's UUID, from the bundle's `appinfo.json`.
-fn bundle_uuid(pbw: &[u8]) -> Option<Uuid> {
-	let mut zip = zip::ZipArchive::new(std::io::Cursor::new(pbw)).ok()?;
-	let mut info = String::new();
-	zip.by_name("appinfo.json")
-		.ok()?
-		.read_to_string(&mut info)
-		.ok()?;
-	let info: serde_json::Value = serde_json::from_str(&info).ok()?;
-	info.get("uuid")?.as_str()?.parse().ok()
+/// What tells an app's logs apart, from its bundle's `appinfo.json`.
+struct AppInfo {
+	uuid: Uuid,
+	/// Its `longName`
+	name: String,
+}
+
+impl AppInfo {
+	fn read(pbw: &[u8]) -> Option<Self> {
+		let mut zip = zip::ZipArchive::new(std::io::Cursor::new(pbw)).ok()?;
+		let mut info = String::new();
+		zip.by_name("appinfo.json")
+			.ok()?
+			.read_to_string(&mut info)
+			.ok()?;
+		let info: serde_json::Value = serde_json::from_str(&info).ok()?;
+		Some(Self {
+			uuid: info.get("uuid")?.as_str()?.parse().ok()?,
+			name: info.get("longName")?.as_str()?.to_owned(),
+		})
+	}
 }
 
 fn set_log_shipping(ws: &mut WebSocket<TcpStream>, on: bool) -> Result<()> {
