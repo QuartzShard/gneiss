@@ -633,16 +633,19 @@ See `cos_lookup`*/
 pub const TRIG_MAX_ANGLE: u32 = 65536;
 /// The maximum length for a timezone full name (e.g. America/Chicago)
 pub const TIMEZONE_NAME_LENGTH: u32 = 32;
+/// Size of a UUID, in bytes.
 pub const UUID_SIZE: u32 = 16;
 /// The minimum required length of a string used to hold a uuid (including null).
 pub const UUID_STRING_BUFFER_LENGTH: u32 = 39;
-/** As long as the firmware maintains its current major version, inboxes of this size or smaller will be allowed.
+/** As long as the firmware maintains its current major version, inboxes of this size or smaller
+will be allowed.
 
 See app_message_inbox_size_maximum()
 
 See APP_MESSAGE_OUTBOX_SIZE_MINIMUM*/
 pub const APP_MESSAGE_INBOX_SIZE_MINIMUM: u32 = 124;
-/** As long as the firmware maintains its current major version, outboxes of this size or smaller will be allowed.
+/** As long as the firmware maintains its current major version, outboxes of this size or smaller
+will be allowed.
 
 See app_message_outbox_size_maximum()
 
@@ -826,7 +829,7 @@ pub const ButtonId_BUTTON_ID_DOWN: ButtonId = 3;
 pub const ButtonId_NUM_BUTTONS: ButtonId = 4;
 /** Button ID values
 
-See `click_recognizer_get_button_id()`*/
+See click_recognizer_get_button_id()*/
 pub type ButtonId = ::core::ffi::c_uchar;
 /** Get the ISO locale name for the language currently set on the watch
 
@@ -962,8 +965,9 @@ pub const WatchInfoColor_WATCH_INFO_COLOR__MAX: WatchInfoColor = 44;
 /// The different watch colors.
 pub type WatchInfoColor = ::core::ffi::c_uchar;
 /** Data structure containing the version of the firmware running on the watch.
-The version of the firmware has the form X.[X.[X]]. If a version number is not present it will be 0.
-For example: the version numbers of 2.4.1 are 2, 4, and 1. The version numbers of 2.4 are 2, 4, and 0.*/
+The version of the firmware has the form X.[X.[X]]. If a version number is not present it will
+be 0. For example: the version numbers of 2.4.1 are 2, 4, and 1. The version numbers of 2.4 are
+2, 4, and 0.*/
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct WatchInfoVersion {
@@ -1026,8 +1030,11 @@ pub unsafe extern "C" fn watch_info_get_color() -> WatchInfoColor {
 }
 /** Look-up the sine of the given angle from a pre-computed table.
 
- * `angle`: The angle for which to compute the cosine.
- The angle value is scaled linearly, such that a value of 0x10000 corresponds to 360 degrees or 2 PI radians.*/
+ * `angle`: The angle for which to compute the sine.
+ The angle value is scaled linearly, such that a value of 0x10000 corresponds to 360 degrees or 2
+ PI radians.
+
+ Returns Sine of `angle`, scaled so that 1 is TRIG_MAX_RATIO.*/
 /** sin_lookup
   -> Added in 0
 gneiss: Vtable Slot 238, Offset 952*/
@@ -1040,10 +1047,14 @@ pub unsafe extern "C" fn sin_lookup(angle: i32) -> i32 {
 	)
 }
 /** Look-up the cosine of the given angle from a pre-computed table.
+
  This is equivalent to calling `sin_lookup(angle + TRIG_MAX_ANGLE / 4)`.
 
  * `angle`: The angle for which to compute the cosine.
- The angle value is scaled linearly, such that a value of 0x10000 corresponds to 360 degrees or 2 PI radians.*/
+ The angle value is scaled linearly, such that a value of 0x10000 corresponds to 360 degrees or 2
+ PI radians.
+
+ Returns Cosine of `angle`, scaled so that 1 is TRIG_MAX_RATIO.*/
 /** cos_lookup
   -> Added in 0
 gneiss: Vtable Slot 70, Offset 280*/
@@ -1056,7 +1067,15 @@ pub unsafe extern "C" fn cos_lookup(angle: i32) -> i32 {
 	)
 }
 /** Look-up the arctangent of a given x, y pair
- The angle value is scaled linearly, such that a value of 0x10000 corresponds to 360 degrees or 2 PI radians.*/
+
+ The angle value is scaled linearly, such that a value of 0x10000 corresponds to 360 degrees or 2
+ PI radians.
+
+ * `y`: Y coordinate.
+ * `x`: X coordinate.
+
+ Returns Angle of the point (x, y) counter-clockwise from the positive x axis, from 0 up to but
+ not including TRIG_MAX_ANGLE.*/
 /** atan2_lookup
   -> Added in 0
 gneiss: Vtable Slot 50, Offset 200*/
@@ -1068,26 +1087,27 @@ pub unsafe extern "C" fn atan2_lookup(y: i16, x: i16) -> i32 {
 		::shim::jump_to_pbl_function,
 	)
 }
-/// < Today
+/// Today
 pub const WeekDay_TODAY: WeekDay = 0;
-/// < Sunday
+/// Sunday
 pub const WeekDay_SUNDAY: WeekDay = 1;
-/// < Monday
+/// Monday
 pub const WeekDay_MONDAY: WeekDay = 2;
-/// < Tuesday
+/// Tuesday
 pub const WeekDay_TUESDAY: WeekDay = 3;
-/// < Wednesday
+/// Wednesday
 pub const WeekDay_WEDNESDAY: WeekDay = 4;
-/// < Thursday
+/// Thursday
 pub const WeekDay_THURSDAY: WeekDay = 5;
-/// < Friday
+/// Friday
 pub const WeekDay_FRIDAY: WeekDay = 6;
-/// < Saturday
+/// Saturday
 pub const WeekDay_SATURDAY: WeekDay = 7;
 /// Weekday values
 pub type WeekDay = ::core::ffi::c_uchar;
-/** Copies a time string into the buffer, formatted according to the user's time display preferences (such as 12h/24h
- time).
+/** Copies a time string into the buffer, formatted according to the user's time display
+ preferences (such as 12h/24h time).
+
  Example results: "7:30" or "15:00".
 
  Note: AM/PM are also outputted with the time if the user's preference is 12h time.
@@ -1120,14 +1140,18 @@ pub unsafe extern "C" fn clock_is_24h_style() -> bool {
 		::shim::jump_to_pbl_function,
 	)
 }
-/** Converts a (day, hour, minute) specification to a UTC timestamp occurring in the future
+/** Converts a (day, hour, minute) specification to a UTC timestamp occurring in the future.
+
  Always returns a timestamp for the next occurring instance,
- example: specifying TODAY@14:30 when it is 14:40 will return a timestamp for 7 days from
- now at 14:30
+ example: specifying TODAY@14:30 when it is 14:40 will return a timestamp for tomorrow at
+ 14:30, while specifying the current day of the week will return a timestamp for 7 days from
+ now.
 
  * `day`: WeekDay day of week including support for specifying TODAY
  * `hour`: hour specified in 24-hour format [0-23]
- * `minute`: minute [0-59]*/
+ * `minute`: minute [0-59]
+
+ Returns UTC timestamp of the next occurrence.*/
 /** clock_to_timestamp
   -> Added in 24
 gneiss: Vtable Slot 351, Offset 1404*/
@@ -1365,7 +1389,7 @@ completely in focus, the did_focus handler is called with in_focus set to true.
 2) A notification comes in and the animation to show the notification starts. The will_focus
 handler is called with in_focus set to false.
 3) The animation completes and the notification is in focus, with the app being completely
-covered. The did_focus hander is called with in_focus set to false.
+covered. The did_focus handler is called with in_focus set to false.
 4) The notification is dismissed and the animation to return to the app starts. The will_focus
 handler is called with in_focus set to true.
 5) The animation completes and the app is in focus. The did_focus handler is called with
@@ -1796,6 +1820,7 @@ pub const CompassStatus_CompassStatusCalibrated: CompassStatus = 2;
 /// Enum describing the current state of the Compass Service
 pub type CompassStatus = ::core::ffi::c_schar;
 /** Represents an angle relative to get to a reference direction, e.g. (magnetic) north.
+
 The angle value is scaled linearly, such that a value of TRIG_MAX_ANGLE
 corresponds to 360 degrees or 2 PI radians.
 Thus, if heading towards north, north is 0, west is TRIG_MAX_ANGLE/4,
@@ -1921,8 +1946,8 @@ pub const TimeUnits_DAY_UNIT: TimeUnits = 8;
 pub const TimeUnits_MONTH_UNIT: TimeUnits = 16;
 /// Flag to represent the "years" time unit
 pub const TimeUnits_YEAR_UNIT: TimeUnits = 32;
-/** Time unit flags that can be used to create a bitmask for use in `tick_timer_service_subscribe()`.
-This will also be passed to `TickHandler`.*/
+/** Time unit flags that can be used to create a bitmask for use in ``
+tick_timer_service_subscribe(). This will also be passed to `TickHandler`.*/
 pub type TimeUnits = ::core::ffi::c_uchar;
 /** Callback type for tick timer events
 
@@ -1961,8 +1986,11 @@ pub unsafe extern "C" fn tick_timer_service_unsubscribe() {
 		::shim::jump_to_pbl_function,
 	)
 }
+/// A finger touched the screen.
 pub const TouchEventType_TouchEvent_Touchdown: TouchEventType = 0;
+/// The finger left the screen.
 pub const TouchEventType_TouchEvent_Liftoff: TouchEventType = 1;
+/// The finger moved while touching the screen.
 pub const TouchEventType_TouchEvent_PositionUpdate: TouchEventType = 2;
 /// Touch event type
 pub type TouchEventType = ::core::ffi::c_uchar;
@@ -1975,7 +2003,9 @@ pub struct TouchEvent {
 	was inactive at Touchdown (unarmed contact on the idle watchface).
 	Latched on Touchdown and carried across the whole gesture.*/
 	pub non_navigational: bool,
+	/// Horizontal position, in screen pixels.
 	pub x:                i16,
+	/// Vertical position, in screen pixels.
 	pub y:                i16,
 }
 #[allow(clippy::unnecessary_operation, clippy::identity_op)]
@@ -2485,7 +2515,8 @@ pub unsafe extern "C" fn health_service_metric_accessible(
  * `time_end`: Latest UTC time you are interested in.
  * `scope`: `HealthServiceTimeScope` value describing how the average should be computed.
 
- Returns A `HealthServiceAccessibilityMask` value decribing whether averaged data is available.*/
+ Returns A `HealthServiceAccessibilityMask` value describing whether averaged data is
+ available.*/
 /** health_service_metric_averaged_accessible
   -> Added in 79
 gneiss: Vtable Slot 609, Offset 2436*/
@@ -2514,7 +2545,8 @@ pub unsafe extern "C" fn health_service_metric_averaged_accessible(
  * `aggregation`: The aggregation to perform
  * `scope`: `HealthServiceTimeScope` value describing how the average should be computed.
 
- Returns A `HealthServiceAccessibilityMask` value decribing whether averaged data is available.*/
+ Returns A `HealthServiceAccessibilityMask` value describing whether averaged data is
+ available.*/
 /** health_service_metric_aggregate_averaged_accessible
   -> Added in 83
 gneiss: Vtable Slot 619, Offset 2476*/
@@ -2579,7 +2611,7 @@ pub type HealthEventType = ::core::ffi::c_uchar;
 /** Developer-supplied event handler, called when a health-related event occurs after subscribing
 via `health_service_events_subscribe()`;
 
-* `event`: The type of health-related event that occured.
+* `event`: The type of health-related event that occurred.
 * `context`: The developer-supplied context pointer.*/
 pub type HealthEventHandler = ::core::option::Option<
 	unsafe extern "C" fn(event: HealthEventType, context: *mut ::core::ffi::c_void),
@@ -2674,6 +2706,43 @@ pub unsafe extern "C" fn health_service_get_heart_rate_sample_period_expiration_
 		::shim::jump_to_pbl_function,
 	)
 }
+/** Get the most recent HRV peak-to-peak interval in milliseconds. The value is captured from
+ `HealthEventHRVUpdate` events, so it only updates while this app is subscribed via
+ `health_service_events_subscribe()` and holds an HRV sample period.
+
+ Returns PPI in ms, or 0 if no reading available.*/
+/** health_service_peek_hrv_ppi_ms
+  -> Added in 109
+gneiss: Vtable Slot 675, Offset 2700*/
+#[unsafe(naked)]
+#[unsafe(link_section = ".text.health_service_peek_hrv_ppi_ms")]
+pub unsafe extern "C" fn health_service_peek_hrv_ppi_ms() -> u16 {
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =2700", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
+}
+/** Request HRV (peak-to-peak interval) sampling. While any app holds an HRV sample period, the
+ sensor collects HRV alongside heart rate and HealthEventHRVUpdate events are delivered to
+ health service subscribers.
+ The HRV and heart rate sample periods (`health_service_set_heart_rate_sample_period`)
+ share the app's single sensor subscription: both may be active at once, the sensor is driven
+ at the shorter of the two periods, and setting one period to 0 clears only that request.
+
+ * `interval_sec`: desired sampling interval in seconds; 0 unsubscribes.
+
+ Returns true on success.*/
+/** health_service_set_hrv_sample_period
+  -> Added in 109
+gneiss: Vtable Slot 676, Offset 2704*/
+#[unsafe(naked)]
+#[unsafe(link_section = ".text.health_service_set_hrv_sample_period")]
+pub unsafe extern "C" fn health_service_set_hrv_sample_period(interval_sec: u16) -> bool {
+	core::arch::naked_asm!(
+		"push  {{r0-r3}}", "ldr   r1, =2704", "b     {resolver}", resolver = sym crate
+		::shim::jump_to_pbl_function,
+	)
+}
 /** Register for an alert when a metric crosses the given threshold. When the metric crosses this
  threshold (either goes above or below it), a `HealthEventMetricAlert` event will be
  generated. To cancel this registration, pass the returned `HealthMetricAlert` value to
@@ -2689,7 +2758,7 @@ pub unsafe extern "C" fn health_service_get_heart_rate_sample_period_expiration_
  ```
 
  In the current implementation, only one alert per metric can be registered at a time. Future
- implementations may support two or more simulataneous alert registrations per metric. To change
+ implementations may support two or more simultaneous alert registrations per metric. To change
  the alert threshold in the current implementation, cancel the original registration
  using `health_service_cancel_metric_alert` before registering the new threshold.
 
@@ -2728,10 +2797,15 @@ pub unsafe extern "C" fn health_service_cancel_metric_alert(alert: *mut HealthMe
 		::shim::jump_to_pbl_function,
 	)
 }
+/// No reading available.
 pub const AmbientLightLevel_AmbientLightLevelUnknown: AmbientLightLevel = 0;
+/// Well below the dark threshold.
 pub const AmbientLightLevel_AmbientLightLevelVeryDark: AmbientLightLevel = 1;
+/// Below the dark threshold.
 pub const AmbientLightLevel_AmbientLightLevelDark: AmbientLightLevel = 2;
+/// At or slightly above the dark threshold.
 pub const AmbientLightLevel_AmbientLightLevelLight: AmbientLightLevel = 3;
+/// Well above the dark threshold.
 pub const AmbientLightLevel_AmbientLightLevelVeryLight: AmbientLightLevel = 4;
 /// Light level enum
 pub type AmbientLightLevel = ::core::ffi::c_uchar;
@@ -3107,10 +3181,10 @@ pub unsafe extern "C" fn data_logging_finish(logging_session: DataLoggingSession
  DATA_LOGGING_NOT_FOUND if the logging session is invalid
 
  Returns
- DATA_LOGGING_CLOSED if the sesion is not active
+ DATA_LOGGING_CLOSED if the session is not active
 
  Returns
- DATA_LOGGING_BUSY if the sesion is not available for writing
+ DATA_LOGGING_BUSY if the session is not available for writing
 
  Returns
  DATA_LOGGING_INVALID_PARAMS if num_items is 0 or data is NULL*/
@@ -3129,24 +3203,41 @@ pub unsafe extern "C" fn data_logging_log(
 		::shim::jump_to_pbl_function,
 	)
 }
+/// A 128-bit UUID, with its bytes in the order they are written in string form.
 #[repr(C, packed)]
 #[derive(Debug, Copy, Clone)]
 pub struct Uuid {
+	/// Byte 0.
 	pub byte0:  u8,
+	/// Byte 1.
 	pub byte1:  u8,
+	/// Byte 2.
 	pub byte2:  u8,
+	/// Byte 3.
 	pub byte3:  u8,
+	/// Byte 4.
 	pub byte4:  u8,
+	/// Byte 5.
 	pub byte5:  u8,
+	/// Byte 6.
 	pub byte6:  u8,
+	/// Byte 7.
 	pub byte7:  u8,
+	/// Byte 8.
 	pub byte8:  u8,
+	/// Byte 9.
 	pub byte9:  u8,
+	/// Byte 10.
 	pub byte10: u8,
+	/// Byte 11.
 	pub byte11: u8,
+	/// Byte 12.
 	pub byte12: u8,
+	/// Byte 13.
 	pub byte13: u8,
+	/// Byte 14.
 	pub byte14: u8,
+	/// Byte 15.
 	pub byte15: u8,
 }
 #[allow(clippy::unnecessary_operation, clippy::identity_op)]
@@ -3172,7 +3263,10 @@ const _: () = {
 };
 /** Compares two UUIDs.
 
- Returns True if the two UUIDs are equal, false if they are not.*/
+ * `uu1`: First UUID.
+ * `uu2`: Second UUID.
+
+ Returns True if the two UUIDs are equal, false if they are not or either is NULL.*/
 /** uuid_equal
   -> Added in 19
 gneiss: Vtable Slot 341, Offset 1364*/
@@ -3188,7 +3282,8 @@ pub unsafe extern "C" fn uuid_equal(uu1: *const Uuid, uu2: *const Uuid) -> bool 
  {12345678-1234-5678-1234-567812345678} or {NULL UUID} if NULL was passed.
 
  * `uuid`: The Uuid to write into the buffer as human-readable string
- * `buffer`: Memory to write the string to. Must be at least `UUID_STRING_BUFFER_LENGTH` bytes long.*/
+ * `buffer`: Memory to write the string to. Must be at least `UUID_STRING_BUFFER_LENGTH`
+ bytes long.*/
 /** uuid_to_string
   -> Added in 19
 gneiss: Vtable Slot 342, Offset 1368*/
@@ -3205,11 +3300,10 @@ pub unsafe extern "C" fn uuid_to_string(uuid: *const Uuid, buffer: *mut ::core::
  This module contains the functions necessary to log messages through
  Bluetooth.
 
- Note: It is no longer necessary to enable app logging output from the "settings->about" menu on the Pebble for
- them to be transmitted! Instead use the "pebble logs" command included with the SDK to activate logs. The logs
- will appear right in your console. Logging
- over Bluetooth is a fairly power hungry operation that non-developers will
- not need when your apps are distributed.*/
+ Note: It is no longer necessary to enable app logging output from the "settings->about" menu on
+ the Pebble for them to be transmitted! Instead use the "pebble logs" command included with the
+ SDK to activate logs. The logs will appear right in your console. Logging over Bluetooth is a
+ fairly power hungry operation that non-developers will not need when your apps are distributed.*/
 /** app_log
   -> Added in 0
 gneiss: Vtable Slot 34, Offset 136*/
@@ -3436,7 +3530,7 @@ const _: () = {
 
  * `tuple_count`: The total number of key/value pairs in the dictionary.
  * `...`: The sizes of each of the values that need to be
- stored in the dictionary.
+ stored in the dictionary, as size_t (e.g. sizeof expressions).
 
  Returns The total number of bytes of storage needed.*/
 /** dict_calc_buffer_size
@@ -3444,7 +3538,7 @@ const _: () = {
 gneiss: Vtable Slot 74, Offset 296*/
 #[unsafe(naked)]
 #[unsafe(link_section = ".text.dict_calc_buffer_size")]
-pub unsafe extern "C" fn dict_calc_buffer_size(tuple_count: u8, args: ...) -> u32 {
+pub unsafe extern "C" fn dict_calc_buffer_size(tuple_count: u32, args: ...) -> u32 {
 	core::arch::naked_asm!(
 		"push  {{r0-r3}}", "ldr   r1, =296", "b     {resolver}", resolver = sym crate
 		::shim::jump_to_pbl_function,
@@ -3559,8 +3653,8 @@ pub unsafe extern "C" fn dict_write_cstring(
 
  Returns `DICT_OK`, `DICT_NOT_ENOUGH_STORAGE` or `DICT_INVALID_ARGS`
 
- Note: There is _no_ checking for duplicate keys. dict_write_int() is only for serializing a single
- integer. width_bytes can only be 1, 2, or 4.*/
+ Note: There is _no_ checking for duplicate keys. dict_write_int() is only for serializing a
+ single integer. width_bytes can only be 1, 2, or 4.*/
 /** dict_write_int
   -> Added in 0
 gneiss: Vtable Slot 88, Offset 352*/
@@ -3706,7 +3800,8 @@ pub unsafe extern "C" fn dict_write_end(iter: *mut DictionaryIterator) -> u32 {
  * `buffer`: The storage of the dictionary
  * `size`: The storage size of the dictionary
 
- Returns The first tuple in the dictionary, or NULL in case the dictionary was empty or if there was a parsing error.*/
+ Returns The first tuple in the dictionary, or NULL in case the dictionary was empty or if there
+ was a parsing error.*/
 /** dict_read_begin_from_buffer
   -> Added in 0
 gneiss: Vtable Slot 78, Offset 312*/
@@ -3726,7 +3821,8 @@ pub unsafe extern "C" fn dict_read_begin_from_buffer(
 
  * `iter`: The dictionary iterator
 
- Returns The next tuple in the dictionary, or NULL in case the end has been reached or if there was a parsing error.*/
+ Returns The next tuple in the dictionary, or NULL in case the end has been reached or if there
+ was a parsing error.*/
 /** dict_read_next
   -> Added in 0
 gneiss: Vtable Slot 80, Offset 320*/
@@ -3738,11 +3834,13 @@ pub unsafe extern "C" fn dict_read_next(iter: *mut DictionaryIterator) -> *mut T
 		::shim::jump_to_pbl_function,
 	)
 }
-/** Resets the iterator back to the same state as a call to `dict_read_begin_from_buffer()` would do.
+/** Resets the iterator back to the same state as a call to `dict_read_begin_from_buffer()` would
+ do.
 
  * `iter`: The dictionary iterator
 
- Returns The first tuple in the dictionary, or NULL in case the dictionary was empty or if there was a parsing error.*/
+ Returns The first tuple in the dictionary, or NULL in case the dictionary was empty or if there
+ was a parsing error.*/
 /** dict_read_first
   -> Added in 0
 gneiss: Vtable Slot 79, Offset 316*/
@@ -3764,7 +3862,7 @@ See also `Tuple`, with is the header of a serialized key/value pair.*/
 #[derive(Copy, Clone)]
 pub struct Tuplet {
 	/** The type of the Tuplet. This determines which of the struct fields in the
-	anonymomous union are valid.*/
+	anonymous union are valid.*/
 	pub type_:            TupleType,
 	/// The key.
 	pub key:              u32,
@@ -3875,7 +3973,9 @@ pub type DictionarySerializeCallback = ::core::option::Option<
  Note: The callback will be called before the function returns, so the data that
  that `context` points to, can be stack allocated.
 
- * `callback`: The callback that will be called with the serialized data of the generated dictionary.
+ * `callback`: The callback that will be called with the serialized data of the generated
+ dictionary.
+
  * `context`: Pointer to any application specific data that gets passed into the callback.
  * `tuplets`: An array of Tuplets that need to be serialized into the dictionary.
  * `tuplets_count`: The number of tuplets that follow.
@@ -3903,7 +4003,8 @@ pub unsafe extern "C" fn dict_serialize_tuplets(
  * `tuplets`: The array of tuplets
  * `tuplets_count`: The number of tuplets in the array
  * `buffer`: The buffer in which to write the serialized dictionary
- * `[in,out]`: size_in_out In: the available buffer size in bytes. Out: the number of bytes written.
+ * `[in,out]`: size_in_out In: the available buffer size in bytes. Out: the number of bytes
+ written.
 
  Returns `DICT_OK`, `DICT_NOT_ENOUGH_STORAGE` or `DICT_INVALID_ARGS`*/
 /** dict_serialize_tuplets_to_buffer
@@ -3928,7 +4029,8 @@ pub unsafe extern "C" fn dict_serialize_tuplets_to_buffer(
  * `tuplets`: The array of tuplets
  * `tuplets_count`: The number of tuplets in the array
  * `buffer`: The buffer in which to write the serialized dictionary
- * `[in,out]`: size_in_out In: the available buffer size in bytes. Out: the number of bytes written.
+ * `[in,out]`: size_in_out In: the available buffer size in bytes. Out: the number of bytes
+ written.
 
  Returns `DICT_OK`, `DICT_NOT_ENOUGH_STORAGE` or `DICT_INVALID_ARGS`*/
 /** dict_serialize_tuplets_to_buffer_with_iter
@@ -3996,13 +4098,13 @@ pub unsafe extern "C" fn dict_calc_buffer_size_from_tuplets(
 /** Type of the callback used in `dict_merge()`
 
 * `key`: The key that is being updated.
-* `new_tuple`: The new tuple. The tuple points to the actual, updated destination dictionary or NULL_TUPLE
-in case there was an error (e.g. backing buffer was too small).
-Therefore the Tuple can be used after the callback returns, until the destination dictionary
-storage is free'd (by the application itself).
+* `new_tuple`: The new tuple. The tuple points to the actual, updated destination dictionary
+or NULL_TUPLE in case there was an error (e.g. backing buffer was too small). Therefore the
+Tuple can be used after the callback returns, until the destination dictionary storage is free'd
+(by the application itself).
 
-* `old_tuple`: The values that will be replaced with `new_tuple`. The key, value and type will be
-equal to the previous tuple in the old destination dictionary, however the `old_tuple` points
+* `old_tuple`: The values that will be replaced with `new_tuple`. The key, value and type will
+be equal to the previous tuple in the old destination dictionary, however the `old_tuple` points
 to a stack-allocated copy of the old data.
 
 * `context`: Pointer to application specific data
@@ -4020,14 +4122,21 @@ pub type DictionaryKeyUpdatedCallback = ::core::option::Option<
 >;
 /** Merges entries from another "source" dictionary into a "destination" dictionary.
  All Tuples from the source are written into the destination dictionary, while
- updating the exsting Tuples with matching keys.
+ updating the existing Tuples with matching keys.
 
  * `dest`: The destination dictionary to update
- * `[in,out]`: dest_max_size_in_out In: the maximum size of buffer backing `dest`. Out: the final size of the updated dictionary.
+ * `[in,out]`: dest_max_size_in_out In: the maximum size of buffer backing `dest`. Out: the
+ final size of the updated dictionary.
+
  * `source`: The source dictionary of which its Tuples will be used to update dest.
- * `update_existing_keys_only`: Specify True if only the existing keys in `dest` should be updated.
- * `key_callback`: The callback that will be called for each Tuple in the merged destination dictionary.
- * `context`: Pointer to app specific data that will get passed in when `update_key_callback` is called.
+ * `update_existing_keys_only`: Specify True if only the existing keys in `dest` should be
+ updated.
+
+ * `key_callback`: The callback that will be called for each Tuple in the merged destination
+ dictionary.
+
+ * `context`: Pointer to app specific data that will get passed in when `update_key_callback`
+ is called.
 
  Returns `DICT_OK`, `DICT_INVALID_ARGS`, `DICT_NOT_ENOUGH_STORAGE`*/
 /** dict_merge
@@ -4274,16 +4383,18 @@ pub const AppMessageResult_APP_MSG_INVALID_STATE: AppMessageResult = 32768;
 pub type AppMessageResult = ::core::ffi::c_ushort;
 /** Open AppMessage to transfers.
 
- Use `dict_calc_buffer_size_from_tuplets()` or `dict_calc_buffer_size()` to estimate the size you need.
+ Use `dict_calc_buffer_size_from_tuplets()` or `dict_calc_buffer_size()` to estimate the
+ size you need.
 
  * `size_inbound`: The required size for the Inbox buffer
  * `size_outbound`: The required size for the Outbox buffer
 
  Returns A result code such as `APP_MSG_OK` or `APP_MSG_OUT_OF_MEMORY`.
 
- Note: It is recommended that if the Inbox will be used, that at least the Inbox callbacks should be registered
- before this call. Otherwise it is possible for an Inbox message to be NACK'ed without being seen by the
- application.*/
+ Note: It is recommended that if the Inbox will be used, that at least the Inbox callbacks should
+ be registered
+ before this call. Otherwise it is possible for an Inbox message to be NACK'ed without being
+ seen by the application.*/
 /** app_message_open
   -> Added in 0
 gneiss: Vtable Slot 36, Offset 144*/
@@ -4313,10 +4424,11 @@ pub unsafe extern "C" fn app_message_deregister_callbacks() {
 /** Called after an incoming message is received.
 
 * `iterator`:
-The dictionary iterator to the received message. Never NULL. Note that the iterator cannot be modified or
-saved off. The library may need to re-use the buffered space where this message is supplied. Returning from
-the callback indicates to the library that the received message contents are no longer needed or have already
-been externalized outside its buffering space and iterator.
+The dictionary iterator to the received message. Never NULL. Note that the iterator cannot
+be modified or saved off. The library may need to re-use the buffered space where this
+message is supplied. Returning from the callback indicates to the library that the received
+message contents are no longer needed or have already been externalized outside its buffering
+space and iterator.
 
 * `context`:
 Pointer to application data as specified when registering the callback.*/
@@ -4333,16 +4445,17 @@ The reason why the message was dropped. Some possibilities include `APP_MSG_BUSY
 Pointer to application data as specified when registering the callback.
 
 Note that you can call app_message_outbox_begin() from this handler to prepare a new message.
-This will invalidate the previous dictionary iterator; do not use it after calling app_message_outbox_begin().*/
+This will invalidate the previous dictionary iterator; do not use it after calling
+app_message_outbox_begin().*/
 pub type AppMessageInboxDropped = ::core::option::Option<
 	unsafe extern "C" fn(reason: AppMessageResult, context: *mut ::core::ffi::c_void),
 >;
 /** Called after an outbound message has been sent and the reply has been received.
 
 * `iterator`:
-The dictionary iterator to the sent message. The iterator will be in the final state that was sent. Note that
-the iterator cannot be modified or saved off as the library will re-open the dictionary with dict_begin() after
-this callback returns.
+The dictionary iterator to the sent message. The iterator will be in the final state that was
+sent. Note that the iterator cannot be modified or saved off as the library will re-open the
+dictionary with dict_begin() after this callback returns.
 
 * `context`:
 Pointer to application data as specified when registering the callback.*/
@@ -4352,20 +4465,23 @@ pub type AppMessageOutboxSent = ::core::option::Option<
 /** Called after an outbound message has not been sent successfully.
 
 * `iterator`:
-The dictionary iterator to the sent message. The iterator will be in the final state that was sent. Note that
-the iterator cannot be modified or saved off as the library will re-open the dictionary with dict_begin() after
-this callback returns.
+The dictionary iterator to the sent message. The iterator will be in the final state that was
+sent. Note that the iterator cannot be modified or saved off as the library will re-open the
+dictionary with dict_begin() after this callback returns.
 
 * `reason`:
-The result of the operation. Some possibilities for the value include `APP_MSG_SEND_TIMEOUT`,
-`APP_MSG_SEND_REJECTED`, `APP_MSG_NOT_CONNECTED`, `APP_MSG_APP_NOT_RUNNING`, and the combination
+The result of the operation. Some possibilities for the value include ``
+APP_MSG_SEND_TIMEOUT,
+`APP_MSG_SEND_REJECTED`, `APP_MSG_NOT_CONNECTED`, `APP_MSG_APP_NOT_RUNNING`, and the
+combination
 `(APP_MSG_NOT_CONNECTED | APP_MSG_APP_NOT_RUNNING)`.
 
 * `context`:
 Pointer to application data as specified when registering the callback.
 
 Note that you can call app_message_outbox_begin() from this handler to prepare a new message.
-This will invalidate the previous dictionary iterator; do not use it after calling app_message_outbox_begin().*/
+This will invalidate the previous dictionary iterator; do not use it after calling
+app_message_outbox_begin().*/
 pub type AppMessageOutboxFailed = ::core::option::Option<
 	unsafe extern "C" fn(
 		iterator: *mut DictionaryIterator,
@@ -4407,11 +4523,12 @@ pub unsafe extern "C" fn app_message_set_context(
 }
 /** Registers a function that will be called after any Inbox message is received successfully.
 
- Only one callback may be registered at a time. Each subsequent call to this function will replace the previous
- callback. The callback is optional; setting it to NULL will deregister the current callback and no function will
- be called anymore.
+ Only one callback may be registered at a time. Each subsequent call to this function will
+ replace the previous callback. The callback is optional; setting it to NULL will deregister the
+ current callback and no function will be called anymore.
 
- * `received_callback`: The callback that will be called going forward; NULL to not have a callback.
+ * `received_callback`: The callback that will be called going forward; NULL to not have a
+ callback.
 
  Returns The previous callback (or NULL) that was on record.*/
 /** app_message_register_inbox_received
@@ -4427,13 +4544,15 @@ pub unsafe extern "C" fn app_message_register_inbox_received(
 		::shim::jump_to_pbl_function,
 	)
 }
-/** Registers a function that will be called after any Inbox message is received but dropped by the system.
+/** Registers a function that will be called after any Inbox message is received but dropped by the
+ system.
 
- Only one callback may be registered at a time. Each subsequent call to this function will replace the previous
- callback. The callback is optional; setting it to NULL will deregister the current callback and no function will
- be called anymore.
+ Only one callback may be registered at a time. Each subsequent call to this function will
+ replace the previous callback. The callback is optional; setting it to NULL will deregister the
+ current callback and no function will be called anymore.
 
- * `dropped_callback`: The callback that will be called going forward; NULL to not have a callback.
+ * `dropped_callback`: The callback that will be called going forward; NULL to not have a
+ callback.
 
  Returns The previous callback (or NULL) that was on record.*/
 /** app_message_register_inbox_dropped
@@ -4449,14 +4568,15 @@ pub unsafe extern "C" fn app_message_register_inbox_dropped(
 		::shim::jump_to_pbl_function,
 	)
 }
-/** Registers a function that will be called after any Outbox message is sent and an ACK reply occurs in a timely
- fashion.
+/** Registers a function that will be called after any Outbox message is sent and an ACK reply
+ occurs in a timely fashion.
 
- Only one callback may be registered at a time. Each subsequent call to this function will replace the previous
- callback. The callback is optional; setting it to NULL will deregister the current callback and no function will
- be called anymore.
+ Only one callback may be registered at a time. Each subsequent call to this function will
+ replace the previous callback. The callback is optional; setting it to NULL will deregister the
+ current callback and no function will be called anymore.
 
- * `sent_callback`: The callback that will be called going forward; NULL to not have a callback.
+ * `sent_callback`: The callback that will be called going forward; NULL to not have a
+ callback.
 
  Returns The previous callback (or NULL) that was on record.*/
 /** app_message_register_outbox_sent
@@ -4472,14 +4592,15 @@ pub unsafe extern "C" fn app_message_register_outbox_sent(
 		::shim::jump_to_pbl_function,
 	)
 }
-/** Registers a function that will be called after any Outbox message is not sent with a timely ACK reply.
- The call to `app_message_outbox_send()` must have succeeded.
+/** Registers a function that will be called after any Outbox message is not sent with a timely ACK
+ reply. The call to `app_message_outbox_send()` must have succeeded.
 
- Only one callback may be registered at a time. Each subsequent call to this function will replace the previous
- callback. The callback is optional; setting it to NULL will deregister the current callback and no function will
- be called anymore.
+ Only one callback may be registered at a time. Each subsequent call to this function will
+ replace the previous callback. The callback is optional; setting it to NULL will deregister the
+ current callback and no function will be called anymore.
 
- * `failed_callback`: The callback that will be called going forward; NULL to not have a callback.
+ * `failed_callback`: The callback that will be called going forward; NULL to not have a
+ callback.
 
  Returns The previous callback (or NULL) that was on record.*/
 /** app_message_register_outbox_failed
@@ -4495,7 +4616,7 @@ pub unsafe extern "C" fn app_message_register_outbox_failed(
 		::shim::jump_to_pbl_function,
 	)
 }
-/** Programatically determine the inbox size maximum in the current configuration.
+/** Programmatically determine the inbox size maximum in the current configuration.
 
  Returns The inbox size maximum on this firmware.
 
@@ -4513,7 +4634,7 @@ pub unsafe extern "C" fn app_message_inbox_size_maximum() -> u32 {
 		::shim::jump_to_pbl_function,
 	)
 }
-/** Programatically determine the outbox size maximum in the current configuration.
+/** Programmatically determine the outbox size maximum in the current configuration.
 
  Returns The outbox size maximum on this firmware.
 
@@ -4533,12 +4654,15 @@ pub unsafe extern "C" fn app_message_outbox_size_maximum() -> u32 {
 }
 /** Begin writing to the Outbox's Dictionary buffer.
 
- * `iterator`: Location to write the DictionaryIterator pointer. This will be NULL on failure.
+ * `iterator`: Location to write the DictionaryIterator pointer. This will be NULL on
+ failure.
 
- Returns A result code, including but not limited to `APP_MSG_OK`, `APP_MSG_INVALID_ARGS` or
+ Returns A result code, including but not limited to `APP_MSG_OK`, `APP_MSG_INVALID_ARGS`
+ or
  `APP_MSG_BUSY`.
 
- Note: After a successful call, one can add values to the dictionary using functions like `dict_write_data()`
+ Note: After a successful call, one can add values to the dictionary using functions like ``
+ dict_write_data()
  and friends.
 
  See Dictionary*/
@@ -4557,9 +4681,11 @@ pub unsafe extern "C" fn app_message_outbox_begin(
 }
 /** Sends the outbound dictionary.
 
- Returns A result code, including but not limited to `APP_MSG_OK` or `APP_MSG_BUSY`. The APP_MSG_OK code does
- not mean that the message was sent successfully, but only that the start of processing was successful.
- Since this call is asynchronous, callbacks provide the final result instead.
+ Returns A result code, including but not limited to `APP_MSG_OK` or `APP_MSG_BUSY`. The
+ APP_MSG_OK code does
+ not mean that the message was sent successfully, but only that the start of processing
+ was successful. Since this call is asynchronous, callbacks provide the final result
+ instead.
 
  See AppMessageOutboxSent
 
@@ -5004,8 +5130,8 @@ pub unsafe extern "C" fn app_worker_is_running() -> bool {
 		::shim::jump_to_pbl_function,
 	)
 }
-/** Launch the worker for the current app. Note that this is an asynchronous operation, a result code
- of APP_WORKER_RESULT_SUCCESS merely means that the request was successfully queued up.
+/** Launch the worker for the current app. Note that this is an asynchronous operation, a result
+ code of APP_WORKER_RESULT_SUCCESS merely means that the request was successfully queued up.
 
  Returns result code*/
 /** app_worker_launch
@@ -5037,11 +5163,12 @@ pub unsafe extern "C" fn app_worker_kill() -> AppWorkerResult {
 /** Callback type for worker messages. Messages can be sent from worker to app or vice versa.
 
 * `type`: An application defined message type
-* `data`: pointer to message data. The receiver must know the structure of the data provided by the sender.*/
+* `data`: pointer to message data. The receiver must know the structure of the data provided
+by the sender.*/
 pub type AppWorkerMessageHandler =
 	::core::option::Option<unsafe extern "C" fn(type_: u16, data: *mut AppWorkerMessage)>;
-/** Subscribe to worker messages. Once subscribed, the handler gets called on every message emitted by the other task
- (either worker or app).
+/** Subscribe to worker messages. Once subscribed, the handler gets called on every message emitted
+ by the other task (either worker or app).
 
  * `handler`: A callback to be executed when the event is received
 
@@ -5057,7 +5184,8 @@ pub unsafe extern "C" fn app_worker_message_subscribe(handler: AppWorkerMessageH
 		::shim::jump_to_pbl_function,
 	)
 }
-/** Unsubscribe from worker messages. Once unsubscribed, the previously registered handler will no longer be called.
+/** Unsubscribe from worker messages. Once unsubscribed, the previously registered handler will no
+ longer be called.
 
  Returns true on success*/
 /** app_worker_message_unsubscribe
@@ -5154,7 +5282,8 @@ pub unsafe extern "C" fn psleep(millis: ::core::ffi::c_int) {
 pub struct AppTimer {
 	_unused: [u8; 0],
 }
-/** The type of function which can be called when a timer fires. The argument will be the `callback_data` passed to
+/** The type of function which can be called when a timer fires. The argument will be the ``
+callback_data passed to
 `app_timer_register()`.*/
 pub type AppTimerCallback =
 	::core::option::Option<unsafe extern "C" fn(data: *mut ::core::ffi::c_void)>;
@@ -5518,7 +5647,8 @@ pub unsafe extern "C" fn persist_write_string(
 
  * `key`: The key of the field to delete from.
 
- Returns S_TRUE if successful, E_DOES_NOT_EXIST if a value was not set, or another error value from `StatusCode`.*/
+ Returns S_TRUE if successful, E_DOES_NOT_EXIST if a value was not set, or another error value
+ from `StatusCode`.*/
 /** persist_delete
   -> Added in 0
 gneiss: Vtable Slot 187, Offset 748*/
@@ -5540,7 +5670,8 @@ pub type WakeupHandler =
 /** Registers a WakeupHandler to be called when wakeup events occur.
 
  Note: The handler is only called for wakeup events which occur while the app is already running;
- use `launch_reason()` === `APP_LAUNCH_WAKEUP` to detect when the app was launched by a wakeup event.
+ use `launch_reason()` === `APP_LAUNCH_WAKEUP` to detect when the app was launched by a
+ wakeup event.
 
  * `handler`: The callback that gets called when the wakeup event occurs*/
 /** wakeup_service_subscribe
@@ -6318,7 +6449,8 @@ pub unsafe extern "C" fn grect_center_point(rect: *const GRect) -> GPoint {
 /** Reduce the width and height of a rectangle by insetting each of the edges with
  a fixed inset. The returned rectangle will be centered relative to the input rectangle.
 
- Note: The function will trip an assertion if the crop yields a rectangle with negative width or height.
+ Note: The function will trip an assertion if the crop yields a rectangle with negative width or
+ height.
 
  * `rect`: The rectangle that will be inset
  * `crop_size_px`: The inset by which each of the rectangle will be inset.
@@ -6708,8 +6840,8 @@ pub unsafe extern "C" fn gbitmap_create_palettized_from_1bit(
 /** Destroy a `GBitmap`.
  This must be called for every bitmap that's been created with gbitmap_create_*
 
- This function will also free the memory of the bitmap data (bitmap->addr) if the bitmap was created with `gbitmap_create_blank()`
- or `gbitmap_create_with_resource()`.
+ This function will also free the memory of the bitmap data (bitmap->addr) if the bitmap was
+ created with `gbitmap_create_blank()` or `gbitmap_create_with_resource()`.
 
  If the GBitmap was created with `gbitmap_create_with_data()`, you must release the memory
  after calling gbitmap_destroy().*/
@@ -6728,7 +6860,10 @@ pub unsafe extern "C" fn gbitmap_destroy(bitmap: *mut GBitmap) {
 
  * `resource_id`: Resource to load and create GBitmapSequence from.
 
- Returns GBitmapSequence pointer if the resource was loaded, NULL otherwise*/
+ Returns GBitmapSequence pointer if the resource was loaded, NULL otherwise
+
+ Note: APNG frames using the dispose operation APNG_DISPOSE_OP_PREVIOUS are not supported
+ and are treated as APNG_DISPOSE_OP_NONE, so encode animations without it.*/
 /** gbitmap_sequence_create_with_resource
   -> Added in 34
 gneiss: Vtable Slot 415, Offset 1660*/
@@ -7134,7 +7269,7 @@ const _: () = {
 	["Offset of field: GEdgeInsets::bottom"][::core::mem::offset_of!(GEdgeInsets, bottom) - 4usize];
 	["Offset of field: GEdgeInsets::left"][::core::mem::offset_of!(GEdgeInsets, left) - 6usize];
 };
-/** Returns a rectangle that is shrinked or expanded by the given edge insets.
+/** Returns a rectangle that is shrunk or expanded by the given edge insets.
 
  Note: The rectangle is standardized and then the inset parameters are applied.
  If the resulting rectangle would have a negative height or width, a GRectZero is returned.
@@ -7255,8 +7390,10 @@ pub unsafe extern "C" fn graphics_context_set_antialiased(ctx: *mut GContext, en
 
  Note: If stroke width of zero is passed, it will be ignored and will not change the value
  stored in GContext. Currently, only odd stroke_width values are supported. If an even value
- is passed in, the value will be stored as is, but the drawing routines will round down to the
- previous integral value when drawing. Default value is 1.*/
+ is passed in, the value will be stored as is, but line and circle drawing (including
+ `GPath` outlines) rounds it up to the next odd value when drawing.
+ `graphics_draw_rect()` draws a stroke width of 2 as 1, and `graphics_draw_arc()`
+ uses the width as given. Default value is 1.*/
 /** graphics_context_set_stroke_width
   -> Added in 41
 gneiss: Vtable Slot 445, Offset 1780*/
@@ -8816,7 +8953,7 @@ the last line may be clipped.*/
 pub const GTextOverflowMode_GTextOverflowModeWordWrap: GTextOverflowMode = 0;
 /** On overflow, wrap words to a new line below the current one.
 Once vertical space is consumed, truncate as needed to fit a trailing ellipsis (...).
-Clipping may occur if the vertical space cannot accomodate the first line of text.*/
+Clipping may occur if the vertical space cannot accommodate the first line of text.*/
 pub const GTextOverflowMode_GTextOverflowModeTrailingEllipsis: GTextOverflowMode = 1;
 /** Acts like `GTextOverflowModeTrailingEllipsis`, plus trims leading and trailing newlines,
 while treating all other newlines as spaces.*/
@@ -8834,7 +8971,7 @@ pub const GTextAlignment_GTextAlignmentLeft: GTextAlignment = 0;
 pub const GTextAlignment_GTextAlignmentCenter: GTextAlignment = 1;
 /// Aligns the text to the right of the drawing box
 pub const GTextAlignment_GTextAlignmentRight: GTextAlignment = 2;
-/** Text aligment controls the way the text is aligned inside the box the text is drawn into.
+/** Text alignment controls the way the text is aligned inside the box the text is drawn into.
 
 See graphics_draw_text
 
@@ -8970,7 +9107,7 @@ pub unsafe extern "C" fn graphics_text_attributes_enable_paging(
 }
 /** Draw text into the current graphics context, using the context's current text color.
  The text will be drawn inside a box with the specified dimensions and
- configuration, with clipping occuring automatically.
+ configuration, with clipping occurring automatically.
 
  * `ctx`: The destination graphics context in which to draw
  * `text`: The zero terminated UTF-8 string to draw
@@ -9066,7 +9203,7 @@ pub unsafe extern "C" fn graphics_text_layout_get_content_size_with_attributes(
 		::shim::jump_to_pbl_function,
 	)
 }
-/// No error occured.
+/// No error occurred.
 pub const SmartstrapResult_SmartstrapResultOk: SmartstrapResult = 0;
 /// Invalid function arguments were supplied.
 pub const SmartstrapResult_SmartstrapResultInvalidArgs: SmartstrapResult = 1;
@@ -9079,7 +9216,7 @@ specified service.*/
 pub const SmartstrapResult_SmartstrapResultServiceUnavailable: SmartstrapResult = 4;
 /// The smartstrap reported that it does not support the requested attribute.
 pub const SmartstrapResult_SmartstrapResultAttributeUnsupported: SmartstrapResult = 5;
-/// A time-out occured during the request.
+/// A time-out occurred during the request.
 pub const SmartstrapResult_SmartstrapResultTimeOut: SmartstrapResult = 6;
 /// Error values which may be returned from the smartstrap APIs.
 pub type SmartstrapResult = ::core::ffi::c_uchar;
@@ -9226,7 +9363,7 @@ pub unsafe extern "C" fn smartstrap_set_timeout(timeout_ms: u16) {
  * `buffer_length`: The length of the internal buffer which will be used to store the read
  and write requests for this attribute.
 
- Returns The newly created SmartstrapAttribute or NULL if an internal error occured or if the
+ Returns The newly created SmartstrapAttribute or NULL if an internal error occurred or if the
  specified length is greater than SMARTSTRAP_ATTRIBUTE_LENGTH_MAXIMUM.*/
 /** smartstrap_attribute_create
   -> Added in 64
@@ -9401,15 +9538,16 @@ pub type ClickRecognizerRef = *mut ::core::ffi::c_void;
 /** Function signature of the callback that handles a recognized click pattern
 
 * `recognizer`: The click recognizer that detected a "click" pattern
-* `context`: Pointer to application specified data (see `window_set_click_config_provider_with_context()` and
+* `context`: Pointer to application specified data (see ``
+window_set_click_config_provider_with_context() and
 `window_set_click_context()`). This defaults to the window.
 
 See `ClickConfigProvider`*/
 pub type ClickHandler = ::core::option::Option<
 	unsafe extern "C" fn(recognizer: ClickRecognizerRef, context: *mut ::core::ffi::c_void),
 >;
-/** This callback is called every time the window becomes visible (and when you call `window_set_click_config_provider()` if
-the window is already visible).
+/** This callback is called every time the window becomes visible (and when you call ``
+window_set_click_config_provider() if the window is already visible).
 
 Subscribe to click events using
 `window_single_click_subscribe()`
@@ -9419,7 +9557,8 @@ Subscribe to click events using
 `window_raw_click_subscribe()`
 These subscriptions will get used by the click recognizers of each of the 4 buttons.
 
-* `context`: Pointer to application specific data (see `window_set_click_config_provider_with_context()`).*/
+* `context`: Pointer to application specific data (see ``
+window_set_click_config_provider_with_context()).*/
 pub type ClickConfigProvider =
 	::core::option::Option<unsafe extern "C" fn(context: *mut ::core::ffi::c_void)>;
 /** Gets the click count.
@@ -9443,7 +9582,8 @@ pub unsafe extern "C" fn click_number_of_clicks_counted(recognizer: ClickRecogni
 /** Gets the button identifier.
  You can use this inside a click handler implementation to get the button id for the click event.
 
- * `recognizer`: The click recognizer for which to get the button id that caused the click event
+ * `recognizer`: The click recognizer for which to get the button id that caused the click
+ event
 
  Returns the ButtonId of the click recognizer*/
 /** click_recognizer_get_button_id
@@ -9460,7 +9600,8 @@ pub unsafe extern "C" fn click_recognizer_get_button_id(
 	)
 }
 /** Is this a repeating click.
- You can use this inside a click handler implementation to find out whether this is a repeating click or not.
+ You can use this inside a click handler implementation to find out whether this is a repeating
+ click or not.
 
  * `recognizer`: The click recognizer for which to find out whether this is a repeating click.
 
@@ -9483,11 +9624,11 @@ visual objects, like text or images. Each layer stores the information about its
 necessary to draw or redraw the object that it represents and uses graphics routines along with
 this state to draw itself when asked. Layers can be used to display various graphics.
 
-Layers are the basic building blocks for your application UI. Layers can be nested inside each other.
-Every window has a root layer which is always the topmost layer.
-You provide a function that is called to draw the content of the layer when needed; or
-you can use standard layers that are provided by the system, such as text layer, image layer,
-menu layer, action bar layer, and so on.
+Layers are the basic building blocks for your application UI. Layers can be nested inside each
+other. Every window has a root layer which is always the topmost layer. You provide a function
+that is called to draw the content of the layer when needed; or you can use standard layers that
+are provided by the system, such as text layer, image layer, menu layer, action bar layer, and
+so on.
 
 The Pebble layer hierarchy is the list of things that need to be drawn to the screen.
 Multiple layers can be arranged into a hierarchy. This enables ordering (front to back),
@@ -9599,7 +9740,8 @@ pub unsafe extern "C" fn layer_destroy(layer: *mut Layer) {
  * The layer's `.update_proc` will not be called before this function returns,
  but will be called asynchronously, shortly.
  * Internally, a call to this function will schedule a re-render of the window that the
- layer belongs to. In effect, all layers in that window's layer hierarchy will be asked to redraw.
+ layer belongs to. In effect, all layers in that window's layer hierarchy will be asked to
+ redraw.
  * If an earlier re-render request is still pending, this function is a no-op.
  * `layer`: The layer to mark dirty*/
 /** layer_mark_dirty
@@ -9618,9 +9760,9 @@ pub unsafe extern "C" fn layer_mark_dirty(layer: *mut Layer) {
  also `layer_mark_dirty()`.
 
  * `layer`: Pointer to the layer structure.
- * `update_proc`: Pointer to the function that will be called when the layer needs to be rendered.
- Typically, one performs a series of drawing commands in the implementation of the `update_proc`,
- see `Drawing`, `PathDrawing` and `TextDrawing`.*/
+ * `update_proc`: Pointer to the function that will be called when the layer needs to be
+ rendered. Typically, one performs a series of drawing commands in the implementation of the
+ `update_proc`, see `Drawing`, `PathDrawing` and `TextDrawing`.*/
 /** layer_set_update_proc
   -> Added in 0
 gneiss: Vtable Slot 157, Offset 628*/
@@ -9769,23 +9911,25 @@ pub unsafe extern "C" fn layer_convert_rect_to_screen(layer: *const Layer, rect:
 }
 /** The basic building block of the user interface
 
-Windows are the top-level elements in the UI hierarchy and the basic building blocks for a Pebble
-UI. A single window is always displayed at a time on Pebble, with the exception of when animating
-from one window to the other, which, in that case, is managed by the window stack. You can stack
-windows on top of each other, but only the topmost window will be visible.
+Windows are the top-level elements in the UI hierarchy and the basic building blocks for a
+Pebble UI. A single window is always displayed at a time on Pebble, with the exception of when
+animating from one window to the other, which, in that case, is managed by the window stack. You
+can stack windows on top of each other, but only the topmost window will be visible.
 
-Users wearing a Pebble typically interact with the content and media displayed in a window, clicking
-and pressing buttons on the watch, depending on what they see and wish to respond to in a window.
+Users wearing a Pebble typically interact with the content and media displayed in a window,
+clicking and pressing buttons on the watch, depending on what they see and wish to respond to in
+a window.
 
-Windows serve to display a hierarchy of layers on the screen and handle user input. When a window is
-visible, its root Layer (and all its child layers) are drawn onto the screen automatically.
+Windows serve to display a hierarchy of layers on the screen and handle user input. When a
+window is visible, its root Layer (and all its child layers) are drawn onto the screen
+automatically.
 
-You need a window, which always fills the entire screen, to display images, text, and graphics in
-your Pebble app. A layer by itself doesn’t display on Pebble; it must be in the current window’s
-layer hierarchy to be visible.
+You need a window, which always fills the entire screen, to display images, text, and graphics
+in your Pebble app. A layer by itself doesn’t display on Pebble; it must be in the current
+window’s layer hierarchy to be visible.
 
-The Window Stack serves as the global manager of what window is presented and makes sure that input
-events are forwarded to the topmost window.
+The Window Stack serves as the global manager of what window is presented and makes sure that
+input events are forwarded to the topmost window.
 
 Refer to the *UiFramework* (chapter "Window") for a conceptual
 overview of Window, the Window Stack and relevant code examples.*/
@@ -10402,10 +10546,11 @@ const _: () = {
 	["Offset of field: WindowHandlers::unload"]
 		[::core::mem::offset_of!(WindowHandlers, unload) - 12usize];
 };
-/** Creates a new Window on the heap and initalizes it with the default values.
+/** Creates a new Window on the heap and initializes it with the default values.
 
  * Background color : `GColorWhite`
- * Root layer's `update_proc` : function that fills the window's background using `background_color`.
+ * Root layer's `update_proc` : function that fills the window's background using
+ `background_color`.
  * `click_config_provider` : `NULL`
  * `window_handlers` : all `NULL`
 
@@ -10439,7 +10584,8 @@ pub unsafe extern "C" fn window_destroy(window: *mut Window) {
  the click recognizer subsystem.
 
  * `window`: The window for which to set the click config provider
- * `click_config_provider`: The callback that will be called to configure the click recognizers with the window
+ * `click_config_provider`: The callback that will be called to configure the click recognizers
+ with the window
 
  See Clicks
 
@@ -10462,8 +10608,11 @@ pub unsafe extern "C" fn window_set_click_config_provider(
  (instead of the window pointer) that will be passed into the ClickHandler click event handlers.
 
  * `window`: The window for which to set the click config provider
- * `click_config_provider`: The callback that will be called to configure the click recognizers with the window
- * `context`: Pointer to application specific data that will be passed to the click configuration provider callback (defaults to the window).
+ * `click_config_provider`: The callback that will be called to configure the click recognizers
+ with the window
+
+ * `context`: Pointer to application specific data that will be passed to the click
+ configuration provider callback (defaults to the window).
 
  See Clicks
 
@@ -10685,13 +10834,16 @@ pub unsafe extern "C" fn window_get_user_data(window: *const Window) -> *mut ::c
 
  Note: Must be called from the `ClickConfigProvider`.
 
- Note: `window_single_click_subscribe()` and `window_single_repeating_click_subscribe()` conflict, and cannot both be used on the same button.
+ Note: `window_single_click_subscribe()` and `window_single_repeating_click_subscribe()`
+ conflict, and cannot both be used on the same button.
 
- Note: When there is a multi_click and/or long_click setup, there will be a delay before the single click
+ Note: When there is a multi_click and/or long_click setup, there will be a delay before the
+ single click
 
  * `button_id`: The button events to subscribe to.
  * `handler`: The `ClickHandler` to fire on this event.
- handler will get fired. On the other hand, when there is no multi_click nor long_click setup, the single click handler will fire directly on button down.
+ handler will get fired. On the other hand, when there is no multi_click nor long_click setup,
+ the single click handler will fire directly on button down.
 
  See ButtonId
 
@@ -10709,18 +10861,21 @@ pub unsafe extern "C" fn window_single_click_subscribe(button_id: ButtonId, hand
 		::shim::jump_to_pbl_function,
 	)
 }
-/** Subscribe to single click event, with a repeat interval. A single click is detected every time "repeat_interval_ms" has been reached.
+/** Subscribe to single click event, with a repeat interval. A single click is detected every time
+ "repeat_interval_ms" has been reached.
 
  Note: Must be called from the `ClickConfigProvider`.
 
- Note: `window_single_click_subscribe()` and `window_single_repeating_click_subscribe()` conflict, and cannot both be used on the same button.
+ Note: `window_single_click_subscribe()` and `window_single_repeating_click_subscribe()`
+ conflict, and cannot both be used on the same button.
 
  Note: The back button cannot be overridden with a repeating click.
 
  * `button_id`: The button events to subscribe to.
- * `repeat_interval_ms`: When holding down, how many milliseconds before the handler is fired again.
- A value of 0ms means "no repeat timer". The minimum is 30ms, and values below will be disregarded.
- If there is a long-click handler subscribed on this button, `repeat_interval_ms` will not be used.
+ * `repeat_interval_ms`: When holding down, how many milliseconds before the handler is fired
+ again. A value of 0ms means "no repeat timer". The minimum is 30ms, and values below will be
+ disregarded. If there is a long-click handler subscribed on this button, `repeat_interval_ms`
+ will not be used.
 
  * `handler`: The `ClickHandler` to fire on this event.
 
@@ -10746,10 +10901,17 @@ pub unsafe extern "C" fn window_single_repeating_click_subscribe(
 
  * `button_id`: The button events to subscribe to.
  * `min_clicks`: Minimum number of clicks before handler is fired. Defaults to 2.
- * `max_clicks`: Maximum number of clicks after which the click counter is reset. A value of 0 means use "min" also as "max".
- * `timeout`: The delay after which a sequence of clicks is considered finished, and the click counter is reset. A value of 0 means to use the system default 300ms.
- * `last_click_only`: Defaults to false. When true, only the handler for the last multi-click is called.
- * `handler`: The `ClickHandler` to fire on this event. Fired for multi-clicks, as "filtered" by the `last_click_only`, `min`, and `max` parameters.*/
+ * `max_clicks`: Maximum number of clicks after which the click counter is reset. A value of 0
+ means use "min" also as "max".
+
+ * `timeout`: The delay after which a sequence of clicks is considered finished, and the click
+ counter is reset. A value of 0 means to use the system default 300ms.
+
+ * `last_click_only`: Defaults to false. When true, only the handler for the last multi-click
+ is called.
+
+ * `handler`: The `ClickHandler` to fire on this event. Fired for multi-clicks, as
+ "filtered" by the `last_click_only`, `min`, and `max` parameters.*/
 /** window_multi_click_subscribe
   -> Added in 3
 gneiss: Vtable Slot 304, Offset 1216*/
@@ -10775,9 +10937,14 @@ pub unsafe extern "C" fn window_multi_click_subscribe(
  Note: The back button cannot be overridden with a long click.
 
  * `button_id`: The button events to subscribe to.
- * `delay_ms`: Milliseconds after which "handler" is fired. A value of 0 means to use the system default 500ms.
- * `down_handler`: The `ClickHandler` to fire as soon as the button has been held for `delay_ms`. This may be NULL to have no down handler.
- * `up_handler`: The `ClickHandler` to fire on the release of a long click. This may be NULL to have no up handler.*/
+ * `delay_ms`: Milliseconds after which "handler" is fired. A value of 0 means to use the
+ system default 500ms.
+
+ * `down_handler`: The `ClickHandler` to fire as soon as the button has been held for
+ `delay_ms`. This may be NULL to have no down handler.
+
+ * `up_handler`: The `ClickHandler` to fire on the release of a long click. This may be NULL
+ to have no up handler.*/
 /** window_long_click_subscribe
   -> Added in 3
 gneiss: Vtable Slot 303, Offset 1212*/
@@ -10801,8 +10968,12 @@ pub unsafe extern "C" fn window_long_click_subscribe(
  Note: The back button cannot be overridden with a raw click.
 
  * `button_id`: The button events to subscribe to.
- * `down_handler`: The `ClickHandler` to fire as soon as the button has been pressed. This may be NULL to have no down handler.
- * `up_handler`: The `ClickHandler` to fire on the release of the button. This may be NULL to have no up handler.
+ * `down_handler`: The `ClickHandler` to fire as soon as the button has been pressed. This
+ may be NULL to have no down handler.
+
+ * `up_handler`: The `ClickHandler` to fire on the release of the button. This may be NULL
+ to have no up handler.
+
  * `context`: If this context is not NULL, it will override the general context.*/
 /** window_raw_click_subscribe
   -> Added in 3
@@ -10820,8 +10991,9 @@ pub unsafe extern "C" fn window_raw_click_subscribe(
 		::shim::jump_to_pbl_function,
 	)
 }
-/** Set the context that will be passed to handlers for the given button's events. By default the context passed to handlers
- is equal to the `ClickConfigProvider` context (defaults to the window).
+/** Set the context that will be passed to handlers for the given button's events. By default the
+ context passed to handlers is equal to the `ClickConfigProvider` context (defaults to the
+ window).
 
  Note: Must be called from within the `ClickConfigProvider`.
 
@@ -10983,7 +11155,7 @@ pub const AnimationCurve_AnimationCurve_Reserved2: AnimationCurve = 7;
 /** Values that are used to indicate the different animation curves,
 which determine the speed at which the animated value(s) change(s).*/
 pub type AnimationCurve = ::core::ffi::c_uchar;
-/** Creates a new Animation on the heap and initalizes it with the default values.
+/** Creates a new Animation on the heap and initializes it with the default values.
 
  * Duration: 250ms,
  * Curve: `AnimationCurveEaseInOut` (ease-in-out),
@@ -12052,7 +12224,8 @@ See `property_animation_update_gpoint()`
 See `PropertyAnimationAccessors`*/
 pub type GPointSetter =
 	::core::option::Option<unsafe extern "C" fn(subject: *mut ::core::ffi::c_void, gpoint: GPoint)>;
-/** Function signature of a getter function to get the current property of type GPoint of the subject.
+/** Function signature of a getter function to get the current property of type GPoint of the
+subject.
 
 See `property_animation_create()`
 
@@ -12066,7 +12239,8 @@ See `property_animation_update_grect()`
 See `PropertyAnimationAccessors`*/
 pub type GRectSetter =
 	::core::option::Option<unsafe extern "C" fn(subject: *mut ::core::ffi::c_void, grect: GRect)>;
-/** Function signature of a getter function to get the current property of type GRect of the subject.
+/** Function signature of a getter function to get the current property of type GRect of the
+subject.
 
 See `property_animation_create()`
 
@@ -12089,7 +12263,7 @@ See `property_animation_create()`
 See `PropertyAnimationAccessors`*/
 pub type GColor8Getter =
 	::core::option::Option<unsafe extern "C" fn(subject: *mut ::core::ffi::c_void) -> GColor8>;
-/** A ProperyAnimation animates the value of a "property" of a "subject" over time.
+/** A PropertyAnimation animates the value of a "property" of a "subject" over time.
 
 ### Animating a Layer's frame property
 Currently there is only one specific type of property animation offered off-the-shelf, namely
@@ -12181,8 +12355,8 @@ const _: () = {
 		[::core::mem::offset_of!(PropertyAnimationAccessors__bindgen_ty_1, uint32) - 0usize];
 };
 /** Function pointer to the implementation of the function that __gets__ the current property
-value. This function will be called during `property_animation_create()`, to get the current
-property value, in case the `from_value` or `to_value` argument is `NULL`.
+value. This function will be called during `property_animation_create()`, to get the
+current property value, in case the `from_value` or `to_value` argument is `NULL`.
 
 See PropertyAnimationAccessors*/
 #[repr(C)]
@@ -12448,7 +12622,7 @@ pub struct TextLayer {
 
  The text layer is automatically marked dirty after this operation.
 
- * `frame`: The frame with which to initialze the TextLayer
+ * `frame`: The frame with which to initialize the TextLayer
 
  Returns A pointer to the TextLayer. `NULL` if the TextLayer could not
  be created*/
@@ -12496,7 +12670,8 @@ pub unsafe extern "C" fn text_layer_get_layer(text_layer: *mut TextLayer) -> *mu
  at a later point in time, when it needs to draw itself.
 
  * `text_layer`: The TextLayer of which to set the text
- * `text`: The new text to set onto the TextLayer. This must be a null-terminated and valid UTF-8 string!
+ * `text`: The new text to set onto the TextLayer. This must be a null-terminated and valid
+ UTF-8 string!
 
  Note: The string is not copied, so its buffer most likely cannot be stack allocated,
  but is recommended to be a buffer that is long-lived, at least as long as the TextLayer
@@ -12736,7 +12911,7 @@ Use `scroll_layer_set_content_size()` to set the size of the contents.
 UP and DOWN buttons with scrolling up and down.
 * The SELECT button can be configured by installing a click configuration
 provider using `scroll_layer_set_callbacks()`.
-* To scroll programatically to a certain offset, use
+* To scroll programmatically to a certain offset, use
 `scroll_layer_set_content_offset()`.
 * It is possible to get called back for each scrolling increment, by
 installing the `.content_offset_changed_handler` callback using
@@ -12776,7 +12951,7 @@ const _: () = {
 	["Offset of field: ScrollLayerCallbacks::content_offset_changed_handler"]
 		[::core::mem::offset_of!(ScrollLayerCallbacks, content_offset_changed_handler) - 4usize];
 };
-/** Creates a new ScrollLayer on the heap and initalizes it with the default values:
+/** Creates a new ScrollLayer on the heap and initializes it with the default values:
  * Clips: `true`
  * Hidden: `false`
  * Content size: `frame.size`
@@ -13642,7 +13817,7 @@ pub type MenuLayerDrawSeparatorCallback = ::core::option::Option<
 /** Function signature for the callback to handle the event that a user hits
 the SELECT button.
 
-* `menu_layer`: The `MenuLayer` for which the selection event occured
+* `menu_layer`: The `MenuLayer` for which the selection event occurred
 * `cell_index`: The MenuIndex of the cell that is selected
 * `callback_context`: The callback context
 
@@ -13659,7 +13834,7 @@ pub type MenuLayerSelectCallback = ::core::option::Option<
 /** Function signature for the callback to handle a change in the current
 selected item in the menu.
 
-* `menu_layer`: The `MenuLayer` for which the selection event occured
+* `menu_layer`: The `MenuLayer` for which the selection event occurred
 * `new_index`: The MenuIndex of the new item that is selected now
 * `old_index`: The MenuIndex of the old item that was selected before
 * `callback_context`: The callback context
@@ -13679,7 +13854,7 @@ pub type MenuLayerSelectionChangedCallback = ::core::option::Option<
 In order to change the cell that should be selected, modify the passed in new_index.
 Preventing the selection from changing, new_index can be assigned the value of old_index.
 
-* `menu_layer`: The `MenuLayer` for which the selection event that occured
+* `menu_layer`: The `MenuLayer` for which the selection event that occurred
 * `new_index`: Pointer to the index that the MenuLayer is going to change selection to.
 * `old_index`: The index that is being unselected.
 * `callback_context`: The callback context
@@ -13821,7 +13996,7 @@ const _: () = {
 	["Offset of field: MenuLayerCallbacks::draw_background"]
 		[::core::mem::offset_of!(MenuLayerCallbacks, draw_background) - 48usize];
 };
-/** Creates a new `MenuLayer` on the heap and initalizes it with the default values.
+/** Creates a new `MenuLayer` on the heap and initializes it with the default values.
 
  * Clips: `true`
  * Hidden: `false`
@@ -14002,7 +14177,7 @@ pub unsafe extern "C" fn menu_layer_set_selected_next(
  * `animated`: Supply `true` to animate changing the selection, or `false`
  to change the selection instantly.
 
- Note: If the section and/or row index exceeds the avaible number of sections
+ Note: If the section and/or row index exceeds the available number of sections
  or resp. rows, the exceeding index/indices will be capped, effectively
  selecting the last section and/or row, resp.*/
 /** menu_layer_set_selected_index
@@ -14409,7 +14584,7 @@ pub type ActionBarLayerIconPressAnimation = ::core::ffi::c_uchar;
 pub struct ActionBarLayer {
 	_unused: [u8; 0],
 }
-/** Creates a new ActionBarLayer on the heap and initalizes it with the default values.
+/** Creates a new ActionBarLayer on the heap and initializes it with the default values.
  * Background color: `GColorBlack`
  * No click configuration provider (`NULL`)
  * No icons
@@ -14589,7 +14764,7 @@ pub unsafe extern "C" fn action_bar_layer_clear_icon(
  handler. Make sure to call `action_bar_layer_remove_from_window()` in the
  window's `.unload` or `.disappear` handler.
 
- Note: Adding additional layers to the window's root layer after this calll
+ Note: Adding additional layers to the window's root layer after this call
  can occlude the action bar.
 
  * `action_bar`: The action bar to associate with the window
@@ -14855,8 +15030,8 @@ pub unsafe extern "C" fn status_bar_layer_set_separator_mode(
 }
 /** Layer that displays a bitmap image.
 
-BitmapLayer is a Layer subtype that draws a GBitmap within its frame. It uses an alignment property
-to specify how to position the bitmap image within its frame. Optionally, when the
+BitmapLayer is a Layer subtype that draws a GBitmap within its frame. It uses an alignment
+property to specify how to position the bitmap image within its frame. Optionally, when the
 background color is not GColorClear, it draws a solid background color behind the
 bitmap image, filling areas of the frame that are not covered by the bitmap image.
 Lastly, using the compositing mode property of the BitmapLayer, determines the way the
@@ -14874,7 +15049,7 @@ the layout of the image and it uses `graphics_fill_rect()` to draw the backgroun
 pub struct BitmapLayer {
 	_unused: [u8; 0],
 }
-/** Creates a new bitmap layer on the heap and initalizes it the default values.
+/** Creates a new bitmap layer on the heap and initializes it the default values.
 
  * Bitmap: `NULL` (none)
  * Background color: `GColorClear`
@@ -14962,14 +15137,14 @@ pub unsafe extern "C" fn bitmap_layer_set_bitmap(
 	)
 }
 /** Sets the alignment of the image to draw with in frame of the BitmapLayer.
- The aligment parameter specifies which edges of the bitmap should overlap
+ The alignment parameter specifies which edges of the bitmap should overlap
  with the frame of the BitmapLayer.
  If the bitmap is smaller than the frame of the BitmapLayer, the background
  is filled with the background color.
 
  The bitmap layer is automatically marked dirty after this operation.
 
- * `bitmap_layer`: The BitmapLayer for which to set the aligment
+ * `bitmap_layer`: The BitmapLayer for which to set the alignment
  * `alignment`: The new alignment for the image inside the BitmapLayer*/
 /** bitmap_layer_set_alignment
   -> Added in 0
@@ -15043,18 +15218,22 @@ pub unsafe extern "C" fn bitmap_layer_set_compositing_mode(
 }
 /** Layer that displays a rotated bitmap image.
 
-A RotBitmapLayer is like a `BitmapLayer` but has the ability to be rotated (by default, around its center). The amount of rotation
-is specified using `rot_bitmap_layer_set_angle()` or `rot_bitmap_layer_increment_angle()`. The rotation argument
-to those functions is specified as an amount of clockwise rotation, where the value 0x10000 represents a full 360 degree
-rotation and 0 represent no rotation, and it scales linearly between those values, just like `sin_lookup`.
+A RotBitmapLayer is like a `BitmapLayer` but has the ability to be rotated (by default,
+around its center). The amount of rotation is specified using `rot_bitmap_layer_set_angle()`
+or `rot_bitmap_layer_increment_angle()`. The rotation argument to those functions is
+specified as an amount of clockwise rotation, where the value 0x10000 represents a full 360
+degree rotation and 0 represent no rotation, and it scales linearly between those values, just
+like `sin_lookup`.
 
-The center of rotation in the source bitmap is always placed at the center of the RotBitmapLayer and the size of the RotBitmapLayer
-is automatically calculated so that the entire Bitmap can fit in at all rotation angles.
+The center of rotation in the source bitmap is always placed at the center of the RotBitmapLayer
+and the size of the RotBitmapLayer is automatically calculated so that the entire Bitmap can fit
+in at all rotation angles.
 
-For example, if the image is 10px wide and high, the RotBitmapLayer will be 14px wide ( sqrt(10^2+10^2) ).
+For example, if the image is 10px wide and high, the RotBitmapLayer will be 14px wide (
+sqrt(10^2+10^2) ).
 
-By default, the center of rotation in the source bitmap is the center of the bitmap but you can call `rot_bitmap_set_src_ic()` to change the
-center of rotation.
+By default, the center of rotation in the source bitmap is the center of the bitmap but you can
+call `rot_bitmap_set_src_ic()` to change the center of rotation.
 
 Note: RotBitmapLayer has performance limitations that can degrade user
 experience (see `graphics_draw_rotated_bitmap`). Use sparingly.*/
@@ -15140,7 +15319,9 @@ pub unsafe extern "C" fn rot_bitmap_layer_set_corner_clip_color(
 /** Sets the rotation angle of this RotBitmapLayer
 
  * `bitmap`: The RotBitmapLayer on which to change the rotation
- * `angle`: Rotation is an integer between 0 (no rotation) and 0x10000 (360 degree rotation). See sin_lookup()*/
+ * `angle`: Rotation is an integer between 0 (no rotation) and 0x10000 (360 degree rotation).
+
+ See sin_lookup()*/
 /** rot_bitmap_layer_set_angle
   -> Added in 0
 gneiss: Vtable Slot 213, Offset 852*/
@@ -15191,10 +15372,9 @@ pub unsafe extern "C" fn rot_bitmap_set_src_ic(bitmap: *mut RotBitmapLayer, ic: 
 		::shim::jump_to_pbl_function,
 	)
 }
-/** Sets the compositing mode of how the bitmap image is composited onto what has been drawn beneath the
- RotBitmapLayer.
- By default this is `GCompOpAssign`, i.e. transparency disabled.
- The RotBitmapLayer is automatically marked dirty after this operation.
+/** Sets the compositing mode of how the bitmap image is composited onto what has been drawn beneath
+ the RotBitmapLayer. By default this is `GCompOpAssign`, i.e. transparency disabled. The
+ RotBitmapLayer is automatically marked dirty after this operation.
 
  * `bitmap`: The RotBitmapLayer on which to change the rotation
  * `mode`: The compositing mode to set
@@ -15251,13 +15431,16 @@ const _: () = {
 	["Offset of field: NumberWindowCallbacks::selected"]
 		[::core::mem::offset_of!(NumberWindowCallbacks, selected) - 8usize];
 };
-/** Creates a new NumberWindow on the heap and initalizes it with the default values.
+/** Creates a new NumberWindow on the heap and initializes it with the default values.
 
- * `label`: The title or prompt to display in the NumberWindow. Must be long-lived and cannot be stack-allocated.
+ * `label`: The title or prompt to display in the NumberWindow. Must be long-lived and cannot
+ be stack-allocated.
+
  * `callbacks`: The callbacks
  * `callback_context`: Pointer to application specific data that is passed
 
- Note: The number window is not pushed to the window stack. Use `window_stack_push()` to do this.
+ Note: The number window is not pushed to the window stack. Use `window_stack_push()` to do
+ this.
 
  Returns A pointer to the NumberWindow. `NULL` if the NumberWindow could not
  be created*/
@@ -15477,7 +15660,7 @@ pub type ActionMenuEachItemCb = ::core::option::Option<
 pub struct ActionMenuConfig {
 	/// < the root level of the ActionMenu
 	pub root_level: *const ActionMenuLevel,
-	/// < a context pointer which will be accessbile when actions are performed
+	/// < a context pointer which will be accessible when actions are performed
 	pub context:    *mut ::core::ffi::c_void,
 	pub colors:     ActionMenuConfig__bindgen_ty_1,
 	/// < Called immediately before the ActionMenu closes
@@ -15894,61 +16077,60 @@ pub unsafe extern "C" fn vibes_enqueue_custom_pattern(pattern: VibePattern) {
 		::shim::jump_to_pbl_function,
 	)
 }
+/// Sine wave.
 pub const SpeakerWaveform_SpeakerWaveformSine: SpeakerWaveform = 0;
+/// Square wave.
 pub const SpeakerWaveform_SpeakerWaveformSquare: SpeakerWaveform = 1;
+/// Triangle wave.
 pub const SpeakerWaveform_SpeakerWaveformTriangle: SpeakerWaveform = 2;
+/// Sawtooth wave.
 pub const SpeakerWaveform_SpeakerWaveformSawtooth: SpeakerWaveform = 3;
+/// Number of waveforms.
 pub const SpeakerWaveform_SpeakerWaveformCount: SpeakerWaveform = 4;
-/** Controlling the speaker
-
-The Speaker API provides calls that let you play sounds through the watch's speaker.
-You can play simple note sequences (melodies), single tones, or stream raw PCM audio.
-
-Note sequences are compact representations of melodies using MIDI-like note definitions,
-supporting 4 basic waveforms: sine, square, triangle, and sawtooth.
-
-Raw PCM streaming allows apps to generate arbitrary audio in configurable formats.*/
+/// Waveform used to synthesize a note.
 pub type SpeakerWaveform = ::core::ffi::c_uchar;
-/** A single note in a sequence.
-midi_note: MIDI note number (0-127, 60=C4). 0 = rest (silence).
-waveform: SpeakerWaveform value.
-duration_ms: Note duration in ms (max 10000).
-velocity: Volume 0-127 (0 = use global volume).*/
-#[repr(C)]
+/// A single note in a sequence.
+#[repr(C, packed)]
 #[derive(Debug, Copy, Clone)]
-pub struct PACKED {
+pub struct SpeakerNote {
+	/// MIDI note number (0-127, 60=C4). 0 = rest (silence).
 	pub midi_note:   u8,
+	/// SpeakerWaveform value.
 	pub waveform:    u8,
+	/// Note duration in ms (max 10000).
 	pub duration_ms: u16,
+	/// Volume 0-127 (0 = use global volume).
 	pub velocity:    u8,
+	/// Reserved, set to 0.
 	pub reserved:    u8,
 }
 #[allow(clippy::unnecessary_operation, clippy::identity_op)]
 const _: () = {
-	["Size of PACKED"][::core::mem::size_of::<PACKED>() - 6usize];
-	["Alignment of PACKED"][::core::mem::align_of::<PACKED>() - 2usize];
-	["Offset of field: PACKED::midi_note"][::core::mem::offset_of!(PACKED, midi_note) - 0usize];
-	["Offset of field: PACKED::waveform"][::core::mem::offset_of!(PACKED, waveform) - 1usize];
-	["Offset of field: PACKED::duration_ms"][::core::mem::offset_of!(PACKED, duration_ms) - 2usize];
-	["Offset of field: PACKED::velocity"][::core::mem::offset_of!(PACKED, velocity) - 4usize];
-	["Offset of field: PACKED::reserved"][::core::mem::offset_of!(PACKED, reserved) - 5usize];
+	["Size of SpeakerNote"][::core::mem::size_of::<SpeakerNote>() - 6usize];
+	["Alignment of SpeakerNote"][::core::mem::align_of::<SpeakerNote>() - 1usize];
+	["Offset of field: SpeakerNote::midi_note"]
+		[::core::mem::offset_of!(SpeakerNote, midi_note) - 0usize];
+	["Offset of field: SpeakerNote::waveform"]
+		[::core::mem::offset_of!(SpeakerNote, waveform) - 1usize];
+	["Offset of field: SpeakerNote::duration_ms"]
+		[::core::mem::offset_of!(SpeakerNote, duration_ms) - 2usize];
+	["Offset of field: SpeakerNote::velocity"]
+		[::core::mem::offset_of!(SpeakerNote, velocity) - 4usize];
+	["Offset of field: SpeakerNote::reserved"]
+		[::core::mem::offset_of!(SpeakerNote, reserved) - 5usize];
 };
-/** A single note in a sequence.
-midi_note: MIDI note number (0-127, 60=C4). 0 = rest (silence).
-waveform: SpeakerWaveform value.
-duration_ms: Note duration in ms (max 10000).
-velocity: Volume 0-127 (0 = use global volume).*/
-pub type SpeakerNote = PACKED;
-/// < 8kHz 8-bit signed (1 byte/sample)
+/// 8kHz 8-bit signed (1 byte/sample)
 pub const SpeakerPcmFormat_SpeakerPcmFormat_8kHz_8bit: SpeakerPcmFormat = 0;
-/// < 16kHz 8-bit signed (1 byte/sample)
+/// 16kHz 8-bit signed (1 byte/sample)
 pub const SpeakerPcmFormat_SpeakerPcmFormat_16kHz_8bit: SpeakerPcmFormat = 1;
-/// < 8kHz 16-bit signed little-endian (2 bytes/sample)
+/// 8kHz 16-bit signed little-endian (2 bytes/sample)
 pub const SpeakerPcmFormat_SpeakerPcmFormat_8kHz_16bit: SpeakerPcmFormat = 2;
-/// < 16kHz 16-bit signed little-endian (2 bytes/sample)
+/// 16kHz 16-bit signed little-endian (2 bytes/sample)
 pub const SpeakerPcmFormat_SpeakerPcmFormat_16kHz_16bit: SpeakerPcmFormat = 3;
+/// Number of formats.
 pub const SpeakerPcmFormat_SpeakerPcmFormatCount: SpeakerPcmFormat = 4;
 /** PCM audio format for speaker streaming.
+
 Bit layout: bit0 = sample rate (0=8kHz, 1=16kHz), bit1 = bit depth (0=8-bit, 1=16-bit).
 All formats are mono signed PCM (8-bit samples are signed [-128,127], not unsigned).*/
 pub type SpeakerPcmFormat = ::core::ffi::c_uchar;
@@ -15957,13 +16139,13 @@ pub const SpeakerStatus_SpeakerStatusPlaying: SpeakerStatus = 1;
 pub const SpeakerStatus_SpeakerStatusDraining: SpeakerStatus = 2;
 /// Speaker status
 pub type SpeakerStatus = ::core::ffi::c_uchar;
-/// < Playback completed naturally
+/// Playback completed naturally
 pub const SpeakerFinishReason_SpeakerFinishReasonDone: SpeakerFinishReason = 0;
-/// < Playback was stopped by the app
+/// Playback was stopped by the app
 pub const SpeakerFinishReason_SpeakerFinishReasonStopped: SpeakerFinishReason = 1;
-/// < Preempted by higher priority source
+/// Preempted by higher priority source
 pub const SpeakerFinishReason_SpeakerFinishReasonPreempted: SpeakerFinishReason = 2;
-/// < An error occurred
+/// An error occurred
 pub const SpeakerFinishReason_SpeakerFinishReasonError: SpeakerFinishReason = 3;
 /// Reason reported when speaker playback ends.
 pub type SpeakerFinishReason = ::core::ffi::c_uchar;
@@ -15974,21 +16156,21 @@ pub type SpeakerFinishReason = ::core::ffi::c_uchar;
 pub type SpeakerFinishedCallback = ::core::option::Option<
 	unsafe extern "C" fn(reason: SpeakerFinishReason, ctx: *mut ::core::ffi::c_void),
 >;
-/** A raw PCM sample that can be pitch-shifted when played by a track.
-data: mono signed PCM in the given format.
-num_bytes: size of data in bytes.
-format: sample rate + bit depth (see SpeakerPcmFormat).
-base_midi_note: the MIDI note at which the sample plays unshifted (e.g. 60 = C4).
-Notes above/below this value are produced by resampling.
-loop: if true, the sample restarts from the beginning each time it runs out,
-and keeps playing until the owning note's duration elapses.*/
+/// A raw PCM sample that can be pitch-shifted when played by a track.
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct SpeakerSample {
+	/// Mono signed PCM in the given format.
 	pub data:           *const ::core::ffi::c_void,
+	/// Size of data in bytes.
 	pub num_bytes:      u32,
+	/// Sample rate + bit depth (see SpeakerPcmFormat).
 	pub format:         SpeakerPcmFormat,
+	/** The MIDI note at which the sample plays unshifted (e.g. 60 = C4).
+	Notes above/below this value are produced by resampling.*/
 	pub base_midi_note: u8,
+	/** If true, the sample restarts from the beginning each time it runs out,
+	and keeps playing until the owning note's duration elapses.*/
 	pub loop_:          bool,
 }
 #[allow(clippy::unnecessary_operation, clippy::identity_op)]
@@ -16005,17 +16187,18 @@ const _: () = {
 	["Offset of field: SpeakerSample::loop_"]
 		[::core::mem::offset_of!(SpeakerSample, loop_) - 10usize];
 };
-/** A single monophonic voice. Multiple tracks are mixed together by
-speaker_play_tracks() to produce polyphony.
-notes: array of notes to play sequentially.
-num_notes: length of the notes array.
-sample: if non-NULL, notes are played by pitch-shifting this sample;
-note.waveform is ignored. If NULL, notes use their waveform field.*/
+/** A single monophonic voice.
+
+Multiple tracks are mixed together by speaker_play_tracks() to produce polyphony.*/
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct SpeakerTrack {
+	/// Array of notes to play sequentially.
 	pub notes:     *const SpeakerNote,
+	/// Length of the notes array.
 	pub num_notes: u32,
+	/** If non-NULL, notes are played by pitch-shifting this sample;
+	note.waveform is ignored. If NULL, notes use their waveform field.*/
 	pub sample:    *const SpeakerSample,
 }
 #[allow(clippy::unnecessary_operation, clippy::identity_op)]
@@ -16133,7 +16316,8 @@ pub unsafe extern "C" fn speaker_stream_write(
 		::shim::jump_to_pbl_function,
 	)
 }
-/// Close the PCM stream. Buffered data will be played before stopping.
+/** Close the PCM stream. Buffered data will be played before stopping.
+ Completion is asynchronous; use speaker_stop() to cancel immediately.*/
 /** speaker_stream_close
   -> Added in 97
 gneiss: Vtable Slot 648, Offset 2592*/
@@ -16252,10 +16436,11 @@ pub unsafe extern "C" fn light_enable_interaction() {
 	)
 }
 /** Turn the watch's backlight on or put it back into automatic control.
- Developers should take care when calling this function, keeping Pebble's backlight on for long periods of time
- will rapidly deplete the battery.
+ Developers should take care when calling this function, keeping Pebble's backlight on for long
+ periods of time will rapidly deplete the battery.
 
- * `enable`: Turn the backlight on if `true`, otherwise `false` to put it back into automatic control.*/
+ * `enable`: Turn the backlight on if `true`, otherwise `false` to put it back into automatic
+ control.*/
 /** light_enable
   -> Added in 0
 gneiss: Vtable Slot 158, Offset 632*/
@@ -16572,43 +16757,6 @@ gneiss: Vtable Slot 608, Offset 2432*/
 pub unsafe extern "C" fn time_start_of_today() -> time_t {
 	core::arch::naked_asm!(
 		"push  {{r0-r3}}", "ldr   r1, =2432", "b     {resolver}", resolver = sym crate
-		::shim::jump_to_pbl_function,
-	)
-}
-/** Get the most recent HRV peak-to-peak interval in milliseconds. The value is captured from
- `HealthEventHRVUpdate` events, so it only updates while this app is subscribed via
- `health_service_events_subscribe()` and holds an HRV sample period.
-
- Returns PPI in ms, or 0 if no reading available.*/
-/** health_service_peek_hrv_ppi_ms
-  -> Added in 109
-gneiss: Vtable Slot 675, Offset 2700*/
-#[unsafe(naked)]
-#[unsafe(link_section = ".text.health_service_peek_hrv_ppi_ms")]
-pub unsafe extern "C" fn health_service_peek_hrv_ppi_ms() -> u16 {
-	core::arch::naked_asm!(
-		"push  {{r0-r3}}", "ldr   r1, =2700", "b     {resolver}", resolver = sym crate
-		::shim::jump_to_pbl_function,
-	)
-}
-/** Request HRV (peak-to-peak interval) sampling. While any app holds an HRV sample period, the
- sensor collects HRV alongside heart rate and HealthEventHRVUpdate events are delivered to
- health service subscribers.
- The HRV and heart rate sample periods (`health_service_set_heart_rate_sample_period`)
- share the app's single sensor subscription: both may be active at once, the sensor is driven
- at the shorter of the two periods, and setting one period to 0 clears only that request.
-
- * `interval_sec`: desired sampling interval in seconds; 0 unsubscribes.
-
- Returns true on success.*/
-/** health_service_set_hrv_sample_period
-  -> Added in 109
-gneiss: Vtable Slot 676, Offset 2704*/
-#[unsafe(naked)]
-#[unsafe(link_section = ".text.health_service_set_hrv_sample_period")]
-pub unsafe extern "C" fn health_service_set_hrv_sample_period(interval_sec: u16) -> bool {
-	core::arch::naked_asm!(
-		"push  {{r0-r3}}", "ldr   r1, =2704", "b     {resolver}", resolver = sym crate
 		::shim::jump_to_pbl_function,
 	)
 }

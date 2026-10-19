@@ -88,8 +88,9 @@ fn build_syscall_vtable_map(
 		// The allocator family, mem* and snprintf are `skipDefinition` in the SDK but we still want
 		// shims for them: gneiss's GlobalAlloc binds the first, gneiss-sys's mem module the second,
 		// pbl_fmt! the last.
-		const FORCE_EMIT: &[&str] =
-			&["malloc", "free", "realloc", "memcpy", "memmove", "memset", "snprintf"];
+		const FORCE_EMIT: &[&str] = &[
+			"malloc", "free", "realloc", "memcpy", "memmove", "memset", "snprintf",
+		];
 		func.removed.is_set()
 			|| func.deprecated.is_set()
 			|| (func.skip_definition && !FORCE_EMIT.contains(&func.name.as_str()))

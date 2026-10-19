@@ -18,7 +18,7 @@
 //! Calculate the length of an array, based on the size of the element type.
 //! @param array The array to be evaluated.
 //! @return The length of the array.
-#define ARRAY_LENGTH(array) (sizeof((array))/sizeof((array)[0]))
+#define ARRAY_LENGTH(array) (sizeof((array)) / sizeof((array)[0]))
 
 struct tm;
 typedef struct tm tm;
@@ -26,17 +26,17 @@ typedef struct tm tm;
 //! Determine whether a variable is signed or not.
 //! @param var The variable to evaluate.
 //! @return true if the variable is signed.
-#define IS_SIGNED(var) (__builtin_choose_expr( \
-  __builtin_types_compatible_p(__typeof__(var), unsigned char), false, \
-  __builtin_choose_expr( \
-  __builtin_types_compatible_p(__typeof__(var), unsigned short), false, \
-  __builtin_choose_expr( \
-  __builtin_types_compatible_p(__typeof__(var), unsigned int), false, \
-  __builtin_choose_expr( \
-  __builtin_types_compatible_p(__typeof__(var), unsigned long), false, \
-  __builtin_choose_expr( \
-  __builtin_types_compatible_p(__typeof__(var), unsigned long long), false, true))))) \
-)
+#define IS_SIGNED(var)                                                                       \
+  (__builtin_choose_expr(                                                                          \
+      __builtin_types_compatible_p(__typeof__(var), unsigned char), false,                           \
+      __builtin_choose_expr(                                                                       \
+          __builtin_types_compatible_p(__typeof__(var), unsigned short), false,                      \
+          __builtin_choose_expr(                                                                   \
+              __builtin_types_compatible_p(__typeof__(var), unsigned int), false,                    \
+              __builtin_choose_expr(                                                               \
+                  __builtin_types_compatible_p(__typeof__(var), unsigned long), false,               \
+                  __builtin_choose_expr(__builtin_types_compatible_p(__typeof__(var), unsigned long long), \
+                                  false, true))))))
 
 //! @addtogroup Foundation
 //! @{
@@ -50,19 +50,19 @@ typedef struct tm tm;
 
 //! The different watch models.
 typedef enum {
-  WATCH_INFO_MODEL_UNKNOWN, //!< Unknown model
-  WATCH_INFO_MODEL_PEBBLE_ORIGINAL, //!< Original Pebble
-  WATCH_INFO_MODEL_PEBBLE_STEEL, //!< Pebble Steel
-  WATCH_INFO_MODEL_PEBBLE_TIME, //!< Pebble Time
-  WATCH_INFO_MODEL_PEBBLE_TIME_STEEL, //!< Pebble Time Steel
+  WATCH_INFO_MODEL_UNKNOWN,              //!< Unknown model
+  WATCH_INFO_MODEL_PEBBLE_ORIGINAL,      //!< Original Pebble
+  WATCH_INFO_MODEL_PEBBLE_STEEL,         //!< Pebble Steel
+  WATCH_INFO_MODEL_PEBBLE_TIME,          //!< Pebble Time
+  WATCH_INFO_MODEL_PEBBLE_TIME_STEEL,    //!< Pebble Time Steel
   WATCH_INFO_MODEL_PEBBLE_TIME_ROUND_14, //!< Pebble Time Round, 14mm lug size
   WATCH_INFO_MODEL_PEBBLE_TIME_ROUND_20, //!< Pebble Time Round, 20mm lug size
-  WATCH_INFO_MODEL_PEBBLE_2_HR, //!< Pebble 2 HR
-  WATCH_INFO_MODEL_PEBBLE_2_SE, //!< Pebble 2 SE
-  WATCH_INFO_MODEL_PEBBLE_TIME_2, //!< Pebble Time 2
-  WATCH_INFO_MODEL_COREDEVICES_P2D, //!< CoreDevices P2D (Pebble 2 Duo)
-  WATCH_INFO_MODEL_COREDEVICES_PT2, //!< CoreDevices PT2 (Pebble Time 2)
-  WATCH_INFO_MODEL_COREDEVICES_PR2, //!< CoreDevices PR2 (Pebble Round 2)
+  WATCH_INFO_MODEL_PEBBLE_2_HR,          //!< Pebble 2 HR
+  WATCH_INFO_MODEL_PEBBLE_2_SE,          //!< Pebble 2 SE
+  WATCH_INFO_MODEL_PEBBLE_TIME_2,        //!< Pebble Time 2
+  WATCH_INFO_MODEL_COREDEVICES_P2D,      //!< CoreDevices P2D (Pebble 2 Duo)
+  WATCH_INFO_MODEL_COREDEVICES_PT2,      //!< CoreDevices PT2 (Pebble Time 2)
+  WATCH_INFO_MODEL_COREDEVICES_PR2,      //!< CoreDevices PR2 (Pebble Round 2)
 
   WATCH_INFO_MODEL__MAX
 } WatchInfoModel;
@@ -70,65 +70,66 @@ typedef enum {
 //! The different watch colors.
 typedef enum {
   WATCH_INFO_COLOR_UNKNOWN = 0, //!< Unknown color
-  WATCH_INFO_COLOR_BLACK = 1, //!< Black
-  WATCH_INFO_COLOR_WHITE = 2, //!< White
-  WATCH_INFO_COLOR_RED = 3, //!< Red
-  WATCH_INFO_COLOR_ORANGE = 4, //!< Orange
-  WATCH_INFO_COLOR_GRAY = 5, //!< Gray
+  WATCH_INFO_COLOR_BLACK = 1,   //!< Black
+  WATCH_INFO_COLOR_WHITE = 2,   //!< White
+  WATCH_INFO_COLOR_RED = 3,     //!< Red
+  WATCH_INFO_COLOR_ORANGE = 4,  //!< Orange
+  WATCH_INFO_COLOR_GRAY = 5,    //!< Gray
 
   WATCH_INFO_COLOR_STAINLESS_STEEL = 6, //!< Stainless Steel
-  WATCH_INFO_COLOR_MATTE_BLACK = 7, //!< Matte Black
+  WATCH_INFO_COLOR_MATTE_BLACK = 7,     //!< Matte Black
 
-  WATCH_INFO_COLOR_BLUE = 8, //!< Blue
+  WATCH_INFO_COLOR_BLUE = 8,  //!< Blue
   WATCH_INFO_COLOR_GREEN = 9, //!< Green
   WATCH_INFO_COLOR_PINK = 10, //!< Pink
 
   WATCH_INFO_COLOR_TIME_WHITE = 11, //!< Time White
   WATCH_INFO_COLOR_TIME_BLACK = 12, //!< Time Black
-  WATCH_INFO_COLOR_TIME_RED = 13, //!< Time Red
+  WATCH_INFO_COLOR_TIME_RED = 13,   //!< Time Red
 
   WATCH_INFO_COLOR_TIME_STEEL_SILVER = 14, //!< Time Steel Silver
-  WATCH_INFO_COLOR_TIME_STEEL_BLACK = 15, //!< Time Steel Black
-  WATCH_INFO_COLOR_TIME_STEEL_GOLD = 16, //!< Time Steel Gold
+  WATCH_INFO_COLOR_TIME_STEEL_BLACK = 15,  //!< Time Steel Black
+  WATCH_INFO_COLOR_TIME_STEEL_GOLD = 16,   //!< Time Steel Gold
 
-  WATCH_INFO_COLOR_TIME_ROUND_SILVER_14 = 17, //!< Time Round 14mm lug size, Silver
-  WATCH_INFO_COLOR_TIME_ROUND_BLACK_14 = 18, //!< Time Round 14mm lug size, Black
-  WATCH_INFO_COLOR_TIME_ROUND_SILVER_20 = 19, //!< Time Round 20mm lug size, Silver
-  WATCH_INFO_COLOR_TIME_ROUND_BLACK_20 = 20, //!< Time Round 20mm lug size, Black
+  WATCH_INFO_COLOR_TIME_ROUND_SILVER_14 = 17,    //!< Time Round 14mm lug size, Silver
+  WATCH_INFO_COLOR_TIME_ROUND_BLACK_14 = 18,     //!< Time Round 14mm lug size, Black
+  WATCH_INFO_COLOR_TIME_ROUND_SILVER_20 = 19,    //!< Time Round 20mm lug size, Silver
+  WATCH_INFO_COLOR_TIME_ROUND_BLACK_20 = 20,     //!< Time Round 20mm lug size, Black
   WATCH_INFO_COLOR_TIME_ROUND_ROSE_GOLD_14 = 21, //!< Time Round 14mm lug size, Rose Gold
 
   WATCH_INFO_COLOR_PEBBLE_2_HR_BLACK = 25, //!< Pebble 2 HR, Black / Charcoal
-  WATCH_INFO_COLOR_PEBBLE_2_HR_LIME = 27, //!< Pebble 2 HR, Charcoal / Sorbet Green
+  WATCH_INFO_COLOR_PEBBLE_2_HR_LIME = 27,  //!< Pebble 2 HR, Charcoal / Sorbet Green
   WATCH_INFO_COLOR_PEBBLE_2_HR_FLAME = 28, //!< Pebble 2 HR, Charcoal / Red
   WATCH_INFO_COLOR_PEBBLE_2_HR_WHITE = 29, //!< Pebble 2 HR, White / Gray
-  WATCH_INFO_COLOR_PEBBLE_2_HR_AQUA = 30, //!< Pebble 2 HR, White / Turquoise
+  WATCH_INFO_COLOR_PEBBLE_2_HR_AQUA = 30,  //!< Pebble 2 HR, White / Turquoise
 
   WATCH_INFO_COLOR_PEBBLE_2_SE_BLACK = 24, //!< Pebble 2 SE, Black / Charcoal
   WATCH_INFO_COLOR_PEBBLE_2_SE_WHITE = 26, //!< Pebble 2 SE, White / Gray
 
-  WATCH_INFO_COLOR_PEBBLE_TIME_2_BLACK = 31, //!< Pebble Time 2, Black
+  WATCH_INFO_COLOR_PEBBLE_TIME_2_BLACK = 31,  //!< Pebble Time 2, Black
   WATCH_INFO_COLOR_PEBBLE_TIME_2_SILVER = 32, //!< Pebble Time 2, Silver
-  WATCH_INFO_COLOR_PEBBLE_TIME_2_GOLD = 33, //!< Pebble Time 2, Gold
+  WATCH_INFO_COLOR_PEBBLE_TIME_2_GOLD = 33,   //!< Pebble Time 2, Gold
 
   WATCH_INFO_COLOR_COREDEVICES_P2D_BLACK = 34, //!< CoreDevices P2D, Black
   WATCH_INFO_COLOR_COREDEVICES_P2D_WHITE = 35, //!< CoreDevices P2D, White
 
-  WATCH_INFO_COLOR_COREDEVICES_PT2_BLACK_GREY = 36, //!< CoreDevices PT2, Black/Grey
-  WATCH_INFO_COLOR_COREDEVICES_PT2_BLACK_RED = 37, //!< CoreDevices PT2, Black/Red
+  WATCH_INFO_COLOR_COREDEVICES_PT2_BLACK_GREY = 36,  //!< CoreDevices PT2, Black/Grey
+  WATCH_INFO_COLOR_COREDEVICES_PT2_BLACK_RED = 37,   //!< CoreDevices PT2, Black/Red
   WATCH_INFO_COLOR_COREDEVICES_PT2_SILVER_BLUE = 38, //!< CoreDevices PT2, Silver/Blue
   WATCH_INFO_COLOR_COREDEVICES_PT2_SILVER_GREY = 39, //!< CoreDevices PT2, Silver/Grey
 
-  WATCH_INFO_COLOR_COREDEVICES_PR2_BLACK_20 = 40, //!< CoreDevices PR2, Black (20mm)
+  WATCH_INFO_COLOR_COREDEVICES_PR2_BLACK_20 = 40,  //!< CoreDevices PR2, Black (20mm)
   WATCH_INFO_COLOR_COREDEVICES_PR2_SILVER_20 = 41, //!< CoreDevices PR2, Silver (20mm)
-  WATCH_INFO_COLOR_COREDEVICES_PR2_GOLD_14 = 42, //!< CoreDevices PR2, Gold (14mm)
+  WATCH_INFO_COLOR_COREDEVICES_PR2_GOLD_14 = 42,   //!< CoreDevices PR2, Gold (14mm)
   WATCH_INFO_COLOR_COREDEVICES_PR2_SILVER_14 = 43, //!< CoreDevices PR2, Silver (14mm)
 
   WATCH_INFO_COLOR__MAX
 } WatchInfoColor;
 
 //! Data structure containing the version of the firmware running on the watch.
-//! The version of the firmware has the form X.[X.[X]]. If a version number is not present it will be 0.
-//! For example: the version numbers of 2.4.1 are 2, 4, and 1. The version numbers of 2.4 are 2, 4, and 0.
+//! The version of the firmware has the form X.[X.[X]]. If a version number is not present it will
+//! be 0. For example: the version numbers of 2.4.1 are 2, 4, and 1. The version numbers of 2.4 are
+//! 2, 4, and 0.
 typedef struct {
   uint8_t major; //!< Major version number
   uint8_t minor; //!< Minor version number
@@ -162,73 +163,114 @@ WatchInfoColor watch_info_get_color(void);
 //! Converts from a fixed point value representation to the equivalent value in degrees
 //! @see DEG_TO_TRIGANGLE
 //! @see TRIG_MAX_ANGLE
+//! @param trig_angle Angle, scaled so that TRIG_MAX_ANGLE is 360 degrees.
+//! @return Angle in degrees.
 #define TRIGANGLE_TO_DEG(trig_angle) (((trig_angle) * 360) / TRIG_MAX_ANGLE)
 
 //! Converts from an angle in degrees to the equivalent fixed point value representation
 //! @see TRIGANGLE_TO_DEG
 //! @see TRIG_MAX_ANGLE
+//! @param angle Angle in degrees.
+//! @return Angle, scaled so that TRIG_MAX_ANGLE is 360 degrees.
 #define DEG_TO_TRIGANGLE(angle) (((angle) * TRIG_MAX_ANGLE) / 360)
 
-//! Look-up the sine of the given angle from a pre-computed table.
-//! @param angle The angle for which to compute the cosine.
-//! The angle value is scaled linearly, such that a value of 0x10000 corresponds to 360 degrees or 2 PI radians.
+/**
+ * @brief Look-up the sine of the given angle from a pre-computed table.
+ * @param angle The angle for which to compute the sine.
+ * The angle value is scaled linearly, such that a value of 0x10000 corresponds to 360 degrees or 2
+ * PI radians.
+ * @return Sine of @p angle, scaled so that 1 is TRIG_MAX_RATIO.
+ */
 int32_t sin_lookup(int32_t angle);
 
-//! Look-up the cosine of the given angle from a pre-computed table.
-//! This is equivalent to calling `sin_lookup(angle + TRIG_MAX_ANGLE / 4)`.
-//! @param angle The angle for which to compute the cosine.
-//! The angle value is scaled linearly, such that a value of 0x10000 corresponds to 360 degrees or 2 PI radians.
+/**
+ * @brief Look-up the cosine of the given angle from a pre-computed table.
+ *
+ * This is equivalent to calling `sin_lookup(angle + TRIG_MAX_ANGLE / 4)`.
+ * @param angle The angle for which to compute the cosine.
+ * The angle value is scaled linearly, such that a value of 0x10000 corresponds to 360 degrees or 2
+ * PI radians.
+ * @return Cosine of @p angle, scaled so that 1 is TRIG_MAX_RATIO.
+ */
 int32_t cos_lookup(int32_t angle);
 
-//! Look-up the arctangent of a given x, y pair
-//! The angle value is scaled linearly, such that a value of 0x10000 corresponds to 360 degrees or 2 PI radians.
+/**
+ * @brief Look-up the arctangent of a given x, y pair
+ *
+ * The angle value is scaled linearly, such that a value of 0x10000 corresponds to 360 degrees or 2
+ * PI radians.
+ * @param y Y coordinate.
+ * @param x X coordinate.
+ * @return Angle of the point (x, y) counter-clockwise from the positive x axis, from 0 up to but
+ *         not including TRIG_MAX_ANGLE.
+ */
 int32_t atan2_lookup(int16_t y, int16_t x);
 
 //! @} // group Math
 
 //! @addtogroup WallTime Wall Time
-//!   \brief Functions, data structures and other things related to wall clock time.
+//! @brief Functions, data structures and other things related to wall clock time.
 //!
 //! This module contains utilities to get the current time and create strings with formatted
 //! dates and times.
 //! @{
 
-//! Weekday values
+/** @brief Weekday values */
 typedef enum {
-  TODAY = 0,  //!< Today
-  SUNDAY,     //!< Sunday
-  MONDAY,     //!< Monday
-  TUESDAY,    //!< Tuesday
-  WEDNESDAY,  //!< Wednesday
-  THURSDAY,   //!< Thursday
-  FRIDAY,     //!< Friday
-  SATURDAY,   //!< Saturday
+  /** Today */
+  TODAY = 0,
+  /** Sunday */
+  SUNDAY,
+  /** Monday */
+  MONDAY,
+  /** Tuesday */
+  TUESDAY,
+  /** Wednesday */
+  WEDNESDAY,
+  /** Thursday */
+  THURSDAY,
+  /** Friday */
+  FRIDAY,
+  /** Saturday */
+  SATURDAY,
 } WeekDay;
 
-//! Copies a time string into the buffer, formatted according to the user's time display preferences (such as 12h/24h
-//! time).
-//! Example results: "7:30" or "15:00".
-//! @note AM/PM are also outputted with the time if the user's preference is 12h time.
-//! @param[out] buffer A pointer to the buffer to copy the time string into
-//! @param size The maximum size of buffer
+/**
+ * @brief Copies a time string into the buffer, formatted according to the user's time display
+ * preferences (such as 12h/24h time).
+ *
+ * Example results: "7:30" or "15:00".
+ * @note AM/PM are also outputted with the time if the user's preference is 12h time.
+ * @param[out] buffer A pointer to the buffer to copy the time string into
+ * @param size The maximum size of buffer
+ */
 void clock_copy_time_string(char *buffer, uint8_t size);
 
-//! Gets the user's 12/24h clock style preference.
-//! @return `true` if the user prefers 24h-style time display or `false` if the
-//! user prefers 12h-style time display.
+/**
+ * @brief Gets the user's 12/24h clock style preference.
+ * @return `true` if the user prefers 24h-style time display or `false` if the
+ * user prefers 12h-style time display.
+ */
 bool clock_is_24h_style(void);
 
-//! Converts a (day, hour, minute) specification to a UTC timestamp occurring in the future
-//! Always returns a timestamp for the next occurring instance,
-//! example: specifying TODAY@14:30 when it is 14:40 will return a timestamp for 7 days from
-//! now at 14:30
-//! @param day WeekDay day of week including support for specifying TODAY
-//! @param hour hour specified in 24-hour format [0-23]
-//! @param minute minute [0-59]
+/**
+ * @brief Converts a (day, hour, minute) specification to a UTC timestamp occurring in the future.
+ *
+ * Always returns a timestamp for the next occurring instance,
+ * example: specifying TODAY@14:30 when it is 14:40 will return a timestamp for tomorrow at
+ * 14:30, while specifying the current day of the week will return a timestamp for 7 days from
+ * now.
+ * @param day WeekDay day of week including support for specifying TODAY
+ * @param hour hour specified in 24-hour format [0-23]
+ * @param minute minute [0-59]
+ * @return UTC timestamp of the next occurrence.
+ */
 time_t clock_to_timestamp(WeekDay day, int hour, int minute);
 
-//! Checks if timezone is currently set, otherwise gmtime == localtime.
-//! @return `true` if timezone has been set, false otherwise
+/**
+ * @brief Checks if timezone is currently set, otherwise gmtime == localtime.
+ * @return `true` if timezone has been set, false otherwise
+ */
 bool clock_is_timezone_set(void);
 
 //! The maximum length for a timezone full name (e.g. America/Chicago)
@@ -258,16 +300,16 @@ typedef enum PlatformType {
 
 #define PBL_PLATFORM_TYPE_CURRENT PlatformTypeGabbro
 
-#define PBL_PLATFORM_SWITCH_DEFAULT(PLAT, DEFAULT, APLITE, BASALT, CHALK, DIORITE, EMERY, FLINT, GABBRO) (\
-  ((PLAT) == PlatformTypeFlint) ? (FLINT) : \
-  ((PLAT) == PlatformTypeEmery) ? (EMERY) : \
-  ((PLAT) == PlatformTypeDiorite) ? (DIORITE) : \
-  ((PLAT) == PlatformTypeChalk) ? (CHALK) : \
-  ((PLAT) == PlatformTypeBasalt) ? (BASALT) : \
-  ((PLAT) == PlatformTypeAplite) ? (APLITE) : \
-  ((PLAT) == PlatformTypeGabbro) ? (GABBRO) : \
-  (DEFAULT) \
-)
+#define PBL_PLATFORM_SWITCH_DEFAULT(PLAT, DEFAULT, APLITE, BASALT, CHALK, DIORITE, EMERY, FLINT, \
+                                    GABBRO)                                                      \
+  (((PLAT) == PlatformTypeFlint)     ? (FLINT)                                                   \
+   : ((PLAT) == PlatformTypeEmery)   ? (EMERY)                                                   \
+   : ((PLAT) == PlatformTypeDiorite) ? (DIORITE)                                                 \
+   : ((PLAT) == PlatformTypeChalk)   ? (CHALK)                                                   \
+   : ((PLAT) == PlatformTypeBasalt)  ? (BASALT)                                                  \
+   : ((PLAT) == PlatformTypeAplite)  ? (APLITE)                                                  \
+   : ((PLAT) == PlatformTypeGabbro)  ? (GABBRO)                                                  \
+                                     : (DEFAULT))
 
 #define PBL_PLATFORM_SWITCH(PLAT, APLITE, BASALT, CHALK, DIORITE, EMERY, FLINT, GABBRO) \
   PBL_PLATFORM_SWITCH_DEFAULT(PLAT, APLITE, APLITE, BASALT, CHALK, DIORITE, EMERY, FLINT, GABBRO)
@@ -384,13 +426,13 @@ void bluetooth_connection_service_unsubscribe(void);
 //! in a watchface.
 //! @{
 
-//! Structure for retrieval of the battery charge state
+/** @brief Structure for retrieval of the battery charge state */
 typedef struct {
-  //! A percentage (0-100) of how full the battery is
+  /** A percentage (0-100) of how full the battery is */
   uint8_t charge_percent;
-  //! True if the battery is currently being charged. False if not.
+  /** True if the battery is currently being charged. False if not. */
   bool is_charging;
-  //! True if the charger cable is connected. False if not.
+  /** True if the charger cable is connected. False if not. */
   bool is_plugged;
 } BatteryChargeState;
 
@@ -426,30 +468,32 @@ BatteryChargeState battery_state_service_peek(void);
 //! example app.
 //! @{
 
-//! A single accelerometer sample for all three axes including timestamp and
-//! vibration rumble status.
+/**
+ * @brief A single accelerometer sample for all three axes including timestamp and
+ * vibration rumble status.
+ */
 typedef struct __attribute__((__packed__)) AccelData {
-  //! acceleration along the x axis
+  /** acceleration along the x axis */
   int16_t x;
-  //! acceleration along the y axis
+  /** acceleration along the y axis */
   int16_t y;
-  //! acceleration along the z axis
+  /** acceleration along the z axis */
   int16_t z;
 
-  //! true if the watch vibrated when this sample was collected
+  /** true if the watch vibrated when this sample was collected */
   bool did_vibrate;
 
-  //! timestamp, in milliseconds
+  /** timestamp, in milliseconds */
   uint64_t timestamp;
 } AccelData;
 
-//! A single accelerometer sample for all three axes
+/** @brief A single accelerometer sample for all three axes */
 typedef struct __attribute__((__packed__)) {
-  //! acceleration along the x axis
+  /** acceleration along the x axis */
   int16_t x;
-  //! acceleration along the y axis
+  /** acceleration along the y axis */
   int16_t y;
-  //! acceleration along the z axis
+  /** acceleration along the z axis */
   int16_t z;
 } AccelRawData;
 
@@ -482,15 +526,15 @@ typedef void (*AccelRawDataHandler)(AccelRawData *data, uint32_t num_samples, ui
 //! @param direction the direction (-1 or +1) of the tap
 typedef void (*AccelTapHandler)(AccelAxisType axis, int32_t direction);
 
-//! Valid accelerometer sampling rates, in Hz
+/** @brief Valid accelerometer sampling rates, in Hz */
 typedef enum {
-  //! 10 HZ sampling rate
+  /** 10 HZ sampling rate */
   ACCEL_SAMPLING_10HZ = 10,
-  //! 25 HZ sampling rate [Default]
+  /** 25 HZ sampling rate [Default] */
   ACCEL_SAMPLING_25HZ = 25,
-  //! 50 HZ sampling rate
+  /** 50 HZ sampling rate */
   ACCEL_SAMPLING_50HZ = 50,
-  //! 100 HZ sampling rate
+  /** 100 HZ sampling rate */
   ACCEL_SAMPLING_100HZ = 100,
 } AccelSamplingRate;
 
@@ -560,37 +604,44 @@ void accel_raw_data_service_subscribe(uint32_t samples_per_update, AccelRawDataH
 //!
 //! @{
 
-//! Enum describing the current state of the Compass Service
+/** @brief Enum describing the current state of the Compass Service */
 typedef enum {
-  //! The Compass Service is unavailable.
+  /** The Compass Service is unavailable. */
   CompassStatusUnavailable = -1,
-  //! Compass is calibrating: data is invalid and should not be used
-  //! Data will become valid once calibration is complete
+  /**
+   * Compass is calibrating: data is invalid and should not be used
+   * Data will become valid once calibration is complete
+   */
   CompassStatusDataInvalid = 0,
-  //! Compass is calibrating: the data is valid but the calibration is still being refined
+  /** Compass is calibrating: the data is valid but the calibration is still being refined */
   CompassStatusCalibrating,
-  //! Compass data is valid and the calibration has completed
+  /** Compass data is valid and the calibration has completed */
   CompassStatusCalibrated
 } CompassStatus;
 
-//! Represents an angle relative to get to a reference direction, e.g. (magnetic) north.
-//! The angle value is scaled linearly, such that a value of TRIG_MAX_ANGLE
-//! corresponds to 360 degrees or 2 PI radians.
-//! Thus, if heading towards north, north is 0, west is TRIG_MAX_ANGLE/4,
-//! south is TRIG_MAX_ANGLE/2, and so on.
+/**
+ * @brief Represents an angle relative to get to a reference direction, e.g. (magnetic) north.
+ *
+ * The angle value is scaled linearly, such that a value of TRIG_MAX_ANGLE
+ * corresponds to 360 degrees or 2 PI radians.
+ * Thus, if heading towards north, north is 0, west is TRIG_MAX_ANGLE/4,
+ * south is TRIG_MAX_ANGLE/2, and so on.
+ */
 typedef int32_t CompassHeading;
 
-//! Structure containing a single heading towards magnetic and true north.
+/** @brief Structure containing a single heading towards magnetic and true north. */
 typedef struct {
-  //! Measured angle that increases counter-clockwise from magnetic north
-  //! (use `int clockwise_heading = TRIG_MAX_ANGLE - heading_data.magnetic_heading;`
-  //! for example to find your heading clockwise from magnetic north).
+  /**
+   * Measured angle that increases counter-clockwise from magnetic north
+   * (use `int clockwise_heading = TRIG_MAX_ANGLE - heading_data.magnetic_heading;`
+   * for example to find your heading clockwise from magnetic north).
+   */
   CompassHeading magnetic_heading;
-  //! Currently same value as magnetic_heading (reserved for future implementation).
+  /** Currently same value as magnetic_heading (reserved for future implementation). */
   CompassHeading true_heading;
-  //! Indicates the current state of the Compass Service calibration.
+  /** Indicates the current state of the Compass Service calibration. */
   CompassStatus compass_status;
-  //! Currently always false (reserved for future implementation).
+  /** Currently always false (reserved for future implementation). */
   bool is_declination_valid;
 } CompassHeadingData;
 
@@ -636,8 +687,8 @@ int compass_service_peek(CompassHeadingData *data);
 //! change a tick should occur. Time components are defined by a \ref TimeUnits enum bitmask.
 //! @{
 
-//! Time unit flags that can be used to create a bitmask for use in \ref tick_timer_service_subscribe().
-//! This will also be passed to \ref TickHandler.
+//! Time unit flags that can be used to create a bitmask for use in \ref
+//! tick_timer_service_subscribe(). This will also be passed to \ref TickHandler.
 typedef enum {
   //! Flag to represent the "seconds" time unit
   SECOND_UNIT = 1 << 0,
@@ -870,7 +921,7 @@ typedef enum {
 //! Return a \ref HealthActivityMask containing a set of bits, one set for each
 //! activity that is currently active.
 //! @return A bitmask with zero or more \ref HealthActivityMask bits set as appropriate.
-HealthActivityMask   health_service_peek_current_activities(void);
+HealthActivityMask health_service_peek_current_activities(void);
 
 //! Callback used by \ref health_service_activities_iterate().
 //! @param activity Which activity the caller is being informed about.
@@ -937,8 +988,8 @@ typedef enum {
 //! @param time_end Latest UTC time you are interested in.
 //! @return A \ref HealthServiceAccessibilityMask representing the accessible metrics
 //! in this time range.
-HealthServiceAccessibilityMask health_service_metric_accessible(
-    HealthMetric metric, time_t time_start, time_t time_end);
+HealthServiceAccessibilityMask health_service_metric_accessible(HealthMetric metric,
+                                                                time_t time_start, time_t time_end);
 
 //! Check if a certain combination of metric, time span, and scope is accessible for calculating
 //! summed, averaged data by returning a value of \ref HealthServiceAccessibilityMask. Developers
@@ -953,7 +1004,8 @@ HealthServiceAccessibilityMask health_service_metric_accessible(
 //! @param time_start Earliest UTC time you are interested in.
 //! @param time_end Latest UTC time you are interested in.
 //! @param scope \ref HealthServiceTimeScope value describing how the average should be computed.
-//! @return A \ref HealthServiceAccessibilityMask value decribing whether averaged data is available.
+//! @return A \ref HealthServiceAccessibilityMask value describing whether averaged data is
+//! available.
 HealthServiceAccessibilityMask health_service_metric_averaged_accessible(
     HealthMetric metric, time_t time_start, time_t time_end, HealthServiceTimeScope scope);
 
@@ -967,7 +1019,8 @@ HealthServiceAccessibilityMask health_service_metric_averaged_accessible(
 //! @param time_end Latest UTC time you are interested in.
 //! @param aggregation The aggregation to perform
 //! @param scope \ref HealthServiceTimeScope value describing how the average should be computed.
-//! @return A \ref HealthServiceAccessibilityMask value decribing whether averaged data is available.
+//! @return A \ref HealthServiceAccessibilityMask value describing whether averaged data is
+//! available.
 HealthServiceAccessibilityMask health_service_metric_aggregate_averaged_accessible(
     HealthMetric metric, time_t time_start, time_t time_end, HealthAggregation aggregation,
     HealthServiceTimeScope scope);
@@ -1006,7 +1059,7 @@ typedef enum {
 
 //! Developer-supplied event handler, called when a health-related event occurs after subscribing
 //! via \ref health_service_events_subscribe();
-//! @param event The type of health-related event that occured.
+//! @param event The type of health-related event that occurred.
 //! @param context The developer-supplied context pointer.
 typedef void (*HealthEventHandler)(HealthEventType event, void *context);
 
@@ -1055,6 +1108,22 @@ bool health_service_set_heart_rate_sample_period(uint16_t interval_sec);
 //! the app exits, or 0 if there is no active request by this app.
 uint16_t health_service_get_heart_rate_sample_period_expiration_sec(void);
 
+//! Get the most recent HRV peak-to-peak interval in milliseconds. The value is captured from
+//! \ref HealthEventHRVUpdate events, so it only updates while this app is subscribed via
+//! \ref health_service_events_subscribe() and holds an HRV sample period.
+//! @return PPI in ms, or 0 if no reading available.
+uint16_t health_service_peek_hrv_ppi_ms(void);
+
+//! Request HRV (peak-to-peak interval) sampling. While any app holds an HRV sample period, the
+//! sensor collects HRV alongside heart rate and HealthEventHRVUpdate events are delivered to
+//! health service subscribers.
+//! The HRV and heart rate sample periods (\ref health_service_set_heart_rate_sample_period)
+//! share the app's single sensor subscription: both may be active at once, the sensor is driven
+//! at the shorter of the two periods, and setting one period to 0 clears only that request.
+//! @param interval_sec desired sampling interval in seconds; 0 unsubscribes.
+//! @return true on success.
+bool health_service_set_hrv_sample_period(uint16_t interval_sec);
+
 //! Register for an alert when a metric crosses the given threshold. When the metric crosses this
 //! threshold (either goes above or below it), a \ref HealthEventMetricAlert event will be
 //! generated. To cancel this registration, pass the returned \ref HealthMetricAlert value to
@@ -1070,7 +1139,7 @@ uint16_t health_service_get_heart_rate_sample_period_expiration_sec(void);
 //! \endcode
 //!
 //! In the current implementation, only one alert per metric can be registered at a time. Future
-//! implementations may support two or more simulataneous alert registrations per metric. To change
+//! implementations may support two or more simultaneous alert registrations per metric. To change
 //! the alert threshold in the current implementation, cancel the original registration
 //! using `health_service_cancel_metric_alert` before registering the new threshold.
 //! @param metric Which \ref HealthMetric to query.
@@ -1084,12 +1153,17 @@ HealthMetricAlert *health_service_register_metric_alert(HealthMetric metric, Hea
 //! @return `true` on success, `false` on failure
 bool health_service_cancel_metric_alert(HealthMetricAlert *alert);
 
-//! Light level enum
+/** @brief Light level enum */
 typedef enum AmbientLightLevel {
+  /** No reading available. */
   AmbientLightLevelUnknown = 0,
+  /** Well below the dark threshold. */
   AmbientLightLevelVeryDark,
+  /** Below the dark threshold. */
   AmbientLightLevelDark,
+  /** At or slightly above the dark threshold. */
   AmbientLightLevelLight,
+  /** Well above the dark threshold. */
   AmbientLightLevelVeryLight,
 } AmbientLightLevel;
 
@@ -1101,15 +1175,15 @@ typedef enum AmbientLightLevel {
 //! The `vmc` value is a measure of the total amount of movement seen by the watch. More vigorous
 //! movement yields higher VMC values.
 typedef struct {
-  uint8_t steps;              //!< Number of steps taken in this minute.
-  uint8_t orientation;        //!< Quantized average orientation.
-  uint16_t vmc;               //!< Vector Magnitude Counts (vmc).
-  bool is_invalid: 1;         //!< `true` if the item doesn't represents actual data
-                              //!< and should be ignored.
-  AmbientLightLevel light: 3; //!< Instantaneous light level during this minute.
-  uint8_t padding: 4;
-  uint8_t heart_rate_bpm;     //!< heart rate in beats per minute
-  uint8_t reserved[6];        //!< Reserved for future use.
+  uint8_t steps;               //!< Number of steps taken in this minute.
+  uint8_t orientation;         //!< Quantized average orientation.
+  uint16_t vmc;                //!< Vector Magnitude Counts (vmc).
+  bool is_invalid : 1;         //!< `true` if the item doesn't represents actual data
+                               //!< and should be ignored.
+  AmbientLightLevel light : 3; //!< Instantaneous light level during this minute.
+  uint8_t padding : 4;
+  uint8_t heart_rate_bpm; //!< heart rate in beats per minute
+  uint8_t reserved[6];    //!< Reserved for future use.
 } HealthMinuteData;
 
 //! Return historical minute data records. This fills in the `minute_data` array parameter with
@@ -1218,13 +1292,13 @@ typedef enum {
 
 //! Enumerated values describing the possible outcomes of data logging operations
 typedef enum {
-  DATA_LOGGING_SUCCESS = 0, //!< Successful operation
-  DATA_LOGGING_BUSY, //!< Someone else is writing to this logging session
-  DATA_LOGGING_FULL, //!< No more space to save data
-  DATA_LOGGING_NOT_FOUND, //!< The logging session does not exist
-  DATA_LOGGING_CLOSED, //!< The logging session was made inactive
+  DATA_LOGGING_SUCCESS = 0,    //!< Successful operation
+  DATA_LOGGING_BUSY,           //!< Someone else is writing to this logging session
+  DATA_LOGGING_FULL,           //!< No more space to save data
+  DATA_LOGGING_NOT_FOUND,      //!< The logging session does not exist
+  DATA_LOGGING_CLOSED,         //!< The logging session was made inactive
   DATA_LOGGING_INVALID_PARAMS, //!< An invalid parameter was passed to one of the functions
-  DATA_LOGGING_INTERNAL_ERR //!< An internal error occurred
+  DATA_LOGGING_INTERNAL_ERR    //!< An internal error occurred
 } DataLoggingResult;
 
 //! Create a new data logging session.
@@ -1262,10 +1336,10 @@ void data_logging_finish(DataLoggingSessionRef logging_session);
 //! DATA_LOGGING_NOT_FOUND if the logging session is invalid
 //!
 //! @return
-//! DATA_LOGGING_CLOSED if the sesion is not active
+//! DATA_LOGGING_CLOSED if the session is not active
 //!
 //! @return
-//! DATA_LOGGING_BUSY if the sesion is not available for writing
+//! DATA_LOGGING_BUSY if the session is not available for writing
 //!
 //! @return
 //! DATA_LOGGING_INVALID_PARAMS if num_items is 0 or data is NULL
@@ -1280,53 +1354,84 @@ DataLoggingResult data_logging_log(DataLoggingSessionRef logging_session, const 
 //! @addtogroup UUID
 //! @{
 
+/** @brief A 128-bit UUID, with its bytes in the order they are written in string form. */
 typedef struct __attribute__((__packed__)) {
+  /** Byte 0. */
   uint8_t byte0;
+  /** Byte 1. */
   uint8_t byte1;
+  /** Byte 2. */
   uint8_t byte2;
+  /** Byte 3. */
   uint8_t byte3;
+  /** Byte 4. */
   uint8_t byte4;
+  /** Byte 5. */
   uint8_t byte5;
+  /** Byte 6. */
   uint8_t byte6;
+  /** Byte 7. */
   uint8_t byte7;
+  /** Byte 8. */
   uint8_t byte8;
+  /** Byte 9. */
   uint8_t byte9;
+  /** Byte 10. */
   uint8_t byte10;
+  /** Byte 11. */
   uint8_t byte11;
+  /** Byte 12. */
   uint8_t byte12;
+  /** Byte 13. */
   uint8_t byte13;
+  /** Byte 14. */
   uint8_t byte14;
+  /** Byte 15. */
   uint8_t byte15;
 } Uuid;
 
+//! Size of a UUID, in bytes.
 #define UUID_SIZE 16
 
 //! Make a Uuid object from sixteen bytes.
+//! @param p0,p1,p2,p3,p4,p5,p6,p7,p8,p9,p10,p11,p12,p13,p14,p15 Bytes, in string order.
 //! @return A Uuid structure representing the bytes p0 to p15.
-#define UuidMake(p0, p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12, p13, p14, p15) ((Uuid) {p0, p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12, p13, p14, p15})
+#define UuidMake(p0, p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12, p13, p14, p15) \
+  ((Uuid){p0, p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12, p13, p14, p15})
 
 //! Creates a Uuid from an array of bytes with 16 bytes in Big Endian order.
+//! @param b Array of 16 bytes.
 //! @return The created Uuid
-#define UuidMakeFromBEBytes(b) ((Uuid) { b[0], b[1], b[2], b[3], \
-                                         b[4], b[5], b[6], b[7], \
-                                         b[8], b[9], b[10], b[11], \
-                                         b[12], b[13], b[14], b[15] })
+#define UuidMakeFromBEBytes(b)                                                                     \
+  ((Uuid){                                                                                         \
+    b[0], b[1], b[2], b[3], b[4], b[5], b[6], b[7], b[8], b[9], b[10], b[11], b[12], b[13], b[14], \
+    b[15]                                                                                          \
+  })
 
 //! Creates a Uuid from an array of bytes with 16 bytes in Little Endian order.
+//! @param b Array of 16 bytes.
 //! @return The created Uuid
-#define UuidMakeFromLEBytes(b) ((Uuid) { b[15], b[14], b[13], b[12], \
-                                         b[11], b[10], b[9], b[8], \
-                                         b[7], b[6], b[5], b[4], \
-                                         b[3], b[2], b[1], b[0] })
+#define UuidMakeFromLEBytes(b)                                                                \
+  ((Uuid){                                                                                    \
+    b[15], b[14], b[13], b[12], b[11], b[10], b[9], b[8], b[7], b[6], b[5], b[4], b[3], b[2], \
+    b[1], b[0]                                                                                \
+  })
 
-//! Compares two UUIDs.
-//! @return True if the two UUIDs are equal, false if they are not.
+/**
+ * @brief Compares two UUIDs.
+ * @param uu1 First UUID.
+ * @param uu2 Second UUID.
+ * @return True if the two UUIDs are equal, false if they are not or either is NULL.
+ */
 bool uuid_equal(const Uuid *uu1, const Uuid *uu2);
 
-//! Writes UUID in a string form into buffer that looks like the following...
-//! {12345678-1234-5678-1234-567812345678} or {NULL UUID} if NULL was passed.
-//! @param uuid The Uuid to write into the buffer as human-readable string
-//! @param buffer Memory to write the string to. Must be at least \ref UUID_STRING_BUFFER_LENGTH bytes long.
+/**
+ * @brief Writes UUID in a string form into buffer that looks like the following...
+ * {12345678-1234-5678-1234-567812345678} or {NULL UUID} if NULL was passed.
+ * @param uuid The Uuid to write into the buffer as human-readable string
+ * @param[out] buffer Memory to write the string to. Must be at least @ref UUID_STRING_BUFFER_LENGTH
+ * bytes long.
+ */
 void uuid_to_string(const Uuid *uuid, char *buffer);
 
 //! The minimum required length of a string used to hold a uuid (including null).
@@ -1341,22 +1446,20 @@ void uuid_to_string(const Uuid *uuid, char *buffer);
 //!
 //! This module contains the functions necessary to log messages through
 //! Bluetooth.
-//! @note It is no longer necessary to enable app logging output from the "settings->about" menu on the Pebble for
-//! them to be transmitted!  Instead use the "pebble logs" command included with the SDK to activate logs.  The logs
-//! will appear right in your console. Logging
-//! over Bluetooth is a fairly power hungry operation that non-developers will
-//! not need when your apps are distributed.
+//! @note It is no longer necessary to enable app logging output from the "settings->about" menu on
+//! the Pebble for them to be transmitted!  Instead use the "pebble logs" command included with the
+//! SDK to activate logs.  The logs will appear right in your console. Logging over Bluetooth is a
+//! fairly power hungry operation that non-developers will not need when your apps are distributed.
 //! @{
 
-void app_log(uint8_t log_level, const char* src_filename, int src_line_number, const char* fmt,
+void app_log(uint8_t log_level, const char *src_filename, int src_line_number, const char *fmt,
              ...);
 
 //! A helper macro that simplifies the use of the app_log function
 //! @param level The log level to log output as
 //! @param fmt A C formatting string
 //! @param args The arguments for the formatting string
-#define APP_LOG(level, fmt, args...)                                \
-  app_log(level, __FILE_NAME__, __LINE__, fmt, ## args)
+#define APP_LOG(level, fmt, args...) app_log(level, __FILE_NAME__, __LINE__, fmt, ##args)
 
 //! Suggested log level values
 typedef enum {
@@ -1378,17 +1481,17 @@ typedef enum {
 //! \brief Data serialization utilities
 //!
 //!
-//! Data residing in different parts of Pebble memory (RAM) may need to be gathered and assembled into
-//! a single continuous block for transport over the network via Bluetooth. The process of gathering
-//! and assembling this continuous block of data is called serialization.
+//! Data residing in different parts of Pebble memory (RAM) may need to be gathered and assembled
+//! into a single continuous block for transport over the network via Bluetooth. The process of
+//! gathering and assembling this continuous block of data is called serialization.
 //!
-//! You use data serialization utilities, like Dictionary, Tuple and Tuplet data structures and accompanying
-//! functions, to accomplish this task. No transformations are performed on the actual data, however.
-//! These Pebble utilities simply help assemble the data into one continuous buffer according to a
-//! specific format.
+//! You use data serialization utilities, like Dictionary, Tuple and Tuplet data structures and
+//! accompanying functions, to accomplish this task. No transformations are performed on the actual
+//! data, however. These Pebble utilities simply help assemble the data into one continuous buffer
+//! according to a specific format.
 //!
-//! \ref AppMessage uses these utilities--in particular, Dictionary--to send information between mobile
-//! and Pebble watchapps.
+//! \ref AppMessage uses these utilities--in particular, Dictionary--to send information between
+//! mobile and Pebble watchapps.
 //!
 //! <h3>Writing key/value pairs</h3>
 //! To write two key/value pairs, without using Tuplets, you would do this:
@@ -1502,7 +1605,7 @@ typedef struct __attribute__((__packed__)) {
   //! The key
   uint32_t key;
   //! The type of data that the `.value` fields contains.
-  TupleType type:8;
+  TupleType type : 8;
   //! The length of `.value` in bytes
   uint16_t length;
   //! @brief The value itself.
@@ -1546,8 +1649,8 @@ typedef struct Dictionary Dictionary;
 //! An iterator can also be used to append key/value tuples to a dictionary,
 //! for example using \ref dict_write_data() or \ref dict_write_cstring().
 typedef struct {
-  Dictionary *dictionary;  //!< The dictionary being iterated
-  const void *end;  //!< Points to the first memory address after the last byte of the dictionary
+  Dictionary *dictionary; //!< The dictionary being iterated
+  const void *end; //!< Points to the first memory address after the last byte of the dictionary
   //! Points to the next Tuple in the dictionary. Given the end of the
   //! Dictionary has not yet been reached: when writing, the next key/value
   //! pair will be written at the cursor. When reading, the next call
@@ -1564,16 +1667,16 @@ typedef struct {
 //! The size of the header for each Tuple is 7 bytes.
 //! @param tuple_count The total number of key/value pairs in the dictionary.
 //! @param ... The sizes of each of the values that need to be
-//! stored in the dictionary.
+//! stored in the dictionary, as size_t (e.g. sizeof expressions).
 //! @return The total number of bytes of storage needed.
-uint32_t dict_calc_buffer_size(const uint8_t tuple_count, ...);
+uint32_t dict_calc_buffer_size(uint32_t tuple_count, ...);
 
 //! Calculates the size of data that has been written to the dictionary.
 //! AKA, the "dictionary size". Note that this is most likely different
 //! than the size of the backing storage/backing buffer.
 //! @param iter The dictionary iterator
 //! @return The total number of bytes which have been written to the dictionary.
-uint32_t dict_size(DictionaryIterator* iter);
+uint32_t dict_size(DictionaryIterator *iter);
 
 //! Initializes the dictionary iterator with a given buffer and size,
 //! resets and empties it, in preparation of writing key/value tuples.
@@ -1583,7 +1686,8 @@ uint32_t dict_size(DictionaryIterator* iter);
 //! @return \ref DICT_OK, \ref DICT_NOT_ENOUGH_STORAGE or \ref DICT_INVALID_ARGS
 //! @see dict_calc_buffer_size
 //! @see dict_write_end
-DictionaryResult dict_write_begin(DictionaryIterator *iter, uint8_t * const buffer, const uint16_t size);
+DictionaryResult dict_write_begin(DictionaryIterator *iter, uint8_t *const buffer,
+                                  const uint16_t size);
 
 //! Adds a key with a byte array value pair to the dictionary.
 //! @param iter The dictionary iterator
@@ -1593,7 +1697,8 @@ DictionaryResult dict_write_begin(DictionaryIterator *iter, uint8_t * const buff
 //! @return \ref DICT_OK, \ref DICT_NOT_ENOUGH_STORAGE or \ref DICT_INVALID_ARGS
 //! @note The data will be copied into the backing storage of the dictionary.
 //! @note There is _no_ checking for duplicate keys.
-DictionaryResult dict_write_data(DictionaryIterator *iter, const uint32_t key, const uint8_t * const data, const uint16_t size);
+DictionaryResult dict_write_data(DictionaryIterator *iter, const uint32_t key,
+                                 const uint8_t *const data, const uint16_t size);
 
 //! Adds a key with a C string value pair to the dictionary.
 //! @param iter The dictionary iterator
@@ -1602,7 +1707,8 @@ DictionaryResult dict_write_data(DictionaryIterator *iter, const uint32_t key, c
 //! @return \ref DICT_OK, \ref DICT_NOT_ENOUGH_STORAGE or \ref DICT_INVALID_ARGS
 //! @note The string will be copied into the backing storage of the dictionary.
 //! @note There is _no_ checking for duplicate keys.
-DictionaryResult dict_write_cstring(DictionaryIterator *iter, const uint32_t key, const char * const cstring);
+DictionaryResult dict_write_cstring(DictionaryIterator *iter, const uint32_t key,
+                                    const char *const cstring);
 
 //! Adds a key with an integer value pair to the dictionary.
 //! @param iter The dictionary iterator
@@ -1611,9 +1717,10 @@ DictionaryResult dict_write_cstring(DictionaryIterator *iter, const uint32_t key
 //! @param width_bytes The width of the integer value
 //! @param is_signed Whether the integer's type is signed or not
 //! @return \ref DICT_OK, \ref DICT_NOT_ENOUGH_STORAGE or \ref DICT_INVALID_ARGS
-//! @note There is _no_ checking for duplicate keys. dict_write_int() is only for serializing a single
-//! integer. width_bytes can only be 1, 2, or 4.
-DictionaryResult dict_write_int(DictionaryIterator *iter, const uint32_t key, const void *integer, const uint8_t width_bytes, const bool is_signed);
+//! @note There is _no_ checking for duplicate keys. dict_write_int() is only for serializing a
+//! single integer. width_bytes can only be 1, 2, or 4.
+DictionaryResult dict_write_int(DictionaryIterator *iter, const uint32_t key, const void *integer,
+                                const uint8_t width_bytes, const bool is_signed);
 
 //! Adds a key with an unsigned, 8-bit integer value pair to the dictionary.
 //! @param iter The dictionary iterator
@@ -1625,17 +1732,22 @@ DictionaryResult dict_write_int(DictionaryIterator *iter, const uint32_t key, co
 //! `dict_write_uint16()`, `dict_write_uint32()`, `dict_write_int8()`,
 //! `dict_write_int16()` and `dict_write_int32()`. The documentation is not
 //! repeated for brevity's sake.
-DictionaryResult dict_write_uint8(DictionaryIterator *iter, const uint32_t key, const uint8_t value);
+DictionaryResult dict_write_uint8(DictionaryIterator *iter, const uint32_t key,
+                                  const uint8_t value);
 
-DictionaryResult dict_write_uint16(DictionaryIterator *iter, const uint32_t key, const uint16_t value);
+DictionaryResult dict_write_uint16(DictionaryIterator *iter, const uint32_t key,
+                                   const uint16_t value);
 
-DictionaryResult dict_write_uint32(DictionaryIterator *iter, const uint32_t key, const uint32_t value);
+DictionaryResult dict_write_uint32(DictionaryIterator *iter, const uint32_t key,
+                                   const uint32_t value);
 
 DictionaryResult dict_write_int8(DictionaryIterator *iter, const uint32_t key, const int8_t value);
 
-DictionaryResult dict_write_int16(DictionaryIterator *iter, const uint32_t key, const int16_t value);
+DictionaryResult dict_write_int16(DictionaryIterator *iter, const uint32_t key,
+                                  const int16_t value);
 
-DictionaryResult dict_write_int32(DictionaryIterator *iter, const uint32_t key, const int32_t value);
+DictionaryResult dict_write_int32(DictionaryIterator *iter, const uint32_t key,
+                                  const int32_t value);
 
 //! End a series of writing operations to a dictionary.
 //! This must be called before reading back from the dictionary.
@@ -1648,18 +1760,23 @@ uint32_t dict_write_end(DictionaryIterator *iter);
 //! @param iter The dictionary iterator
 //! @param buffer The storage of the dictionary
 //! @param size The storage size of the dictionary
-//! @return The first tuple in the dictionary, or NULL in case the dictionary was empty or if there was a parsing error.
-Tuple * dict_read_begin_from_buffer(DictionaryIterator *iter, const uint8_t * const buffer, const uint16_t size);
+//! @return The first tuple in the dictionary, or NULL in case the dictionary was empty or if there
+//! was a parsing error.
+Tuple *dict_read_begin_from_buffer(DictionaryIterator *iter, const uint8_t *const buffer,
+                                   const uint16_t size);
 
 //! Progresses the iterator to the next key/value pair.
 //! @param iter The dictionary iterator
-//! @return The next tuple in the dictionary, or NULL in case the end has been reached or if there was a parsing error.
-Tuple * dict_read_next(DictionaryIterator *iter);
+//! @return The next tuple in the dictionary, or NULL in case the end has been reached or if there
+//! was a parsing error.
+Tuple *dict_read_next(DictionaryIterator *iter);
 
-//! Resets the iterator back to the same state as a call to \ref dict_read_begin_from_buffer() would do.
+//! Resets the iterator back to the same state as a call to \ref dict_read_begin_from_buffer() would
+//! do.
 //! @param iter The dictionary iterator
-//! @return The first tuple in the dictionary, or NULL in case the dictionary was empty or if there was a parsing error.
-Tuple * dict_read_first(DictionaryIterator *iter);
+//! @return The first tuple in the dictionary, or NULL in case the dictionary was empty or if there
+//! was a parsing error.
+Tuple *dict_read_first(DictionaryIterator *iter);
 
 //! Non-serialized, template data structure for a key/value pair.
 //! For strings and byte arrays, it only has a pointer to the actual data.
@@ -1669,7 +1786,7 @@ Tuple * dict_read_first(DictionaryIterator *iter);
 //! See also \ref Tuple, with is the header of a serialized key/value pair.
 typedef struct Tuplet {
   //! The type of the Tuplet. This determines which of the struct fields in the
-  //! anonymomous union are valid.
+  //! anonymous union are valid.
   TupleType type;
   //! The key.
   uint32_t key;
@@ -1706,62 +1823,84 @@ typedef struct Tuplet {
 //! @param _key The key
 //! @param _data Pointer to the bytes
 //! @param _length Length of the buffer
-#define TupletBytes(_key, _data, _length) \
-((const Tuplet) { .type = TUPLE_BYTE_ARRAY, .key = _key, .bytes = { .data = _data, .length = _length }})
+#define TupletBytes(_key, _data, _length)       \
+  ((const Tuplet){                              \
+    .type = TUPLE_BYTE_ARRAY,                   \
+    .key = _key,                                \
+    .bytes = {.data = _data, .length = _length} \
+  })
 
 //! Macro to create a Tuplet with a c-string value
 //! @param _key The key
 //! @param _cstring The c-string value
-#define TupletCString(_key, _cstring) \
-((const Tuplet) { .type = TUPLE_CSTRING, .key = _key, .cstring = { .data = _cstring, .length = _cstring ? strlen(_cstring) + 1 : 0 }})
+#define TupletCString(_key, _cstring)                                            \
+  ((const Tuplet){                                                               \
+    .type = TUPLE_CSTRING,                                                       \
+    .key = _key,                                                                 \
+    .cstring = {.data = _cstring, .length = _cstring ? strlen(_cstring) + 1 : 0} \
+  })
 
 //! Macro to create a Tuplet with an integer value
 //! @param _key The key
 //! @param _integer The integer value
-#define TupletInteger(_key, _integer) \
-((const Tuplet) { .type = IS_SIGNED(_integer) ? TUPLE_INT : TUPLE_UINT, .key = _key, .integer = { .storage = _integer, .width = sizeof(_integer) }})
+#define TupletInteger(_key, _integer)                           \
+  ((const Tuplet){                                              \
+    .type = IS_SIGNED(_integer) ? TUPLE_INT : TUPLE_UINT,       \
+    .key = _key,                                                \
+    .integer = {.storage = _integer, .width = sizeof(_integer)} \
+  })
 
 //! Callback for \ref dict_serialize_tuplets() utility.
 //! @param data The data of the serialized dictionary
 //! @param size The size of data
 //! @param context The context pointer as passed in to \ref dict_serialize_tuplets()
 //! @see dict_serialize_tuplets
-typedef void (*DictionarySerializeCallback)(const uint8_t * const data, const uint16_t size, void *context);
+typedef void (*DictionarySerializeCallback)(const uint8_t *const data, const uint16_t size,
+                                            void *context);
 
 //! Utility function that takes a list of Tuplets from which a dictionary
 //! will be serialized, ready to transmit or store.
 //! @note The callback will be called before the function returns, so the data that
 //! that `context` points to, can be stack allocated.
-//! @param callback The callback that will be called with the serialized data of the generated dictionary.
+//! @param callback The callback that will be called with the serialized data of the generated
+//! dictionary.
 //! @param context Pointer to any application specific data that gets passed into the callback.
 //! @param tuplets An array of Tuplets that need to be serialized into the dictionary.
 //! @param tuplets_count The number of tuplets that follow.
 //! @return \ref DICT_OK, \ref DICT_NOT_ENOUGH_STORAGE or \ref DICT_INVALID_ARGS
-DictionaryResult dict_serialize_tuplets(DictionarySerializeCallback callback, void *context, const Tuplet * const tuplets, const uint8_t tuplets_count);
+DictionaryResult dict_serialize_tuplets(DictionarySerializeCallback callback, void *context,
+                                        const Tuplet *const tuplets, const uint8_t tuplets_count);
 
 //! Utility function that takes an array of Tuplets and serializes them into
 //! a dictionary with a given buffer and size.
 //! @param tuplets The array of tuplets
 //! @param tuplets_count The number of tuplets in the array
 //! @param buffer The buffer in which to write the serialized dictionary
-//! @param [in,out] size_in_out In: the available buffer size in bytes. Out: the number of bytes written.
+//! @param [in,out] size_in_out In: the available buffer size in bytes. Out: the number of bytes
+//! written.
 //! @return \ref DICT_OK, \ref DICT_NOT_ENOUGH_STORAGE or \ref DICT_INVALID_ARGS
-DictionaryResult dict_serialize_tuplets_to_buffer(const Tuplet * const tuplets, const uint8_t tuplets_count, uint8_t *buffer, uint32_t *size_in_out);
+DictionaryResult dict_serialize_tuplets_to_buffer(const Tuplet *const tuplets,
+                                                  const uint8_t tuplets_count, uint8_t *buffer,
+                                                  uint32_t *size_in_out);
 
 //! Serializes an array of Tuplets into a dictionary with a given buffer and size.
 //! @param iter The dictionary iterator
 //! @param tuplets The array of tuplets
 //! @param tuplets_count The number of tuplets in the array
 //! @param buffer The buffer in which to write the serialized dictionary
-//! @param [in,out] size_in_out In: the available buffer size in bytes. Out: the number of bytes written.
+//! @param [in,out] size_in_out In: the available buffer size in bytes. Out: the number of bytes
+//! written.
 //! @return \ref DICT_OK, \ref DICT_NOT_ENOUGH_STORAGE or \ref DICT_INVALID_ARGS
-DictionaryResult dict_serialize_tuplets_to_buffer_with_iter(DictionaryIterator *iter, const Tuplet * const tuplets, const uint8_t tuplets_count, uint8_t *buffer, uint32_t *size_in_out);
+DictionaryResult dict_serialize_tuplets_to_buffer_with_iter(DictionaryIterator *iter,
+                                                            const Tuplet *const tuplets,
+                                                            const uint8_t tuplets_count,
+                                                            uint8_t *buffer, uint32_t *size_in_out);
 
 //! Serializes a Tuplet and writes the resulting Tuple into a dictionary.
 //! @param iter The dictionary iterator
 //! @param tuplet The Tuplet describing the key/value pair to write
 //! @return \ref DICT_OK, \ref DICT_NOT_ENOUGH_STORAGE or \ref DICT_INVALID_ARGS
-DictionaryResult dict_write_tuplet(DictionaryIterator *iter, const Tuplet * const tuplet);
+DictionaryResult dict_write_tuplet(DictionaryIterator *iter, const Tuplet *const tuplet);
 
 //! Calculates the number of bytes that a dictionary will occupy, given
 //! one or more Tuplets that need to be stored in the dictionary.
@@ -1770,37 +1909,42 @@ DictionaryResult dict_write_tuplet(DictionaryIterator *iter, const Tuplet * cons
 //! @param tuplets_count The total number of Tuplets that follow.
 //! @return The total number of bytes of storage needed.
 //! @see Tuplet
-uint32_t dict_calc_buffer_size_from_tuplets(const Tuplet * const tuplets, const uint8_t tuplets_count);
+uint32_t dict_calc_buffer_size_from_tuplets(const Tuplet *const tuplets,
+                                            const uint8_t tuplets_count);
 
 //! Type of the callback used in \ref dict_merge()
 //! @param key The key that is being updated.
-//! @param new_tuple The new tuple. The tuple points to the actual, updated destination dictionary or NULL_TUPLE
-//! in case there was an error (e.g. backing buffer was too small).
-//! Therefore the Tuple can be used after the callback returns, until the destination dictionary
-//! storage is free'd (by the application itself).
-//! @param old_tuple The values that will be replaced with `new_tuple`. The key, value and type will be
-//! equal to the previous tuple in the old destination dictionary, however the `old_tuple` points
+//! @param new_tuple The new tuple. The tuple points to the actual, updated destination dictionary
+//! or NULL_TUPLE in case there was an error (e.g. backing buffer was too small). Therefore the
+//! Tuple can be used after the callback returns, until the destination dictionary storage is free'd
+//! (by the application itself).
+//! @param old_tuple The values that will be replaced with `new_tuple`. The key, value and type will
+//! be equal to the previous tuple in the old destination dictionary, however the `old_tuple` points
 //! to a stack-allocated copy of the old data.
 //! @param context Pointer to application specific data
 //! The storage backing `old_tuple` can only be used during the callback and
 //! will no longer be valid after the callback returns.
 //! @see dict_merge
-typedef void (*DictionaryKeyUpdatedCallback)(const uint32_t key, const Tuple *new_tuple, const Tuple *old_tuple, void *context);
+typedef void (*DictionaryKeyUpdatedCallback)(const uint32_t key, const Tuple *new_tuple,
+                                             const Tuple *old_tuple, void *context);
 
 //! Merges entries from another "source" dictionary into a "destination" dictionary.
 //! All Tuples from the source are written into the destination dictionary, while
-//! updating the exsting Tuples with matching keys.
+//! updating the existing Tuples with matching keys.
 //! @param dest The destination dictionary to update
-//! @param [in,out] dest_max_size_in_out In: the maximum size of buffer backing `dest`. Out: the final size of the updated dictionary.
+//! @param [in,out] dest_max_size_in_out In: the maximum size of buffer backing `dest`. Out: the
+//! final size of the updated dictionary.
 //! @param source The source dictionary of which its Tuples will be used to update dest.
-//! @param update_existing_keys_only Specify True if only the existing keys in `dest` should be updated.
-//! @param key_callback The callback that will be called for each Tuple in the merged destination dictionary.
-//! @param context Pointer to app specific data that will get passed in when `update_key_callback` is called.
+//! @param update_existing_keys_only Specify True if only the existing keys in `dest` should be
+//! updated.
+//! @param key_callback The callback that will be called for each Tuple in the merged destination
+//! dictionary.
+//! @param context Pointer to app specific data that will get passed in when `update_key_callback`
+//! is called.
 //! @return \ref DICT_OK, \ref DICT_INVALID_ARGS, \ref DICT_NOT_ENOUGH_STORAGE
 DictionaryResult dict_merge(DictionaryIterator *dest, uint32_t *dest_max_size_in_out,
-                             DictionaryIterator *source,
-                             const bool update_existing_keys_only,
-                             const DictionaryKeyUpdatedCallback key_callback, void *context);
+                            DictionaryIterator *source, const bool update_existing_keys_only,
+                            const DictionaryKeyUpdatedCallback key_callback, void *context);
 
 //! Tries to find a Tuple with specified key in a dictionary
 //! @param iter Iterator to the dictionary to search in.
@@ -1813,7 +1957,8 @@ Tuple *dict_find(const DictionaryIterator *iter, const uint32_t key);
 //! @addtogroup Worker
 //! @{
 
-//! The event loop for workers, to be used in worker's main(). Will block until the worker is ready to exit.
+//! The event loop for workers, to be used in worker's main(). Will block until the worker is ready
+//! to exit.
 //! @see \ref App
 void worker_event_loop(void);
 
@@ -1829,7 +1974,7 @@ void worker_launch_app(void);
 //! Possible error codes from app_worker_launch, app_worker_kill
 typedef enum {
   //! Success
-  APP_WORKER_RESULT_SUCCESS= 0,
+  APP_WORKER_RESULT_SUCCESS = 0,
   //! No worker found for the current app
   APP_WORKER_RESULT_NO_WORKER = 1,
   //! A worker for a different app is already running
@@ -1853,8 +1998,8 @@ typedef struct {
 //! @return true if running
 bool app_worker_is_running(void);
 
-//! Launch the worker for the current app. Note that this is an asynchronous operation, a result code
-//! of APP_WORKER_RESULT_SUCCESS merely means that the request was successfully queued up.
+//! Launch the worker for the current app. Note that this is an asynchronous operation, a result
+//! code of APP_WORKER_RESULT_SUCCESS merely means that the request was successfully queued up.
 //! @return result code
 AppWorkerResult app_worker_launch(void);
 
@@ -1865,16 +2010,18 @@ AppWorkerResult app_worker_kill(void);
 
 //! Callback type for worker messages. Messages can be sent from worker to app or vice versa.
 //! @param type An application defined message type
-//! @param data pointer to message data. The receiver must know the structure of the data provided by the sender.
+//! @param data pointer to message data. The receiver must know the structure of the data provided
+//! by the sender.
 typedef void (*AppWorkerMessageHandler)(uint16_t type, AppWorkerMessage *data);
 
-//! Subscribe to worker messages. Once subscribed, the handler gets called on every message emitted by the other task
-//! (either worker or app).
+//! Subscribe to worker messages. Once subscribed, the handler gets called on every message emitted
+//! by the other task (either worker or app).
 //! @param handler A callback to be executed when the event is received
 //! @return true on success
 bool app_worker_message_subscribe(AppWorkerMessageHandler handler);
 
-//! Unsubscribe from worker messages. Once unsubscribed, the previously registered handler will no longer be called.
+//! Unsubscribe from worker messages. Once unsubscribed, the previously registered handler will no
+//! longer be called.
 //! @return true on success
 bool app_worker_message_unsubscribe(void);
 
@@ -1896,16 +2043,17 @@ void psleep(int millis);
 struct AppTimer;
 typedef struct AppTimer AppTimer;
 
-//! The type of function which can be called when a timer fires.  The argument will be the @p callback_data passed to
+//! The type of function which can be called when a timer fires.  The argument will be the @p
+//! callback_data passed to
 //! @ref app_timer_register().
-typedef void (*AppTimerCallback)(void* data);
+typedef void (*AppTimerCallback)(void *data);
 
 //! Registers a timer that ends up in callback being called some specified time in the future.
 //! @param timeout_ms The expiry time in milliseconds from the current time
 //! @param callback The callback that gets called at expiry time
 //! @param callback_data The data that will be passed to callback
 //! @return A pointer to an `AppTimer` that can be used to later reschedule or cancel this timer
-AppTimer* app_timer_register(uint32_t timeout_ms, AppTimerCallback callback, void* callback_data);
+AppTimer *app_timer_register(uint32_t timeout_ms, AppTimerCallback callback, void *callback_data);
 
 //! Reschedules an already running timer for some point in the future.
 //! Elapsed timers cannot be rescheduled.
@@ -1952,16 +2100,16 @@ void memory_cache_flush(void *start, size_t size);
 //! like saving user settings, caching data from the phone app, or counting high scores for
 //! Pebble watchapp games.
 //!
-//! In Pebble OS, storage is defined by a collection of fields that you can create, modify or delete.
-//! In the API, a field is specified as a key with a corresponding value.
+//! In Pebble OS, storage is defined by a collection of fields that you can create, modify or
+//! delete. In the API, a field is specified as a key with a corresponding value.
 //!
 //! Using the Storage API, every app is able to get its own persistent storage space. Each value
 //! in that space is associated with a uint32_t key.
 //!
 //! Storage supports saving integers, strings and byte arrays. The maximum size of byte arrays and
-//! strings is defined by PERSIST_DATA_MAX_LENGTH (currently set to 256 bytes). You call the function
-//! persist_exists(key), which returns a boolean indicating if the key exists or not.
-//! The Storage API enables your app to save its state, and when compared to using \ref AppMessage to
+//! strings is defined by PERSIST_DATA_MAX_LENGTH (currently set to 256 bytes). You call the
+//! function persist_exists(key), which returns a boolean indicating if the key exists or not. The
+//! Storage API enables your app to save its state, and when compared to using \ref AppMessage to
 //! retrieve values from the phone, it provides you with a much faster way to restore state.
 //! In addition, it draws less power from the battery.
 //!
@@ -2112,7 +2260,8 @@ int persist_write_string(const uint32_t key, const char *cstring);
 
 //! Deletes the value of a key from persistent storage.
 //! @param key The key of the field to delete from.
-//! @return S_TRUE if successful, E_DOES_NOT_EXIST if a value was not set, or another error value from \ref StatusCode.
+//! @return S_TRUE if successful, E_DOES_NOT_EXIST if a value was not set, or another error value
+//! from \ref StatusCode.
 status_t persist_delete(const uint32_t key);
 
 //! @} // group Storage
@@ -2154,18 +2303,18 @@ status_t persist_delete(const uint32_t key);
 //! structure containing broken-down time for expressing calendar time
 //! (ie. Year, Month, Day of Month, Hour of Day) and timezone information
 struct tm {
-  int tm_sec;     /*!< Seconds. [0-60] (1 leap second) */
-  int tm_min;     /*!< Minutes. [0-59] */
-  int tm_hour;    /*!< Hours.  [0-23] */
-  int tm_mday;    /*!< Day. [1-31] */
-  int tm_mon;     /*!< Month. [0-11] */
-  int tm_year;    /*!< Years since 1900 */
-  int tm_wday;    /*!< Day of week. [0-6] */
-  int tm_yday;    /*!< Days in year.[0-365] */
-  int tm_isdst;   /*!< DST. [-1/0/1] */
+  int tm_sec;   /*!< Seconds. [0-60] (1 leap second) */
+  int tm_min;   /*!< Minutes. [0-59] */
+  int tm_hour;  /*!< Hours.  [0-23] */
+  int tm_mday;  /*!< Day. [1-31] */
+  int tm_mon;   /*!< Month. [0-11] */
+  int tm_year;  /*!< Years since 1900 */
+  int tm_wday;  /*!< Day of week. [0-6] */
+  int tm_yday;  /*!< Days in year.[0-365] */
+  int tm_isdst; /*!< DST. [-1/0/1] */
 
-  int tm_gmtoff;  /*!< Total seconds east of UTC, DST included. tm_isdst is an indicator only --
-                       never add it to this value. */
+  int tm_gmtoff; /*!< Total seconds east of UTC, DST included. tm_isdst is an indicator only --
+                      never add it to this value. */
   char tm_zone[TZ_LEN]; /*!< Timezone abbreviation */
 };
 
@@ -2176,7 +2325,7 @@ struct tm {
 //! @param tm_p A pointer to a struct tm containing a broken out time value
 //! @return The number of bytes placed in the array s, not including the null byte,
 //!   0 if the value does not fit.
-size_t strftime(char* s, size_t maxsize, const char* format, const struct tm* tm_p);
+size_t strftime(char *s, size_t maxsize, const char *format, const struct tm *tm_p);
 
 //! convert the time value pointed at by clock to a struct tm which contains the time
 //! adjusted for the local timezone
@@ -2224,27 +2373,13 @@ double difftime(time_t end, time_t beginning);
 //! @return Current Unix Time milliseconds portion
 uint16_t time_ms(time_t *tloc, uint16_t *out_ms);
 
-//! Return the UTC time that corresponds to the start of today (midnight).
-//! @return the UTC time corresponding to the start of today (midnight)
+/**
+ * @brief Return the UTC time that corresponds to the start of today (midnight).
+ * @return the UTC time corresponding to the start of today (midnight)
+ */
 time_t time_start_of_today(void);
 
 //! @} // group StandardTime
 
 //! @} // group StandardC
-
-//! Get the most recent HRV peak-to-peak interval in milliseconds. The value is captured from
-//! \ref HealthEventHRVUpdate events, so it only updates while this app is subscribed via
-//! \ref health_service_events_subscribe() and holds an HRV sample period.
-//! @return PPI in ms, or 0 if no reading available.
-uint16_t health_service_peek_hrv_ppi_ms(void);
-
-//! Request HRV (peak-to-peak interval) sampling. While any app holds an HRV sample period, the
-//! sensor collects HRV alongside heart rate and HealthEventHRVUpdate events are delivered to
-//! health service subscribers.
-//! The HRV and heart rate sample periods (\ref health_service_set_heart_rate_sample_period)
-//! share the app's single sensor subscription: both may be active at once, the sensor is driven
-//! at the shorter of the two periods, and setting one period to 0 clears only that request.
-//! @param interval_sec desired sampling interval in seconds; 0 unsubscribes.
-//! @return true on success.
-bool health_service_set_hrv_sample_period(uint16_t interval_sec);
 

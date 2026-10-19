@@ -40,6 +40,9 @@ pub struct PlatformConfig {
 	/// rejected at install, so the frozen watches sit below the current
 	/// SDK's.
 	pub sdk_version: Version,
+	/// The `PebbleProcessInfo` layout this platform's firmware knows, from its own
+	/// `pebble_process_info.h`. The frozen watches predate the size high bytes.
+	pub struct_version: Version,
 	/// Raw `N` from `PROCESS_INFO_PLATFORM_<NAME> = N << 6`. The OS shifts it
 	/// into position; we store the unshifted value to make the relationship
 	/// explicit at use-time.
@@ -77,6 +80,10 @@ pub const PLATFORM_APLITE: PlatformConfig = PlatformConfig {
 	sdk_version: Version {
 		major: 5,
 		minor: 78,
+	},
+	struct_version: Version {
+		major: 16,
+		minor: 0,
 	},
 	max_app_binary_size: 0x10000,
 	max_app_memory_size: 0x6000,
@@ -125,6 +132,10 @@ pub const PLATFORM_BASALT: PlatformConfig = PlatformConfig {
 	sdk_version: Version {
 		major: 5,
 		minor: 86,
+	},
+	struct_version: Version {
+		major: 16,
+		minor: 0,
 	},
 	max_app_binary_size: 0x10000,
 	max_app_memory_size: 0x10000,
@@ -193,6 +204,10 @@ pub const PLATFORM_CHALK: PlatformConfig = PlatformConfig {
 		major: 5,
 		minor: 86,
 	},
+	struct_version: Version {
+		major: 16,
+		minor: 0,
+	},
 	max_app_binary_size: 0x10000,
 	max_app_memory_size: 0x10000,
 	max_worker_memory_size: 0x2800,
@@ -260,6 +275,10 @@ pub const PLATFORM_DIORITE: PlatformConfig = PlatformConfig {
 		major: 5,
 		minor: 86,
 	},
+	struct_version: Version {
+		major: 16,
+		minor: 0,
+	},
 	max_app_binary_size: 0x10000,
 	max_app_memory_size: 0x10000,
 	max_worker_memory_size: 0x2800,
@@ -312,7 +331,11 @@ pub const PLATFORM_EMERY: PlatformConfig = PlatformConfig {
 	process_info_platform_bit: 5,
 	sdk_version: Version {
 		major: 5,
-		minor: 106,
+		minor: 107,
+	},
+	struct_version: Version {
+		major: 16,
+		minor: 1,
 	},
 	max_app_binary_size: 0x20000,
 	max_app_memory_size: 0x20000,
@@ -385,7 +408,11 @@ pub const PLATFORM_FLINT: PlatformConfig = PlatformConfig {
 	process_info_platform_bit: 6,
 	sdk_version: Version {
 		major: 5,
-		minor: 106,
+		minor: 107,
+	},
+	struct_version: Version {
+		major: 16,
+		minor: 1,
 	},
 	max_app_binary_size: 0x10000,
 	max_app_memory_size: 0x10000,
@@ -439,7 +466,11 @@ pub const PLATFORM_GABBRO: PlatformConfig = PlatformConfig {
 	process_info_platform_bit: 7,
 	sdk_version: Version {
 		major: 5,
-		minor: 106,
+		minor: 107,
+	},
+	struct_version: Version {
+		major: 16,
+		minor: 1,
 	},
 	max_app_binary_size: 0x20000,
 	max_app_memory_size: 0x20000,

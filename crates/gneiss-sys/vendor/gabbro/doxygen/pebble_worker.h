@@ -18,7 +18,8 @@
 //! @addtogroup Worker
 //! @{
 
-//! The event loop for workers, to be used in worker's main(). Will block until the worker is ready to exit.
+//! The event loop for workers, to be used in worker's main(). Will block until the worker is ready
+//! to exit.
 //! @see \ref App
 void worker_event_loop(void);
 

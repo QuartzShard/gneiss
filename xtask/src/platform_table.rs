@@ -224,11 +224,19 @@ fn classify(platform: Platform, upstream: &UpstreamPlatform) -> Result<Classifie
 	})
 }
 
-/// `PROCESS_INFO_CURRENT_SDK_VERSION_*` out of each platform's own vendored
-/// `pebble_process_info.h`. The headers are identical bar these two: a frozen
-/// platform's firmware knows an older applib, and rejects an app whose header
-/// claims a newer one.
-pub fn sdk_versions(vendor: &Path) -> Result<Vec<(Platform, (u8, u8))>> {
+/// The versions a platform's own vendored `pebble_process_info.h` claims.
+#[derive(Debug, Clone, Copy)]
+pub struct HeaderVersions {
+	/// `PROCESS_INFO_CURRENT_SDK_VERSION_*`: a frozen platform's firmware knows an
+	/// older applib, and rejects an app whose header claims a newer one.
+	pub sdk:       (u8, u8),
+	/// `PROCESS_INFO_CURRENT_STRUCT_VERSION_*`: a frozen platform's header predates
+	/// the fields added since.
+	pub structure: (u8, u8),
+}
+
+/// Each platform's [`HeaderVersions`].
+pub fn header_versions(vendor: &Path) -> Result<Vec<(Platform, HeaderVersions)>> {
 	fn define(header: &str, name: &str) -> Option<u8> {
 		let value = header
 			.lines()
@@ -243,12 +251,17 @@ pub fn sdk_versions(vendor: &Path) -> Result<Vec<(Platform, (u8, u8))>> {
 		let path = vendor.join(platform.as_str()).join("pebble_process_info.h");
 		let header = std::fs::read_to_string(&path)
 			.wrap_err_with(|| format!("Cannot read {}", path.display()))?;
-		let major = define(&header, "PROCESS_INFO_CURRENT_SDK_VERSION_MAJOR");
-		let minor = define(&header, "PROCESS_INFO_CURRENT_SDK_VERSION_MINOR");
-		let (Some(major), Some(minor)) = (major, minor) else {
-			bail!("No PROCESS_INFO_CURRENT_SDK_VERSION in {}", path.display());
+		let version = |name: &str| {
+			let major = define(&header, &format!("{name}_MAJOR"));
+			let minor = define(&header, &format!("{name}_MINOR"));
+			major
+				.zip(minor)
+				.ok_or_eyre(format!("No {name} in {}", path.display()))
 		};
-		versions.push((platform, (major, minor)));
+		versions.push((platform, HeaderVersions {
+			sdk:       version("PROCESS_INFO_CURRENT_SDK_VERSION")?,
+			structure: version("PROCESS_INFO_CURRENT_STRUCT_VERSION")?,
+		}));
 	}
 	Ok(versions)
 }
@@ -284,14 +297,14 @@ pub fn process_info_bits(bindings: &str) -> Result<Vec<(Platform, u8)>> {
 pub fn render(
 	table: &PlatformTable,
 	bits: &[(Platform, u8)],
-	sdk: &[(Platform, (u8, u8))],
+	versions: &[(Platform, HeaderVersions)],
 ) -> Result<String> {
 	let capabilities = capabilities_struct();
 	let consts = table
 		.0
 		.iter()
 		.map(|(platform, upstream, classified)| {
-			platform_const(*platform, upstream, classified, bits, sdk)
+			platform_const(*platform, upstream, classified, bits, versions)
 		})
 		.collect::<Result<Vec<_>>>()?;
 	let all_cfgs: BTreeSet<&str> = table
@@ -333,6 +346,9 @@ pub fn render(
 			#[doc = " rejected at install, so the frozen watches sit below the current"]
 			#[doc = " SDK's."]
 			pub sdk_version: Version,
+			#[doc = " The `PebbleProcessInfo` layout this platform's firmware knows, from its own"]
+			#[doc = " `pebble_process_info.h`. The frozen watches predate the size high bytes."]
+			pub struct_version: Version,
 			#[doc = " Raw `N` from `PROCESS_INFO_PLATFORM_<NAME> = N << 6`. The OS shifts it"]
 			#[doc = " into position; we store the unshifted value to make the relationship"]
 			#[doc = " explicit at use-time."]
@@ -452,7 +468,7 @@ fn platform_const(
 	upstream: &UpstreamPlatform,
 	classified: &Classified,
 	bits: &[(Platform, u8)],
-	sdk: &[(Platform, (u8, u8))],
+	versions: &[(Platform, HeaderVersions)],
 ) -> Result<TokenStream> {
 	let konst = platform_ident(platform);
 	let name = platform.as_str().to_uppercase();
@@ -460,11 +476,12 @@ fn platform_const(
 		.iter()
 		.find_map(|(p, bit)| (*p == platform).then_some(bit))
 		.ok_or_eyre(format!("{platform}: no process-info bit"))?);
-	let (sdk_major, sdk_minor) = sdk
+	let versions = versions
 		.iter()
-		.find_map(|(p, version)| (*p == platform).then_some(*version))
-		.ok_or_eyre(format!("{platform}: no SDK version"))?;
-	let (sdk_major, sdk_minor) = (int(sdk_major), int(sdk_minor));
+		.find_map(|(p, versions)| (*p == platform).then_some(*versions))
+		.ok_or_eyre(format!("{platform}: no header versions"))?;
+	let (sdk_major, sdk_minor) = (int(versions.sdk.0), int(versions.sdk.1));
+	let (struct_major, struct_minor) = (int(versions.structure.0), int(versions.structure.1));
 
 	let (binary, memory, worker, resources, appstore) = (
 		hex(upstream.max_app_binary_size),
@@ -494,6 +511,7 @@ fn platform_const(
 			name: #name,
 			process_info_platform_bit: #bit,
 			sdk_version: Version { major: #sdk_major, minor: #sdk_minor },
+			struct_version: Version { major: #struct_major, minor: #struct_minor },
 			max_app_binary_size: #binary,
 			max_app_memory_size: #memory,
 			max_worker_memory_size: #worker,

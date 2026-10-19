@@ -3,4 +3,4 @@ allow-panic-in-tests = true
 
 # Product names and acronyms that read as prose, not code. `..` keeps clippy's
 # own default list (GitHub, OAuth, JavaScript, ...) rather than replacing it.
-doc-valid-idents = ["PebbleOS", "PebbleKit", "PebbleKitJS", "AppMessage", "SoC", "RockyJS", ".."]
+doc-valid-idents = ["PebbleOS", "PebbleKit", "PebbleKitJS", "AppMessage", "SoC", "RockyJS", "CMake", ".."]

@@ -197,7 +197,7 @@ impl BuildProject {
 				bytes_readable(virt_size as usize),
 				bytes_readable(platform.config().max_app_memory_size as usize),
 				bytes_readable(
-					(platform.config().max_app_memory_size - u32::from(virt_size)) as usize
+					(platform.config().max_app_memory_size - virt_size) as usize
 				),
 				bytes_readable(bin_buf.len()),
 				bytes_readable(pbpack_bytes.len()),

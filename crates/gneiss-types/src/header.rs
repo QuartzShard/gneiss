@@ -1,7 +1,8 @@
 use strum::Display;
 
 pub use crate::pebble_process_info::{
-	COMPANY_NAME_BYTES, PROCESS_NAME_BYTES, PebbleProcessInfo, Version,
+	COMPANY_NAME_BYTES, PROCESS_INFO_CRC_START_OFFSET, PROCESS_NAME_BYTES, PebbleProcessInfo,
+	Version,
 };
 use crate::pebble_process_info::{
 	PROCESS_INFO_CURRENT_SDK_VERSION_MAJOR, PROCESS_INFO_CURRENT_SDK_VERSION_MINOR,
@@ -95,4 +96,6 @@ pub const DEFAULT_HEADER: PebbleProcessInfo = PebbleProcessInfo {
 	resource_crc:       0,
 	resource_timestamp: 0,
 	virtual_size:       0,
+	load_size_hi:       0,
+	virtual_size_hi:    0,
 };

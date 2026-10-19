@@ -1,4 +1,5 @@
 use std::{
+	ffi::OsStr,
 	path::{Path, PathBuf},
 	process::Command,
 };
@@ -294,9 +295,9 @@ fn regen_sys() -> Result<()> {
 	rustfmt(&process_info)?;
 
 	let bits = platform_table::process_info_bits(&bindings)?;
-	let sdk = platform_table::sdk_versions(&vendor)?;
+	let versions = platform_table::header_versions(&vendor)?;
 	let config = workspace_root().join("crates/gneiss-types/src/config.rs");
-	std::fs::write(&config, platform_table::render(&platforms, &bits, &sdk)?)?;
+	std::fs::write(&config, platform_table::render(&platforms, &bits, &versions)?)?;
 	rustfmt(&config)?;
 	Ok(())
 }
@@ -324,7 +325,6 @@ fn snapshot_vendor(repo: &Path) -> Result<()> {
 
 	let config: PathBuf = repo.join("tools/generate_native_sdk/exported_symbols.json");
 	let tmp = TempDir::new_in(".")?;
-	log::info!("Generating pebble.h in {}...", tmp.path().display());
 	let vendor = workspace_root().join("crates/gneiss-sys/vendor");
 	std::fs::create_dir_all(&vendor)?;
 
@@ -333,32 +333,32 @@ fn snapshot_vendor(repo: &Path) -> Result<()> {
 		bail!("`uv` not found on your $PATH, you probably want to install pebble-tool first")
 	}
 
-	for platform in Platform::iter() {
-		log::info!("Building SDK headers for {platform}...");
-		// build_sdk.py nests `<platform>/` under `--output-dir` itself, and
-		// makes its own `include/`, `lib/`, and `src/fw/` subdirs (line 94-96).
-		// So we just hand it the tmp root and let it lay out tmp/<platform>/…
-		// and tmp/src/… underneath.
-		let codegen = Command::new("uv")
-			.current_dir(repo)
-			.arg("run")
-			.arg("--with")
-			.arg("libclang==18.*")
-			.arg("tools/build_sdk.py")
-			.arg(platform.to_string())
-			.arg("--output-dir")
-			.arg(tmp.path())
-			.output()?;
-		if !codegen.status.success() {
-			bail!(
-				"Generator for {platform} failed: {}",
-				String::from_utf8_lossy(&codegen.stderr)
-			)
-		}
-		let tmp_include = tmp.path().join(platform.to_string()).join("include");
+	log::info!("Installing upstream's Python requirements...");
+	let venv = upstream_venv(repo, tmp.path())?;
+
+	// The legacy platforms keep the headers vendored before: upstream no longer builds them,
+	// and their SDKs are frozen
+	for &(platform, board) in PLATFORM_BOARDS {
+		log::info!("Building SDK headers for {platform} (board {board})...");
+		let build = tmp.path().join(board);
+		upstream_cmake(repo, &venv, &[
+			OsStr::new("-S"),
+			repo.as_os_str(),
+			OsStr::new("-B"),
+			build.as_os_str(),
+			OsStr::new("-GNinja"),
+			OsStr::new(&format!("-DBOARD={board}")),
+		])?;
+		upstream_cmake(repo, &venv, &[
+			OsStr::new("--build"),
+			build.as_os_str(),
+			OsStr::new("--target"),
+			OsStr::new("pbl_native_sdk"),
+		])?;
+		let include = build.join("sdk").join(platform.to_string()).join("include");
 		let dest = vendor.join(platform.to_string());
 		let _ = std::fs::remove_dir_all(&dest);
-		std::fs::rename(&tmp_include, &dest)?;
+		copy_dir(&include, &dest)?;
 	}
 
 	std::fs::copy(config, vendor.join("exported_symbols.json"))?;
@@ -398,7 +398,8 @@ fn snapshot_vendor(repo: &Path) -> Result<()> {
 		format!(
 			"Source: https://github.com/coredevices/PebbleOS\n\
              License: Apache-2.0 (Copyright Google LLC) — see LICENSE.apache-2.0\n\
-             PebbleOS Commit: {}\nSnapshot made: {}",
+             PebbleOS Commit: {}\nSnapshot made: {}\n\
+             {LEGACY_NOTE}",
 			hash.trim(),
 			now
 		),
@@ -409,12 +410,85 @@ fn snapshot_vendor(repo: &Path) -> Result<()> {
 
 /// Check for specifically the files we need to build our snapshot - which probably means the repo
 /// is coredevices/PebbleOS
+/// The board each platform's SDK is built for, at its latest revision where it has them: upstream
+/// builds the SDK per board, through CMake
+const PLATFORM_BOARDS: &[(Platform, &str)] = &[
+	(Platform::Emery, "obelix@pvt"),
+	(Platform::Flint, "asterix"),
+	(Platform::Gabbro, "getafix@dvt2"),
+];
+
+/// For UPSTREAM: where the headers for the platforms upstream no longer builds come from
+const LEGACY_NOTE: &str = "aplite, basalt, chalk, diorite: frozen SDKs, kept from the snapshot of \
+                           PebbleOS f1a41a468ef9016a41b22171cb15fd046a2cd45e (v4.36.2)";
+
+/// A Python virtualenv in `dir` with upstream's requirements, for its build's scripts. One that
+/// lasts the whole snapshot: CMake caches the Python it configured with, so a `uv run`
+/// environment, gone once its command exits, isn't enough.
+fn upstream_venv(repo: &Path, dir: &Path) -> Result<PathBuf> {
+	let venv = dir.join("venv");
+	run_checked(Command::new("uv").arg("venv").arg("--quiet").arg(&venv))?;
+	run_checked(
+		// requirements.txt names some of upstream's own packages by path
+		Command::new("uv")
+			.current_dir(repo)
+			.args(["pip", "install", "--quiet", "--python"])
+			.arg(venv.join("bin/python"))
+			.arg("-r")
+			.arg(repo.join("requirements.txt")),
+	)?;
+	Ok(venv)
+}
+
+/// Run upstream's CMake with `args`, with `venv` first on the `PATH`.
+fn upstream_cmake(repo: &Path, venv: &Path, args: &[&OsStr]) -> Result<()> {
+	let path = std::env::var_os("PATH").unwrap_or_default();
+	let mut paths = vec![venv.join("bin")];
+	paths.extend(std::env::split_paths(&path));
+	run_checked(
+		Command::new("cmake")
+			.current_dir(repo)
+			.env("PATH", std::env::join_paths(paths)?)
+			.env("VIRTUAL_ENV", venv)
+			.args(args),
+	)
+}
+
+/// Run `command`; on failure, the error carries the end of its output.
+fn run_checked(command: &mut Command) -> Result<()> {
+	let out = command.output()?;
+	if !out.status.success() {
+		let text = String::from_utf8_lossy(&out.stdout) + String::from_utf8_lossy(&out.stderr);
+		let tail: Vec<&str> = text.lines().rev().take(40).collect();
+		let tail: Vec<&str> = tail.into_iter().rev().collect();
+		bail!("{command:?} failed:\n{}", tail.join("\n"));
+	}
+	Ok(())
+}
+
+/// Copy the directory `from` to `to`, recursively
+fn copy_dir(from: &Path, to: &Path) -> Result<()> {
+	std::fs::create_dir_all(to)?;
+	for entry in std::fs::read_dir(from)? {
+		let entry = entry?;
+		let dest = to.join(entry.file_name());
+		if entry.file_type()?.is_dir() {
+			copy_dir(&entry.path(), &dest)?;
+		} else {
+			std::fs::copy(entry.path(), dest)?;
+		}
+	}
+	Ok(())
+}
+
 fn check_pebbleos_present(repo: &Path) -> Result<()> {
 	let required = [
 		"tools/generate_native_sdk/generate_pebble_native_sdk_files.py",
 		"tools/generate_native_sdk/exported_symbols.json",
 		"tools/pebble_sdk_platform.py",
-		"src",
+		"fw",
+		"CMakeLists.txt",
+		"requirements.txt",
 	];
 	let submodule = [
 		// FreeRTOS headers go into the clang flags; parsing fails without them

@@ -4,7 +4,7 @@ use std::collections::BTreeMap;
 use color_eyre::eyre::{Context, OptionExt, Result, bail, eyre};
 use gneiss_types::{
 	Platform,
-	header::{PebbleProcessInfo, Version},
+	header::{PROCESS_INFO_CRC_START_OFFSET, PebbleProcessInfo, Version},
 	manifest::{PebbleAppInfo, PebbleAppManifest},
 	pbpack::PbPack,
 	stm_crc32::crc,
@@ -19,6 +19,14 @@ fn find_symbol(elf: &object::File<'_>, name: &str) -> Result<u32> {
 		.find(|sym| sym.name() == Ok(name))
 		.map(|sym| sym.address() as u32)
 		.ok_or_else(|| eyre!("Cannot locate symbol: {}", name))
+}
+
+/// `size`, as the header's low 16 bits and high byte. An error past 24 bits.
+fn split_size(size: u64, what: &str) -> Result<(u16, u8)> {
+	if size > 0xFF_FFFF {
+		bail!("App {what} size is {size} bytes, over the header's 24 bits");
+	}
+	Ok(((size & 0xFFFF) as u16, (size >> 16) as u8))
 }
 
 fn write_cstr_field(field: &mut [std::ffi::c_char], name: &str) -> Result<()> {
@@ -96,7 +104,6 @@ fn build_pbl_header(
 	relocations: &[u32],
 	timestamp: Instant,
 	bin_size: usize,
-	bin_buf: &[u8],
 ) -> Result<PebbleProcessInfo> {
 	let pbl_header_section = elf
 		.sections()
@@ -109,14 +116,14 @@ fn build_pbl_header(
 		bail!("Header sentinel malformed")
 	}
 	log::debug!("Found header, populating...");
+	pbl_header.struct_version = platform.config().struct_version;
 	pbl_header.sdk_version = platform.config().sdk_version;
 	pbl_header.process_version = Version {
 		major: pkg.version.major as u8,
 		minor: pkg.version.minor as u8,
 	};
-	pbl_header.load_size = bin_size.try_into().wrap_err("Image too large!")?;
+	(pbl_header.load_size, pbl_header.load_size_hi) = split_size(bin_size as u64, "load")?;
 	pbl_header.offset = find_symbol(elf, "main")? & !1;
-	pbl_header.crc = crc(&bin_buf[size_of::<PebbleProcessInfo>()..]);
 	write_cstr_field(&mut pbl_header.name, &pkg.name)?;
 	write_cstr_field(
 		&mut pbl_header.company,
@@ -132,16 +139,23 @@ fn build_pbl_header(
 		.wrap_err("UUID array len wrong")?;
 	pbl_header.resource_crc = pbpack.manifest().crc();
 	pbl_header.resource_timestamp = timestamp.secs() as u32;
-	pbl_header.virtual_size = elf
+	let virtual_size = elf
 		.sections()
 		.filter(|s| {
 			matches!(s.flags(), object::SectionFlags::Elf { sh_flags } if sh_flags & u64::from(SHF_ALLOC) != 0)
 		})
 		.map(|sec| sec.address() + sec.size())
 		.max()
-		.unwrap_or(0)
-		.try_into()
-		.wrap_err("Virtual Size too large!")?;
+		.unwrap_or(0);
+	(pbl_header.virtual_size, pbl_header.virtual_size_hi) = split_size(virtual_size, "virtual")?;
+	if let Some(revision) = platform.config().frozen_at_revision
+		&& (pbl_header.load_size_hi != 0 || pbl_header.virtual_size_hi != 0)
+	{
+		bail!(
+			"App is {bin_size} bytes loaded, {virtual_size} in RAM: {platform}'s firmware (SDK frozen \
+			 at revision {revision}) reads only 16-bit sizes, so both must be under 64 KiB"
+		);
+	}
 	log::debug!("{pbl_header:?}");
 	Ok(pbl_header)
 }
@@ -155,10 +169,10 @@ pub fn package_platform(
 	platform: Platform,
 	pbpack: &PbPack,
 	timestamp: Instant,
-) -> Result<(Vec<u8>, String, u16)> {
+) -> Result<(Vec<u8>, String, u32)> {
 	let (elf, relocations) = read_elf(elf_bytes)?;
 	let (bin_size, mut bin_buf) = objcopy(&elf)?;
-	let pbl_header = build_pbl_header(
+	let mut pbl_header = build_pbl_header(
 		pkg,
 		&elf,
 		pbl_metadata,
@@ -167,9 +181,10 @@ pub fn package_platform(
 		&relocations,
 		timestamp,
 		bin_size,
-		&bin_buf,
 	)?;
 
+	bin_buf[..size_of::<PebbleProcessInfo>()].copy_from_slice(bytemuck::bytes_of(&pbl_header));
+	pbl_header.crc = crc(&bin_buf[PROCESS_INFO_CRC_START_OFFSET as usize..]);
 	bin_buf[..size_of::<PebbleProcessInfo>()].copy_from_slice(bytemuck::bytes_of(&pbl_header));
 	bin_buf.reserve(relocations.len() * 4);
 	bin_buf.extend(relocations.iter().flat_map(|word| word.to_le_bytes()));
@@ -199,7 +214,9 @@ pub fn package_platform(
 		crc(&pbpack_bytes),
 		timestamp,
 	))?;
-	Ok((bin_buf, manifest, pbl_header.virtual_size))
+	let virtual_size =
+		u32::from(pbl_header.virtual_size) | u32::from(pbl_header.virtual_size_hi) << 16;
+	Ok((bin_buf, manifest, virtual_size))
 }
 
 /// Root `appinfo.json` for the bundle — app identity + the list of bundled

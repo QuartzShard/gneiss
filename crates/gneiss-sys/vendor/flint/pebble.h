@@ -31,7 +31,7 @@
 //! Calculate the length of an array, based on the size of the element type.
 //! @param array The array to be evaluated.
 //! @return The length of the array.
-#define ARRAY_LENGTH(array) (sizeof((array))/sizeof((array)[0]))
+#define ARRAY_LENGTH(array) (sizeof((array)) / sizeof((array)[0]))
 
 struct tm;
 typedef struct tm tm;
@@ -39,17 +39,17 @@ typedef struct tm tm;
 //! Determine whether a variable is signed or not.
 //! @param var The variable to evaluate.
 //! @return true if the variable is signed.
-#define IS_SIGNED(var) (__builtin_choose_expr( \
-  __builtin_types_compatible_p(__typeof__(var), unsigned char), false, \
-  __builtin_choose_expr( \
-  __builtin_types_compatible_p(__typeof__(var), unsigned short), false, \
-  __builtin_choose_expr( \
-  __builtin_types_compatible_p(__typeof__(var), unsigned int), false, \
-  __builtin_choose_expr( \
-  __builtin_types_compatible_p(__typeof__(var), unsigned long), false, \
-  __builtin_choose_expr( \
-  __builtin_types_compatible_p(__typeof__(var), unsigned long long), false, true))))) \
-)
+#define IS_SIGNED(var)                                                                       \
+  (__builtin_choose_expr(                                                                          \
+      __builtin_types_compatible_p(__typeof__(var), unsigned char), false,                           \
+      __builtin_choose_expr(                                                                       \
+          __builtin_types_compatible_p(__typeof__(var), unsigned short), false,                      \
+          __builtin_choose_expr(                                                                   \
+              __builtin_types_compatible_p(__typeof__(var), unsigned int), false,                    \
+              __builtin_choose_expr(                                                               \
+                  __builtin_types_compatible_p(__typeof__(var), unsigned long), false,               \
+                  __builtin_choose_expr(__builtin_types_compatible_p(__typeof__(var), unsigned long long), \
+                                  false, true))))))
 
 //! @addtogroup UI
 //! @{
@@ -60,41 +60,48 @@ typedef struct tm tm;
 //! Each Pebble window handles Pebble's buttons while it is displayed. Raw button down and button
 //! up events are transformed into click events that can be transferred to your app:
 //!
-//! * Single-click. Detects a single click, that is, a button down event followed by a button up event.
-//! It also offers hold-to-repeat functionality (repeated click).
+//! * Single-click. Detects a single click, that is, a button down event followed by a button up
+//! event. It also offers hold-to-repeat functionality (repeated click).
 //! * Multi-click. Detects double-clicking, triple-clicking and other arbitrary click counts.
 //! It can fire its event handler on all of the matched clicks, or just the last.
 //! * Long-click. Detects long clicks, that is, press-and-hold.
-//! * Raw. Simply forwards the raw button events. It is provided as a way to use both the higher level
-//! "clicks" processing and the raw button events at the same time.
+//! * Raw. Simply forwards the raw button events. It is provided as a way to use both the higher
+//! level "clicks" processing and the raw button events at the same time.
 //!
-//! To receive click events when a window is displayed, you must register a \ref ClickConfigProvider for
-//! this window with \ref window_set_click_config_provider(). Your \ref ClickConfigProvider will be called every time
-//! the window becomes visible with one context argument. By default this context is a pointer to the window but you can
-//! change this with \ref window_set_click_config_provider_with_context().
+//! To receive click events when a window is displayed, you must register a \ref ClickConfigProvider
+//! for this window with \ref window_set_click_config_provider(). Your \ref ClickConfigProvider will
+//! be called every time the window becomes visible with one context argument. By default this
+//! context is a pointer to the window but you can change this with \ref
+//! window_set_click_config_provider_with_context().
 //!
-//! In your \ref ClickConfigProvider you call the \ref window_single_click_subscribe(), \ref window_single_repeating_click_subscribe(),
-//! \ref window_multi_click_subscribe(), \ref window_long_click_subscribe() and \ref window_raw_click_subscribe() functions to register
-//! a handler for each event you wish to receive.
+//! In your \ref ClickConfigProvider you call the \ref window_single_click_subscribe(), \ref
+//! window_single_repeating_click_subscribe(),
+//! \ref window_multi_click_subscribe(), \ref window_long_click_subscribe() and \ref
+//! window_raw_click_subscribe() functions to register a handler for each event you wish to receive.
 //!
-//! For convenience, click handlers are provided with a \ref ClickRecognizerRef and a user-specified context.
+//! For convenience, click handlers are provided with a \ref ClickRecognizerRef and a user-specified
+//! context.
 //!
-//! The \ref ClickRecognizerRef can be used in combination with \ref click_number_of_clicks_counted(), \ref
-//! click_recognizer_get_button_id() and \ref click_recognizer_is_repeating() to get more information about the click. This is
-//! useful if you want different buttons or event types to share the same handler.
+//! The \ref ClickRecognizerRef can be used in combination with \ref
+//! click_number_of_clicks_counted(), \ref click_recognizer_get_button_id() and \ref
+//! click_recognizer_is_repeating() to get more information about the click. This is useful if you
+//! want different buttons or event types to share the same handler.
 //!
-//! The user-specified context is the context of your \ref ClickConfigProvider (see above). By default it points to the window.
-//! You can override it for all handlers with \ref window_set_click_config_provider_with_context() or for a specific button with \ref
+//! The user-specified context is the context of your \ref ClickConfigProvider (see above). By
+//! default it points to the window. You can override it for all handlers with \ref
+//! window_set_click_config_provider_with_context() or for a specific button with \ref
 //! window_set_click_context().
 //!
 //! <h3>User interaction in watchfaces</h3>
-//! Watchfaces cannot use the buttons to interact with the user. Instead, you can use the \ref AccelerometerService.
+//! Watchfaces cannot use the buttons to interact with the user. Instead, you can use the \ref
+//! AccelerometerService.
 //!
 //! <h3>About the Back button</h3>
-//! By default, the Back button will always pop to the previous window on the \ref WindowStack (and leave the app if the current
-//! window is the only window). You can override the default back button behavior with \ref window_single_click_subscribe() and
-//! \ref window_multi_click_subscribe() but you cannot set a repeating, long or raw click handler on the back button because a long press
-//! will always terminate the app and return to the main menu.
+//! By default, the Back button will always pop to the previous window on the \ref WindowStack (and
+//! leave the app if the current window is the only window). You can override the default back
+//! button behavior with \ref window_single_click_subscribe() and
+//! \ref window_multi_click_subscribe() but you cannot set a repeating, long or raw click handler on
+//! the back button because a long press will always terminate the app and return to the main menu.
 //!
 //! <h3>Usage example</h3>
 //! First associate a click config provider callback with your window:
@@ -116,7 +123,8 @@ typedef struct tm tm;
 //!   window_multi_click_subscribe(BUTTON_ID_SELECT, 2, 10, 0, true, select_multi_click_handler);
 //!
 //!   // long click config:
-//!   window_long_click_subscribe(BUTTON_ID_SELECT, 700, select_long_click_handler, select_long_click_release_handler);
+//!   window_long_click_subscribe(BUTTON_ID_SELECT, 700, select_long_click_handler,
+//!   select_long_click_release_handler);
 //! }
 //! \endcode
 //! Now you implement the handlers for each click you've subscribed to and set up:
@@ -153,18 +161,20 @@ typedef struct tm tm;
 //!
 //! @{
 
-//! Button ID values
-//! @see \ref click_recognizer_get_button_id()
+/**
+ * @brief Button ID values
+ * @see click_recognizer_get_button_id()
+ */
 typedef enum {
-  //! Back button
+  /** Back button */
   BUTTON_ID_BACK = 0,
-  //! Up button
+  /** Up button */
   BUTTON_ID_UP,
-  //! Select (middle) button
+  /** Select (middle) button */
   BUTTON_ID_SELECT,
-  //! Down button
+  /** Down button */
   BUTTON_ID_DOWN,
-  //! Total number of buttons
+  /** Total number of buttons */
   NUM_BUTTONS
 } ButtonId;
 
@@ -202,19 +212,19 @@ const char *i18n_get_system_locale(void);
 
 //! The different watch models.
 typedef enum {
-  WATCH_INFO_MODEL_UNKNOWN, //!< Unknown model
-  WATCH_INFO_MODEL_PEBBLE_ORIGINAL, //!< Original Pebble
-  WATCH_INFO_MODEL_PEBBLE_STEEL, //!< Pebble Steel
-  WATCH_INFO_MODEL_PEBBLE_TIME, //!< Pebble Time
-  WATCH_INFO_MODEL_PEBBLE_TIME_STEEL, //!< Pebble Time Steel
+  WATCH_INFO_MODEL_UNKNOWN,              //!< Unknown model
+  WATCH_INFO_MODEL_PEBBLE_ORIGINAL,      //!< Original Pebble
+  WATCH_INFO_MODEL_PEBBLE_STEEL,         //!< Pebble Steel
+  WATCH_INFO_MODEL_PEBBLE_TIME,          //!< Pebble Time
+  WATCH_INFO_MODEL_PEBBLE_TIME_STEEL,    //!< Pebble Time Steel
   WATCH_INFO_MODEL_PEBBLE_TIME_ROUND_14, //!< Pebble Time Round, 14mm lug size
   WATCH_INFO_MODEL_PEBBLE_TIME_ROUND_20, //!< Pebble Time Round, 20mm lug size
-  WATCH_INFO_MODEL_PEBBLE_2_HR, //!< Pebble 2 HR
-  WATCH_INFO_MODEL_PEBBLE_2_SE, //!< Pebble 2 SE
-  WATCH_INFO_MODEL_PEBBLE_TIME_2, //!< Pebble Time 2
-  WATCH_INFO_MODEL_COREDEVICES_P2D, //!< CoreDevices P2D (Pebble 2 Duo)
-  WATCH_INFO_MODEL_COREDEVICES_PT2, //!< CoreDevices PT2 (Pebble Time 2)
-  WATCH_INFO_MODEL_COREDEVICES_PR2, //!< CoreDevices PR2 (Pebble Round 2)
+  WATCH_INFO_MODEL_PEBBLE_2_HR,          //!< Pebble 2 HR
+  WATCH_INFO_MODEL_PEBBLE_2_SE,          //!< Pebble 2 SE
+  WATCH_INFO_MODEL_PEBBLE_TIME_2,        //!< Pebble Time 2
+  WATCH_INFO_MODEL_COREDEVICES_P2D,      //!< CoreDevices P2D (Pebble 2 Duo)
+  WATCH_INFO_MODEL_COREDEVICES_PT2,      //!< CoreDevices PT2 (Pebble Time 2)
+  WATCH_INFO_MODEL_COREDEVICES_PR2,      //!< CoreDevices PR2 (Pebble Round 2)
 
   WATCH_INFO_MODEL__MAX
 } WatchInfoModel;
@@ -222,65 +232,66 @@ typedef enum {
 //! The different watch colors.
 typedef enum {
   WATCH_INFO_COLOR_UNKNOWN = 0, //!< Unknown color
-  WATCH_INFO_COLOR_BLACK = 1, //!< Black
-  WATCH_INFO_COLOR_WHITE = 2, //!< White
-  WATCH_INFO_COLOR_RED = 3, //!< Red
-  WATCH_INFO_COLOR_ORANGE = 4, //!< Orange
-  WATCH_INFO_COLOR_GRAY = 5, //!< Gray
+  WATCH_INFO_COLOR_BLACK = 1,   //!< Black
+  WATCH_INFO_COLOR_WHITE = 2,   //!< White
+  WATCH_INFO_COLOR_RED = 3,     //!< Red
+  WATCH_INFO_COLOR_ORANGE = 4,  //!< Orange
+  WATCH_INFO_COLOR_GRAY = 5,    //!< Gray
 
   WATCH_INFO_COLOR_STAINLESS_STEEL = 6, //!< Stainless Steel
-  WATCH_INFO_COLOR_MATTE_BLACK = 7, //!< Matte Black
+  WATCH_INFO_COLOR_MATTE_BLACK = 7,     //!< Matte Black
 
-  WATCH_INFO_COLOR_BLUE = 8, //!< Blue
+  WATCH_INFO_COLOR_BLUE = 8,  //!< Blue
   WATCH_INFO_COLOR_GREEN = 9, //!< Green
   WATCH_INFO_COLOR_PINK = 10, //!< Pink
 
   WATCH_INFO_COLOR_TIME_WHITE = 11, //!< Time White
   WATCH_INFO_COLOR_TIME_BLACK = 12, //!< Time Black
-  WATCH_INFO_COLOR_TIME_RED = 13, //!< Time Red
+  WATCH_INFO_COLOR_TIME_RED = 13,   //!< Time Red
 
   WATCH_INFO_COLOR_TIME_STEEL_SILVER = 14, //!< Time Steel Silver
-  WATCH_INFO_COLOR_TIME_STEEL_BLACK = 15, //!< Time Steel Black
-  WATCH_INFO_COLOR_TIME_STEEL_GOLD = 16, //!< Time Steel Gold
+  WATCH_INFO_COLOR_TIME_STEEL_BLACK = 15,  //!< Time Steel Black
+  WATCH_INFO_COLOR_TIME_STEEL_GOLD = 16,   //!< Time Steel Gold
 
-  WATCH_INFO_COLOR_TIME_ROUND_SILVER_14 = 17, //!< Time Round 14mm lug size, Silver
-  WATCH_INFO_COLOR_TIME_ROUND_BLACK_14 = 18, //!< Time Round 14mm lug size, Black
-  WATCH_INFO_COLOR_TIME_ROUND_SILVER_20 = 19, //!< Time Round 20mm lug size, Silver
-  WATCH_INFO_COLOR_TIME_ROUND_BLACK_20 = 20, //!< Time Round 20mm lug size, Black
+  WATCH_INFO_COLOR_TIME_ROUND_SILVER_14 = 17,    //!< Time Round 14mm lug size, Silver
+  WATCH_INFO_COLOR_TIME_ROUND_BLACK_14 = 18,     //!< Time Round 14mm lug size, Black
+  WATCH_INFO_COLOR_TIME_ROUND_SILVER_20 = 19,    //!< Time Round 20mm lug size, Silver
+  WATCH_INFO_COLOR_TIME_ROUND_BLACK_20 = 20,     //!< Time Round 20mm lug size, Black
   WATCH_INFO_COLOR_TIME_ROUND_ROSE_GOLD_14 = 21, //!< Time Round 14mm lug size, Rose Gold
 
   WATCH_INFO_COLOR_PEBBLE_2_HR_BLACK = 25, //!< Pebble 2 HR, Black / Charcoal
-  WATCH_INFO_COLOR_PEBBLE_2_HR_LIME = 27, //!< Pebble 2 HR, Charcoal / Sorbet Green
+  WATCH_INFO_COLOR_PEBBLE_2_HR_LIME = 27,  //!< Pebble 2 HR, Charcoal / Sorbet Green
   WATCH_INFO_COLOR_PEBBLE_2_HR_FLAME = 28, //!< Pebble 2 HR, Charcoal / Red
   WATCH_INFO_COLOR_PEBBLE_2_HR_WHITE = 29, //!< Pebble 2 HR, White / Gray
-  WATCH_INFO_COLOR_PEBBLE_2_HR_AQUA = 30, //!< Pebble 2 HR, White / Turquoise
+  WATCH_INFO_COLOR_PEBBLE_2_HR_AQUA = 30,  //!< Pebble 2 HR, White / Turquoise
 
   WATCH_INFO_COLOR_PEBBLE_2_SE_BLACK = 24, //!< Pebble 2 SE, Black / Charcoal
   WATCH_INFO_COLOR_PEBBLE_2_SE_WHITE = 26, //!< Pebble 2 SE, White / Gray
 
-  WATCH_INFO_COLOR_PEBBLE_TIME_2_BLACK = 31, //!< Pebble Time 2, Black
+  WATCH_INFO_COLOR_PEBBLE_TIME_2_BLACK = 31,  //!< Pebble Time 2, Black
   WATCH_INFO_COLOR_PEBBLE_TIME_2_SILVER = 32, //!< Pebble Time 2, Silver
-  WATCH_INFO_COLOR_PEBBLE_TIME_2_GOLD = 33, //!< Pebble Time 2, Gold
+  WATCH_INFO_COLOR_PEBBLE_TIME_2_GOLD = 33,   //!< Pebble Time 2, Gold
 
   WATCH_INFO_COLOR_COREDEVICES_P2D_BLACK = 34, //!< CoreDevices P2D, Black
   WATCH_INFO_COLOR_COREDEVICES_P2D_WHITE = 35, //!< CoreDevices P2D, White
 
-  WATCH_INFO_COLOR_COREDEVICES_PT2_BLACK_GREY = 36, //!< CoreDevices PT2, Black/Grey
-  WATCH_INFO_COLOR_COREDEVICES_PT2_BLACK_RED = 37, //!< CoreDevices PT2, Black/Red
+  WATCH_INFO_COLOR_COREDEVICES_PT2_BLACK_GREY = 36,  //!< CoreDevices PT2, Black/Grey
+  WATCH_INFO_COLOR_COREDEVICES_PT2_BLACK_RED = 37,   //!< CoreDevices PT2, Black/Red
   WATCH_INFO_COLOR_COREDEVICES_PT2_SILVER_BLUE = 38, //!< CoreDevices PT2, Silver/Blue
   WATCH_INFO_COLOR_COREDEVICES_PT2_SILVER_GREY = 39, //!< CoreDevices PT2, Silver/Grey
 
-  WATCH_INFO_COLOR_COREDEVICES_PR2_BLACK_20 = 40, //!< CoreDevices PR2, Black (20mm)
+  WATCH_INFO_COLOR_COREDEVICES_PR2_BLACK_20 = 40,  //!< CoreDevices PR2, Black (20mm)
   WATCH_INFO_COLOR_COREDEVICES_PR2_SILVER_20 = 41, //!< CoreDevices PR2, Silver (20mm)
-  WATCH_INFO_COLOR_COREDEVICES_PR2_GOLD_14 = 42, //!< CoreDevices PR2, Gold (14mm)
+  WATCH_INFO_COLOR_COREDEVICES_PR2_GOLD_14 = 42,   //!< CoreDevices PR2, Gold (14mm)
   WATCH_INFO_COLOR_COREDEVICES_PR2_SILVER_14 = 43, //!< CoreDevices PR2, Silver (14mm)
 
   WATCH_INFO_COLOR__MAX
 } WatchInfoColor;
 
 //! Data structure containing the version of the firmware running on the watch.
-//! The version of the firmware has the form X.[X.[X]]. If a version number is not present it will be 0.
-//! For example: the version numbers of 2.4.1 are 2, 4, and 1. The version numbers of 2.4 are 2, 4, and 0.
+//! The version of the firmware has the form X.[X.[X]]. If a version number is not present it will
+//! be 0. For example: the version numbers of 2.4.1 are 2, 4, and 1. The version numbers of 2.4 are
+//! 2, 4, and 0.
 typedef struct {
   uint8_t major; //!< Major version number
   uint8_t minor; //!< Minor version number
@@ -314,73 +325,114 @@ WatchInfoColor watch_info_get_color(void);
 //! Converts from a fixed point value representation to the equivalent value in degrees
 //! @see DEG_TO_TRIGANGLE
 //! @see TRIG_MAX_ANGLE
+//! @param trig_angle Angle, scaled so that TRIG_MAX_ANGLE is 360 degrees.
+//! @return Angle in degrees.
 #define TRIGANGLE_TO_DEG(trig_angle) (((trig_angle) * 360) / TRIG_MAX_ANGLE)
 
 //! Converts from an angle in degrees to the equivalent fixed point value representation
 //! @see TRIGANGLE_TO_DEG
 //! @see TRIG_MAX_ANGLE
+//! @param angle Angle in degrees.
+//! @return Angle, scaled so that TRIG_MAX_ANGLE is 360 degrees.
 #define DEG_TO_TRIGANGLE(angle) (((angle) * TRIG_MAX_ANGLE) / 360)
 
-//! Look-up the sine of the given angle from a pre-computed table.
-//! @param angle The angle for which to compute the cosine.
-//! The angle value is scaled linearly, such that a value of 0x10000 corresponds to 360 degrees or 2 PI radians.
+/**
+ * @brief Look-up the sine of the given angle from a pre-computed table.
+ * @param angle The angle for which to compute the sine.
+ * The angle value is scaled linearly, such that a value of 0x10000 corresponds to 360 degrees or 2
+ * PI radians.
+ * @return Sine of @p angle, scaled so that 1 is TRIG_MAX_RATIO.
+ */
 int32_t sin_lookup(int32_t angle);
 
-//! Look-up the cosine of the given angle from a pre-computed table.
-//! This is equivalent to calling `sin_lookup(angle + TRIG_MAX_ANGLE / 4)`.
-//! @param angle The angle for which to compute the cosine.
-//! The angle value is scaled linearly, such that a value of 0x10000 corresponds to 360 degrees or 2 PI radians.
+/**
+ * @brief Look-up the cosine of the given angle from a pre-computed table.
+ *
+ * This is equivalent to calling `sin_lookup(angle + TRIG_MAX_ANGLE / 4)`.
+ * @param angle The angle for which to compute the cosine.
+ * The angle value is scaled linearly, such that a value of 0x10000 corresponds to 360 degrees or 2
+ * PI radians.
+ * @return Cosine of @p angle, scaled so that 1 is TRIG_MAX_RATIO.
+ */
 int32_t cos_lookup(int32_t angle);
 
-//! Look-up the arctangent of a given x, y pair
-//! The angle value is scaled linearly, such that a value of 0x10000 corresponds to 360 degrees or 2 PI radians.
+/**
+ * @brief Look-up the arctangent of a given x, y pair
+ *
+ * The angle value is scaled linearly, such that a value of 0x10000 corresponds to 360 degrees or 2
+ * PI radians.
+ * @param y Y coordinate.
+ * @param x X coordinate.
+ * @return Angle of the point (x, y) counter-clockwise from the positive x axis, from 0 up to but
+ *         not including TRIG_MAX_ANGLE.
+ */
 int32_t atan2_lookup(int16_t y, int16_t x);
 
 //! @} // group Math
 
 //! @addtogroup WallTime Wall Time
-//!   \brief Functions, data structures and other things related to wall clock time.
+//! @brief Functions, data structures and other things related to wall clock time.
 //!
 //! This module contains utilities to get the current time and create strings with formatted
 //! dates and times.
 //! @{
 
-//! Weekday values
+/** @brief Weekday values */
 typedef enum {
-  TODAY = 0,  //!< Today
-  SUNDAY,     //!< Sunday
-  MONDAY,     //!< Monday
-  TUESDAY,    //!< Tuesday
-  WEDNESDAY,  //!< Wednesday
-  THURSDAY,   //!< Thursday
-  FRIDAY,     //!< Friday
-  SATURDAY,   //!< Saturday
+  /** Today */
+  TODAY = 0,
+  /** Sunday */
+  SUNDAY,
+  /** Monday */
+  MONDAY,
+  /** Tuesday */
+  TUESDAY,
+  /** Wednesday */
+  WEDNESDAY,
+  /** Thursday */
+  THURSDAY,
+  /** Friday */
+  FRIDAY,
+  /** Saturday */
+  SATURDAY,
 } WeekDay;
 
-//! Copies a time string into the buffer, formatted according to the user's time display preferences (such as 12h/24h
-//! time).
-//! Example results: "7:30" or "15:00".
-//! @note AM/PM are also outputted with the time if the user's preference is 12h time.
-//! @param[out] buffer A pointer to the buffer to copy the time string into
-//! @param size The maximum size of buffer
+/**
+ * @brief Copies a time string into the buffer, formatted according to the user's time display
+ * preferences (such as 12h/24h time).
+ *
+ * Example results: "7:30" or "15:00".
+ * @note AM/PM are also outputted with the time if the user's preference is 12h time.
+ * @param[out] buffer A pointer to the buffer to copy the time string into
+ * @param size The maximum size of buffer
+ */
 void clock_copy_time_string(char *buffer, uint8_t size);
 
-//! Gets the user's 12/24h clock style preference.
-//! @return `true` if the user prefers 24h-style time display or `false` if the
-//! user prefers 12h-style time display.
+/**
+ * @brief Gets the user's 12/24h clock style preference.
+ * @return `true` if the user prefers 24h-style time display or `false` if the
+ * user prefers 12h-style time display.
+ */
 bool clock_is_24h_style(void);
 
-//! Converts a (day, hour, minute) specification to a UTC timestamp occurring in the future
-//! Always returns a timestamp for the next occurring instance,
-//! example: specifying TODAY@14:30 when it is 14:40 will return a timestamp for 7 days from
-//! now at 14:30
-//! @param day WeekDay day of week including support for specifying TODAY
-//! @param hour hour specified in 24-hour format [0-23]
-//! @param minute minute [0-59]
+/**
+ * @brief Converts a (day, hour, minute) specification to a UTC timestamp occurring in the future.
+ *
+ * Always returns a timestamp for the next occurring instance,
+ * example: specifying TODAY@14:30 when it is 14:40 will return a timestamp for tomorrow at
+ * 14:30, while specifying the current day of the week will return a timestamp for 7 days from
+ * now.
+ * @param day WeekDay day of week including support for specifying TODAY
+ * @param hour hour specified in 24-hour format [0-23]
+ * @param minute minute [0-59]
+ * @return UTC timestamp of the next occurrence.
+ */
 time_t clock_to_timestamp(WeekDay day, int hour, int minute);
 
-//! Checks if timezone is currently set, otherwise gmtime == localtime.
-//! @return `true` if timezone has been set, false otherwise
+/**
+ * @brief Checks if timezone is currently set, otherwise gmtime == localtime.
+ * @return `true` if timezone has been set, false otherwise
+ */
 bool clock_is_timezone_set(void);
 
 //! The maximum length for a timezone full name (e.g. America/Chicago)
@@ -410,16 +462,16 @@ typedef enum PlatformType {
 
 #define PBL_PLATFORM_TYPE_CURRENT PlatformTypeFlint
 
-#define PBL_PLATFORM_SWITCH_DEFAULT(PLAT, DEFAULT, APLITE, BASALT, CHALK, DIORITE, EMERY, FLINT, GABBRO) (\
-  ((PLAT) == PlatformTypeFlint) ? (FLINT) : \
-  ((PLAT) == PlatformTypeEmery) ? (EMERY) : \
-  ((PLAT) == PlatformTypeDiorite) ? (DIORITE) : \
-  ((PLAT) == PlatformTypeChalk) ? (CHALK) : \
-  ((PLAT) == PlatformTypeBasalt) ? (BASALT) : \
-  ((PLAT) == PlatformTypeAplite) ? (APLITE) : \
-  ((PLAT) == PlatformTypeGabbro) ? (GABBRO) : \
-  (DEFAULT) \
-)
+#define PBL_PLATFORM_SWITCH_DEFAULT(PLAT, DEFAULT, APLITE, BASALT, CHALK, DIORITE, EMERY, FLINT, \
+                                    GABBRO)                                                      \
+  (((PLAT) == PlatformTypeFlint)     ? (FLINT)                                                   \
+   : ((PLAT) == PlatformTypeEmery)   ? (EMERY)                                                   \
+   : ((PLAT) == PlatformTypeDiorite) ? (DIORITE)                                                 \
+   : ((PLAT) == PlatformTypeChalk)   ? (CHALK)                                                   \
+   : ((PLAT) == PlatformTypeBasalt)  ? (BASALT)                                                  \
+   : ((PLAT) == PlatformTypeAplite)  ? (APLITE)                                                  \
+   : ((PLAT) == PlatformTypeGabbro)  ? (GABBRO)                                                  \
+                                     : (DEFAULT))
 
 #define PBL_PLATFORM_SWITCH(PLAT, APLITE, BASALT, CHALK, DIORITE, EMERY, FLINT, GABBRO) \
   PBL_PLATFORM_SWITCH_DEFAULT(PLAT, APLITE, APLITE, BASALT, CHALK, DIORITE, EMERY, FLINT, GABBRO)
@@ -548,7 +600,7 @@ typedef void (*AppFocusHandler)(bool in_focus);
 //! 2) A notification comes in and the animation to show the notification starts. The will_focus
 //! handler is called with in_focus set to false.
 //! 3) The animation completes and the notification is in focus, with the app being completely
-//! covered. The did_focus hander is called with in_focus set to false.
+//! covered. The did_focus handler is called with in_focus set to false.
 //! 4) The notification is dismissed and the animation to return to the app starts. The will_focus
 //! handler is called with in_focus set to true.
 //! 5) The animation completes and the app is in focus. The did_focus handler is called with
@@ -608,13 +660,13 @@ void app_focus_service_unsubscribe(void);
 //! in a watchface.
 //! @{
 
-//! Structure for retrieval of the battery charge state
+/** @brief Structure for retrieval of the battery charge state */
 typedef struct {
-  //! A percentage (0-100) of how full the battery is
+  /** A percentage (0-100) of how full the battery is */
   uint8_t charge_percent;
-  //! True if the battery is currently being charged. False if not.
+  /** True if the battery is currently being charged. False if not. */
   bool is_charging;
-  //! True if the charger cable is connected. False if not.
+  /** True if the charger cable is connected. False if not. */
   bool is_plugged;
 } BatteryChargeState;
 
@@ -679,30 +731,32 @@ void backlight_service_unsubscribe(void);
 //! example app.
 //! @{
 
-//! A single accelerometer sample for all three axes including timestamp and
-//! vibration rumble status.
+/**
+ * @brief A single accelerometer sample for all three axes including timestamp and
+ * vibration rumble status.
+ */
 typedef struct __attribute__((__packed__)) AccelData {
-  //! acceleration along the x axis
+  /** acceleration along the x axis */
   int16_t x;
-  //! acceleration along the y axis
+  /** acceleration along the y axis */
   int16_t y;
-  //! acceleration along the z axis
+  /** acceleration along the z axis */
   int16_t z;
 
-  //! true if the watch vibrated when this sample was collected
+  /** true if the watch vibrated when this sample was collected */
   bool did_vibrate;
 
-  //! timestamp, in milliseconds
+  /** timestamp, in milliseconds */
   uint64_t timestamp;
 } AccelData;
 
-//! A single accelerometer sample for all three axes
+/** @brief A single accelerometer sample for all three axes */
 typedef struct __attribute__((__packed__)) {
-  //! acceleration along the x axis
+  /** acceleration along the x axis */
   int16_t x;
-  //! acceleration along the y axis
+  /** acceleration along the y axis */
   int16_t y;
-  //! acceleration along the z axis
+  /** acceleration along the z axis */
   int16_t z;
 } AccelRawData;
 
@@ -735,15 +789,15 @@ typedef void (*AccelRawDataHandler)(AccelRawData *data, uint32_t num_samples, ui
 //! @param direction the direction (-1 or +1) of the tap
 typedef void (*AccelTapHandler)(AccelAxisType axis, int32_t direction);
 
-//! Valid accelerometer sampling rates, in Hz
+/** @brief Valid accelerometer sampling rates, in Hz */
 typedef enum {
-  //! 10 HZ sampling rate
+  /** 10 HZ sampling rate */
   ACCEL_SAMPLING_10HZ = 10,
-  //! 25 HZ sampling rate [Default]
+  /** 25 HZ sampling rate [Default] */
   ACCEL_SAMPLING_25HZ = 25,
-  //! 50 HZ sampling rate
+  /** 50 HZ sampling rate */
   ACCEL_SAMPLING_50HZ = 50,
-  //! 100 HZ sampling rate
+  /** 100 HZ sampling rate */
   ACCEL_SAMPLING_100HZ = 100,
 } AccelSamplingRate;
 
@@ -813,37 +867,44 @@ void accel_raw_data_service_subscribe(uint32_t samples_per_update, AccelRawDataH
 //!
 //! @{
 
-//! Enum describing the current state of the Compass Service
+/** @brief Enum describing the current state of the Compass Service */
 typedef enum {
-  //! The Compass Service is unavailable.
+  /** The Compass Service is unavailable. */
   CompassStatusUnavailable = -1,
-  //! Compass is calibrating: data is invalid and should not be used
-  //! Data will become valid once calibration is complete
+  /**
+   * Compass is calibrating: data is invalid and should not be used
+   * Data will become valid once calibration is complete
+   */
   CompassStatusDataInvalid = 0,
-  //! Compass is calibrating: the data is valid but the calibration is still being refined
+  /** Compass is calibrating: the data is valid but the calibration is still being refined */
   CompassStatusCalibrating,
-  //! Compass data is valid and the calibration has completed
+  /** Compass data is valid and the calibration has completed */
   CompassStatusCalibrated
 } CompassStatus;
 
-//! Represents an angle relative to get to a reference direction, e.g. (magnetic) north.
-//! The angle value is scaled linearly, such that a value of TRIG_MAX_ANGLE
-//! corresponds to 360 degrees or 2 PI radians.
-//! Thus, if heading towards north, north is 0, west is TRIG_MAX_ANGLE/4,
-//! south is TRIG_MAX_ANGLE/2, and so on.
+/**
+ * @brief Represents an angle relative to get to a reference direction, e.g. (magnetic) north.
+ *
+ * The angle value is scaled linearly, such that a value of TRIG_MAX_ANGLE
+ * corresponds to 360 degrees or 2 PI radians.
+ * Thus, if heading towards north, north is 0, west is TRIG_MAX_ANGLE/4,
+ * south is TRIG_MAX_ANGLE/2, and so on.
+ */
 typedef int32_t CompassHeading;
 
-//! Structure containing a single heading towards magnetic and true north.
+/** @brief Structure containing a single heading towards magnetic and true north. */
 typedef struct {
-  //! Measured angle that increases counter-clockwise from magnetic north
-  //! (use `int clockwise_heading = TRIG_MAX_ANGLE - heading_data.magnetic_heading;`
-  //! for example to find your heading clockwise from magnetic north).
+  /**
+   * Measured angle that increases counter-clockwise from magnetic north
+   * (use `int clockwise_heading = TRIG_MAX_ANGLE - heading_data.magnetic_heading;`
+   * for example to find your heading clockwise from magnetic north).
+   */
   CompassHeading magnetic_heading;
-  //! Currently same value as magnetic_heading (reserved for future implementation).
+  /** Currently same value as magnetic_heading (reserved for future implementation). */
   CompassHeading true_heading;
-  //! Indicates the current state of the Compass Service calibration.
+  /** Indicates the current state of the Compass Service calibration. */
   CompassStatus compass_status;
-  //! Currently always false (reserved for future implementation).
+  /** Currently always false (reserved for future implementation). */
   bool is_declination_valid;
 } CompassHeadingData;
 
@@ -889,8 +950,8 @@ int compass_service_peek(CompassHeadingData *data);
 //! change a tick should occur. Time components are defined by a \ref TimeUnits enum bitmask.
 //! @{
 
-//! Time unit flags that can be used to create a bitmask for use in \ref tick_timer_service_subscribe().
-//! This will also be passed to \ref TickHandler.
+//! Time unit flags that can be used to create a bitmask for use in \ref
+//! tick_timer_service_subscribe(). This will also be passed to \ref TickHandler.
 typedef enum {
   //! Flag to represent the "seconds" time unit
   SECOND_UNIT = 1 << 0,
@@ -928,21 +989,29 @@ void tick_timer_service_unsubscribe(void);
 //! @addtogroup TouchService
 //! @{
 
-//! Touch event type
+/** @brief Touch event type */
 typedef enum TouchEventType {
+  /** A finger touched the screen. */
   TouchEvent_Touchdown,
+  /** The finger left the screen. */
   TouchEvent_Liftoff,
+  /** The finger moved while touching the screen. */
   TouchEvent_PositionUpdate,
 } TouchEventType;
 
-//! Touch event data, carried directly in PebbleTouchEvent
+/** @brief Touch event data, carried directly in PebbleTouchEvent */
 typedef struct TouchEvent {
-  TouchEventType type:8;
-  //! true when the touch must not drive navigation: the interaction session
-  //! was inactive at Touchdown (unarmed contact on the idle watchface).
-  //! Latched on Touchdown and carried across the whole gesture.
+  /** Event type. */
+  TouchEventType type : 8;
+  /**
+   * true when the touch must not drive navigation: the interaction session
+   * was inactive at Touchdown (unarmed contact on the idle watchface).
+   * Latched on Touchdown and carried across the whole gesture.
+   */
   bool non_navigational;
+  /** Horizontal position, in screen pixels. */
   int16_t x;
+  /** Vertical position, in screen pixels. */
   int16_t y;
 } TouchEvent;
 
@@ -1173,7 +1242,7 @@ typedef enum {
 //! Return a \ref HealthActivityMask containing a set of bits, one set for each
 //! activity that is currently active.
 //! @return A bitmask with zero or more \ref HealthActivityMask bits set as appropriate.
-HealthActivityMask   health_service_peek_current_activities(void);
+HealthActivityMask health_service_peek_current_activities(void);
 
 //! Callback used by \ref health_service_activities_iterate().
 //! @param activity Which activity the caller is being informed about.
@@ -1240,8 +1309,8 @@ typedef enum {
 //! @param time_end Latest UTC time you are interested in.
 //! @return A \ref HealthServiceAccessibilityMask representing the accessible metrics
 //! in this time range.
-HealthServiceAccessibilityMask health_service_metric_accessible(
-    HealthMetric metric, time_t time_start, time_t time_end);
+HealthServiceAccessibilityMask health_service_metric_accessible(HealthMetric metric,
+                                                                time_t time_start, time_t time_end);
 
 //! Check if a certain combination of metric, time span, and scope is accessible for calculating
 //! summed, averaged data by returning a value of \ref HealthServiceAccessibilityMask. Developers
@@ -1256,7 +1325,8 @@ HealthServiceAccessibilityMask health_service_metric_accessible(
 //! @param time_start Earliest UTC time you are interested in.
 //! @param time_end Latest UTC time you are interested in.
 //! @param scope \ref HealthServiceTimeScope value describing how the average should be computed.
-//! @return A \ref HealthServiceAccessibilityMask value decribing whether averaged data is available.
+//! @return A \ref HealthServiceAccessibilityMask value describing whether averaged data is
+//! available.
 HealthServiceAccessibilityMask health_service_metric_averaged_accessible(
     HealthMetric metric, time_t time_start, time_t time_end, HealthServiceTimeScope scope);
 
@@ -1270,7 +1340,8 @@ HealthServiceAccessibilityMask health_service_metric_averaged_accessible(
 //! @param time_end Latest UTC time you are interested in.
 //! @param aggregation The aggregation to perform
 //! @param scope \ref HealthServiceTimeScope value describing how the average should be computed.
-//! @return A \ref HealthServiceAccessibilityMask value decribing whether averaged data is available.
+//! @return A \ref HealthServiceAccessibilityMask value describing whether averaged data is
+//! available.
 HealthServiceAccessibilityMask health_service_metric_aggregate_averaged_accessible(
     HealthMetric metric, time_t time_start, time_t time_end, HealthAggregation aggregation,
     HealthServiceTimeScope scope);
@@ -1309,7 +1380,7 @@ typedef enum {
 
 //! Developer-supplied event handler, called when a health-related event occurs after subscribing
 //! via \ref health_service_events_subscribe();
-//! @param event The type of health-related event that occured.
+//! @param event The type of health-related event that occurred.
 //! @param context The developer-supplied context pointer.
 typedef void (*HealthEventHandler)(HealthEventType event, void *context);
 
@@ -1358,6 +1429,22 @@ bool health_service_set_heart_rate_sample_period(uint16_t interval_sec);
 //! the app exits, or 0 if there is no active request by this app.
 uint16_t health_service_get_heart_rate_sample_period_expiration_sec(void);
 
+//! Get the most recent HRV peak-to-peak interval in milliseconds. The value is captured from
+//! \ref HealthEventHRVUpdate events, so it only updates while this app is subscribed via
+//! \ref health_service_events_subscribe() and holds an HRV sample period.
+//! @return PPI in ms, or 0 if no reading available.
+uint16_t health_service_peek_hrv_ppi_ms(void);
+
+//! Request HRV (peak-to-peak interval) sampling. While any app holds an HRV sample period, the
+//! sensor collects HRV alongside heart rate and HealthEventHRVUpdate events are delivered to
+//! health service subscribers.
+//! The HRV and heart rate sample periods (\ref health_service_set_heart_rate_sample_period)
+//! share the app's single sensor subscription: both may be active at once, the sensor is driven
+//! at the shorter of the two periods, and setting one period to 0 clears only that request.
+//! @param interval_sec desired sampling interval in seconds; 0 unsubscribes.
+//! @return true on success.
+bool health_service_set_hrv_sample_period(uint16_t interval_sec);
+
 //! Register for an alert when a metric crosses the given threshold. When the metric crosses this
 //! threshold (either goes above or below it), a \ref HealthEventMetricAlert event will be
 //! generated. To cancel this registration, pass the returned \ref HealthMetricAlert value to
@@ -1373,7 +1460,7 @@ uint16_t health_service_get_heart_rate_sample_period_expiration_sec(void);
 //! \endcode
 //!
 //! In the current implementation, only one alert per metric can be registered at a time. Future
-//! implementations may support two or more simulataneous alert registrations per metric. To change
+//! implementations may support two or more simultaneous alert registrations per metric. To change
 //! the alert threshold in the current implementation, cancel the original registration
 //! using `health_service_cancel_metric_alert` before registering the new threshold.
 //! @param metric Which \ref HealthMetric to query.
@@ -1387,12 +1474,17 @@ HealthMetricAlert *health_service_register_metric_alert(HealthMetric metric, Hea
 //! @return `true` on success, `false` on failure
 bool health_service_cancel_metric_alert(HealthMetricAlert *alert);
 
-//! Light level enum
+/** @brief Light level enum */
 typedef enum AmbientLightLevel {
+  /** No reading available. */
   AmbientLightLevelUnknown = 0,
+  /** Well below the dark threshold. */
   AmbientLightLevelVeryDark,
+  /** Below the dark threshold. */
   AmbientLightLevelDark,
+  /** At or slightly above the dark threshold. */
   AmbientLightLevelLight,
+  /** Well above the dark threshold. */
   AmbientLightLevelVeryLight,
 } AmbientLightLevel;
 
@@ -1404,15 +1496,15 @@ typedef enum AmbientLightLevel {
 //! The `vmc` value is a measure of the total amount of movement seen by the watch. More vigorous
 //! movement yields higher VMC values.
 typedef struct {
-  uint8_t steps;              //!< Number of steps taken in this minute.
-  uint8_t orientation;        //!< Quantized average orientation.
-  uint16_t vmc;               //!< Vector Magnitude Counts (vmc).
-  bool is_invalid: 1;         //!< `true` if the item doesn't represents actual data
-                              //!< and should be ignored.
-  AmbientLightLevel light: 3; //!< Instantaneous light level during this minute.
-  uint8_t padding: 4;
-  uint8_t heart_rate_bpm;     //!< heart rate in beats per minute
-  uint8_t reserved[6];        //!< Reserved for future use.
+  uint8_t steps;               //!< Number of steps taken in this minute.
+  uint8_t orientation;         //!< Quantized average orientation.
+  uint16_t vmc;                //!< Vector Magnitude Counts (vmc).
+  bool is_invalid : 1;         //!< `true` if the item doesn't represents actual data
+                               //!< and should be ignored.
+  AmbientLightLevel light : 3; //!< Instantaneous light level during this minute.
+  uint8_t padding : 4;
+  uint8_t heart_rate_bpm; //!< heart rate in beats per minute
+  uint8_t reserved[6];    //!< Reserved for future use.
 } HealthMinuteData;
 
 //! Return historical minute data records. This fills in the `minute_data` array parameter with
@@ -1521,13 +1613,13 @@ typedef enum {
 
 //! Enumerated values describing the possible outcomes of data logging operations
 typedef enum {
-  DATA_LOGGING_SUCCESS = 0, //!< Successful operation
-  DATA_LOGGING_BUSY, //!< Someone else is writing to this logging session
-  DATA_LOGGING_FULL, //!< No more space to save data
-  DATA_LOGGING_NOT_FOUND, //!< The logging session does not exist
-  DATA_LOGGING_CLOSED, //!< The logging session was made inactive
+  DATA_LOGGING_SUCCESS = 0,    //!< Successful operation
+  DATA_LOGGING_BUSY,           //!< Someone else is writing to this logging session
+  DATA_LOGGING_FULL,           //!< No more space to save data
+  DATA_LOGGING_NOT_FOUND,      //!< The logging session does not exist
+  DATA_LOGGING_CLOSED,         //!< The logging session was made inactive
   DATA_LOGGING_INVALID_PARAMS, //!< An invalid parameter was passed to one of the functions
-  DATA_LOGGING_INTERNAL_ERR //!< An internal error occurred
+  DATA_LOGGING_INTERNAL_ERR    //!< An internal error occurred
 } DataLoggingResult;
 
 //! Create a new data logging session.
@@ -1565,10 +1657,10 @@ void data_logging_finish(DataLoggingSessionRef logging_session);
 //! DATA_LOGGING_NOT_FOUND if the logging session is invalid
 //!
 //! @return
-//! DATA_LOGGING_CLOSED if the sesion is not active
+//! DATA_LOGGING_CLOSED if the session is not active
 //!
 //! @return
-//! DATA_LOGGING_BUSY if the sesion is not available for writing
+//! DATA_LOGGING_BUSY if the session is not available for writing
 //!
 //! @return
 //! DATA_LOGGING_INVALID_PARAMS if num_items is 0 or data is NULL
@@ -1583,53 +1675,84 @@ DataLoggingResult data_logging_log(DataLoggingSessionRef logging_session, const 
 //! @addtogroup UUID
 //! @{
 
+/** @brief A 128-bit UUID, with its bytes in the order they are written in string form. */
 typedef struct __attribute__((__packed__)) {
+  /** Byte 0. */
   uint8_t byte0;
+  /** Byte 1. */
   uint8_t byte1;
+  /** Byte 2. */
   uint8_t byte2;
+  /** Byte 3. */
   uint8_t byte3;
+  /** Byte 4. */
   uint8_t byte4;
+  /** Byte 5. */
   uint8_t byte5;
+  /** Byte 6. */
   uint8_t byte6;
+  /** Byte 7. */
   uint8_t byte7;
+  /** Byte 8. */
   uint8_t byte8;
+  /** Byte 9. */
   uint8_t byte9;
+  /** Byte 10. */
   uint8_t byte10;
+  /** Byte 11. */
   uint8_t byte11;
+  /** Byte 12. */
   uint8_t byte12;
+  /** Byte 13. */
   uint8_t byte13;
+  /** Byte 14. */
   uint8_t byte14;
+  /** Byte 15. */
   uint8_t byte15;
 } Uuid;
 
+//! Size of a UUID, in bytes.
 #define UUID_SIZE 16
 
 //! Make a Uuid object from sixteen bytes.
+//! @param p0,p1,p2,p3,p4,p5,p6,p7,p8,p9,p10,p11,p12,p13,p14,p15 Bytes, in string order.
 //! @return A Uuid structure representing the bytes p0 to p15.
-#define UuidMake(p0, p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12, p13, p14, p15) ((Uuid) {p0, p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12, p13, p14, p15})
+#define UuidMake(p0, p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12, p13, p14, p15) \
+  ((Uuid){p0, p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12, p13, p14, p15})
 
 //! Creates a Uuid from an array of bytes with 16 bytes in Big Endian order.
+//! @param b Array of 16 bytes.
 //! @return The created Uuid
-#define UuidMakeFromBEBytes(b) ((Uuid) { b[0], b[1], b[2], b[3], \
-                                         b[4], b[5], b[6], b[7], \
-                                         b[8], b[9], b[10], b[11], \
-                                         b[12], b[13], b[14], b[15] })
+#define UuidMakeFromBEBytes(b)                                                                     \
+  ((Uuid){                                                                                         \
+    b[0], b[1], b[2], b[3], b[4], b[5], b[6], b[7], b[8], b[9], b[10], b[11], b[12], b[13], b[14], \
+    b[15]                                                                                          \
+  })
 
 //! Creates a Uuid from an array of bytes with 16 bytes in Little Endian order.
+//! @param b Array of 16 bytes.
 //! @return The created Uuid
-#define UuidMakeFromLEBytes(b) ((Uuid) { b[15], b[14], b[13], b[12], \
-                                         b[11], b[10], b[9], b[8], \
-                                         b[7], b[6], b[5], b[4], \
-                                         b[3], b[2], b[1], b[0] })
+#define UuidMakeFromLEBytes(b)                                                                \
+  ((Uuid){                                                                                    \
+    b[15], b[14], b[13], b[12], b[11], b[10], b[9], b[8], b[7], b[6], b[5], b[4], b[3], b[2], \
+    b[1], b[0]                                                                                \
+  })
 
-//! Compares two UUIDs.
-//! @return True if the two UUIDs are equal, false if they are not.
+/**
+ * @brief Compares two UUIDs.
+ * @param uu1 First UUID.
+ * @param uu2 Second UUID.
+ * @return True if the two UUIDs are equal, false if they are not or either is NULL.
+ */
 bool uuid_equal(const Uuid *uu1, const Uuid *uu2);
 
-//! Writes UUID in a string form into buffer that looks like the following...
-//! {12345678-1234-5678-1234-567812345678} or {NULL UUID} if NULL was passed.
-//! @param uuid The Uuid to write into the buffer as human-readable string
-//! @param buffer Memory to write the string to. Must be at least \ref UUID_STRING_BUFFER_LENGTH bytes long.
+/**
+ * @brief Writes UUID in a string form into buffer that looks like the following...
+ * {12345678-1234-5678-1234-567812345678} or {NULL UUID} if NULL was passed.
+ * @param uuid The Uuid to write into the buffer as human-readable string
+ * @param[out] buffer Memory to write the string to. Must be at least @ref UUID_STRING_BUFFER_LENGTH
+ * bytes long.
+ */
 void uuid_to_string(const Uuid *uuid, char *buffer);
 
 //! The minimum required length of a string used to hold a uuid (including null).
@@ -1644,22 +1767,20 @@ void uuid_to_string(const Uuid *uuid, char *buffer);
 //!
 //! This module contains the functions necessary to log messages through
 //! Bluetooth.
-//! @note It is no longer necessary to enable app logging output from the "settings->about" menu on the Pebble for
-//! them to be transmitted!  Instead use the "pebble logs" command included with the SDK to activate logs.  The logs
-//! will appear right in your console. Logging
-//! over Bluetooth is a fairly power hungry operation that non-developers will
-//! not need when your apps are distributed.
+//! @note It is no longer necessary to enable app logging output from the "settings->about" menu on
+//! the Pebble for them to be transmitted!  Instead use the "pebble logs" command included with the
+//! SDK to activate logs.  The logs will appear right in your console. Logging over Bluetooth is a
+//! fairly power hungry operation that non-developers will not need when your apps are distributed.
 //! @{
 
-void app_log(uint8_t log_level, const char* src_filename, int src_line_number, const char* fmt,
+void app_log(uint8_t log_level, const char *src_filename, int src_line_number, const char *fmt,
              ...);
 
 //! A helper macro that simplifies the use of the app_log function
 //! @param level The log level to log output as
 //! @param fmt A C formatting string
 //! @param args The arguments for the formatting string
-#define APP_LOG(level, fmt, args...)                                \
-  app_log(level, __FILE_NAME__, __LINE__, fmt, ## args)
+#define APP_LOG(level, fmt, args...) app_log(level, __FILE_NAME__, __LINE__, fmt, ##args)
 
 //! Suggested log level values
 typedef enum {
@@ -1681,17 +1802,17 @@ typedef enum {
 //! \brief Data serialization utilities
 //!
 //!
-//! Data residing in different parts of Pebble memory (RAM) may need to be gathered and assembled into
-//! a single continuous block for transport over the network via Bluetooth. The process of gathering
-//! and assembling this continuous block of data is called serialization.
+//! Data residing in different parts of Pebble memory (RAM) may need to be gathered and assembled
+//! into a single continuous block for transport over the network via Bluetooth. The process of
+//! gathering and assembling this continuous block of data is called serialization.
 //!
-//! You use data serialization utilities, like Dictionary, Tuple and Tuplet data structures and accompanying
-//! functions, to accomplish this task. No transformations are performed on the actual data, however.
-//! These Pebble utilities simply help assemble the data into one continuous buffer according to a
-//! specific format.
+//! You use data serialization utilities, like Dictionary, Tuple and Tuplet data structures and
+//! accompanying functions, to accomplish this task. No transformations are performed on the actual
+//! data, however. These Pebble utilities simply help assemble the data into one continuous buffer
+//! according to a specific format.
 //!
-//! \ref AppMessage uses these utilities--in particular, Dictionary--to send information between mobile
-//! and Pebble watchapps.
+//! \ref AppMessage uses these utilities--in particular, Dictionary--to send information between
+//! mobile and Pebble watchapps.
 //!
 //! <h3>Writing key/value pairs</h3>
 //! To write two key/value pairs, without using Tuplets, you would do this:
@@ -1805,7 +1926,7 @@ typedef struct __attribute__((__packed__)) {
   //! The key
   uint32_t key;
   //! The type of data that the `.value` fields contains.
-  TupleType type:8;
+  TupleType type : 8;
   //! The length of `.value` in bytes
   uint16_t length;
   //! @brief The value itself.
@@ -1849,8 +1970,8 @@ typedef struct Dictionary Dictionary;
 //! An iterator can also be used to append key/value tuples to a dictionary,
 //! for example using \ref dict_write_data() or \ref dict_write_cstring().
 typedef struct {
-  Dictionary *dictionary;  //!< The dictionary being iterated
-  const void *end;  //!< Points to the first memory address after the last byte of the dictionary
+  Dictionary *dictionary; //!< The dictionary being iterated
+  const void *end; //!< Points to the first memory address after the last byte of the dictionary
   //! Points to the next Tuple in the dictionary. Given the end of the
   //! Dictionary has not yet been reached: when writing, the next key/value
   //! pair will be written at the cursor. When reading, the next call
@@ -1867,16 +1988,16 @@ typedef struct {
 //! The size of the header for each Tuple is 7 bytes.
 //! @param tuple_count The total number of key/value pairs in the dictionary.
 //! @param ... The sizes of each of the values that need to be
-//! stored in the dictionary.
+//! stored in the dictionary, as size_t (e.g. sizeof expressions).
 //! @return The total number of bytes of storage needed.
-uint32_t dict_calc_buffer_size(const uint8_t tuple_count, ...);
+uint32_t dict_calc_buffer_size(uint32_t tuple_count, ...);
 
 //! Calculates the size of data that has been written to the dictionary.
 //! AKA, the "dictionary size". Note that this is most likely different
 //! than the size of the backing storage/backing buffer.
 //! @param iter The dictionary iterator
 //! @return The total number of bytes which have been written to the dictionary.
-uint32_t dict_size(DictionaryIterator* iter);
+uint32_t dict_size(DictionaryIterator *iter);
 
 //! Initializes the dictionary iterator with a given buffer and size,
 //! resets and empties it, in preparation of writing key/value tuples.
@@ -1886,7 +2007,8 @@ uint32_t dict_size(DictionaryIterator* iter);
 //! @return \ref DICT_OK, \ref DICT_NOT_ENOUGH_STORAGE or \ref DICT_INVALID_ARGS
 //! @see dict_calc_buffer_size
 //! @see dict_write_end
-DictionaryResult dict_write_begin(DictionaryIterator *iter, uint8_t * const buffer, const uint16_t size);
+DictionaryResult dict_write_begin(DictionaryIterator *iter, uint8_t *const buffer,
+                                  const uint16_t size);
 
 //! Adds a key with a byte array value pair to the dictionary.
 //! @param iter The dictionary iterator
@@ -1896,7 +2018,8 @@ DictionaryResult dict_write_begin(DictionaryIterator *iter, uint8_t * const buff
 //! @return \ref DICT_OK, \ref DICT_NOT_ENOUGH_STORAGE or \ref DICT_INVALID_ARGS
 //! @note The data will be copied into the backing storage of the dictionary.
 //! @note There is _no_ checking for duplicate keys.
-DictionaryResult dict_write_data(DictionaryIterator *iter, const uint32_t key, const uint8_t * const data, const uint16_t size);
+DictionaryResult dict_write_data(DictionaryIterator *iter, const uint32_t key,
+                                 const uint8_t *const data, const uint16_t size);
 
 //! Adds a key with a C string value pair to the dictionary.
 //! @param iter The dictionary iterator
@@ -1905,7 +2028,8 @@ DictionaryResult dict_write_data(DictionaryIterator *iter, const uint32_t key, c
 //! @return \ref DICT_OK, \ref DICT_NOT_ENOUGH_STORAGE or \ref DICT_INVALID_ARGS
 //! @note The string will be copied into the backing storage of the dictionary.
 //! @note There is _no_ checking for duplicate keys.
-DictionaryResult dict_write_cstring(DictionaryIterator *iter, const uint32_t key, const char * const cstring);
+DictionaryResult dict_write_cstring(DictionaryIterator *iter, const uint32_t key,
+                                    const char *const cstring);
 
 //! Adds a key with an integer value pair to the dictionary.
 //! @param iter The dictionary iterator
@@ -1914,9 +2038,10 @@ DictionaryResult dict_write_cstring(DictionaryIterator *iter, const uint32_t key
 //! @param width_bytes The width of the integer value
 //! @param is_signed Whether the integer's type is signed or not
 //! @return \ref DICT_OK, \ref DICT_NOT_ENOUGH_STORAGE or \ref DICT_INVALID_ARGS
-//! @note There is _no_ checking for duplicate keys. dict_write_int() is only for serializing a single
-//! integer. width_bytes can only be 1, 2, or 4.
-DictionaryResult dict_write_int(DictionaryIterator *iter, const uint32_t key, const void *integer, const uint8_t width_bytes, const bool is_signed);
+//! @note There is _no_ checking for duplicate keys. dict_write_int() is only for serializing a
+//! single integer. width_bytes can only be 1, 2, or 4.
+DictionaryResult dict_write_int(DictionaryIterator *iter, const uint32_t key, const void *integer,
+                                const uint8_t width_bytes, const bool is_signed);
 
 //! Adds a key with an unsigned, 8-bit integer value pair to the dictionary.
 //! @param iter The dictionary iterator
@@ -1928,17 +2053,22 @@ DictionaryResult dict_write_int(DictionaryIterator *iter, const uint32_t key, co
 //! `dict_write_uint16()`, `dict_write_uint32()`, `dict_write_int8()`,
 //! `dict_write_int16()` and `dict_write_int32()`. The documentation is not
 //! repeated for brevity's sake.
-DictionaryResult dict_write_uint8(DictionaryIterator *iter, const uint32_t key, const uint8_t value);
+DictionaryResult dict_write_uint8(DictionaryIterator *iter, const uint32_t key,
+                                  const uint8_t value);
 
-DictionaryResult dict_write_uint16(DictionaryIterator *iter, const uint32_t key, const uint16_t value);
+DictionaryResult dict_write_uint16(DictionaryIterator *iter, const uint32_t key,
+                                   const uint16_t value);
 
-DictionaryResult dict_write_uint32(DictionaryIterator *iter, const uint32_t key, const uint32_t value);
+DictionaryResult dict_write_uint32(DictionaryIterator *iter, const uint32_t key,
+                                   const uint32_t value);
 
 DictionaryResult dict_write_int8(DictionaryIterator *iter, const uint32_t key, const int8_t value);
 
-DictionaryResult dict_write_int16(DictionaryIterator *iter, const uint32_t key, const int16_t value);
+DictionaryResult dict_write_int16(DictionaryIterator *iter, const uint32_t key,
+                                  const int16_t value);
 
-DictionaryResult dict_write_int32(DictionaryIterator *iter, const uint32_t key, const int32_t value);
+DictionaryResult dict_write_int32(DictionaryIterator *iter, const uint32_t key,
+                                  const int32_t value);
 
 //! End a series of writing operations to a dictionary.
 //! This must be called before reading back from the dictionary.
@@ -1951,18 +2081,23 @@ uint32_t dict_write_end(DictionaryIterator *iter);
 //! @param iter The dictionary iterator
 //! @param buffer The storage of the dictionary
 //! @param size The storage size of the dictionary
-//! @return The first tuple in the dictionary, or NULL in case the dictionary was empty or if there was a parsing error.
-Tuple * dict_read_begin_from_buffer(DictionaryIterator *iter, const uint8_t * const buffer, const uint16_t size);
+//! @return The first tuple in the dictionary, or NULL in case the dictionary was empty or if there
+//! was a parsing error.
+Tuple *dict_read_begin_from_buffer(DictionaryIterator *iter, const uint8_t *const buffer,
+                                   const uint16_t size);
 
 //! Progresses the iterator to the next key/value pair.
 //! @param iter The dictionary iterator
-//! @return The next tuple in the dictionary, or NULL in case the end has been reached or if there was a parsing error.
-Tuple * dict_read_next(DictionaryIterator *iter);
+//! @return The next tuple in the dictionary, or NULL in case the end has been reached or if there
+//! was a parsing error.
+Tuple *dict_read_next(DictionaryIterator *iter);
 
-//! Resets the iterator back to the same state as a call to \ref dict_read_begin_from_buffer() would do.
+//! Resets the iterator back to the same state as a call to \ref dict_read_begin_from_buffer() would
+//! do.
 //! @param iter The dictionary iterator
-//! @return The first tuple in the dictionary, or NULL in case the dictionary was empty or if there was a parsing error.
-Tuple * dict_read_first(DictionaryIterator *iter);
+//! @return The first tuple in the dictionary, or NULL in case the dictionary was empty or if there
+//! was a parsing error.
+Tuple *dict_read_first(DictionaryIterator *iter);
 
 //! Non-serialized, template data structure for a key/value pair.
 //! For strings and byte arrays, it only has a pointer to the actual data.
@@ -1972,7 +2107,7 @@ Tuple * dict_read_first(DictionaryIterator *iter);
 //! See also \ref Tuple, with is the header of a serialized key/value pair.
 typedef struct Tuplet {
   //! The type of the Tuplet. This determines which of the struct fields in the
-  //! anonymomous union are valid.
+  //! anonymous union are valid.
   TupleType type;
   //! The key.
   uint32_t key;
@@ -2009,62 +2144,84 @@ typedef struct Tuplet {
 //! @param _key The key
 //! @param _data Pointer to the bytes
 //! @param _length Length of the buffer
-#define TupletBytes(_key, _data, _length) \
-((const Tuplet) { .type = TUPLE_BYTE_ARRAY, .key = _key, .bytes = { .data = _data, .length = _length }})
+#define TupletBytes(_key, _data, _length)       \
+  ((const Tuplet){                              \
+    .type = TUPLE_BYTE_ARRAY,                   \
+    .key = _key,                                \
+    .bytes = {.data = _data, .length = _length} \
+  })
 
 //! Macro to create a Tuplet with a c-string value
 //! @param _key The key
 //! @param _cstring The c-string value
-#define TupletCString(_key, _cstring) \
-((const Tuplet) { .type = TUPLE_CSTRING, .key = _key, .cstring = { .data = _cstring, .length = _cstring ? strlen(_cstring) + 1 : 0 }})
+#define TupletCString(_key, _cstring)                                            \
+  ((const Tuplet){                                                               \
+    .type = TUPLE_CSTRING,                                                       \
+    .key = _key,                                                                 \
+    .cstring = {.data = _cstring, .length = _cstring ? strlen(_cstring) + 1 : 0} \
+  })
 
 //! Macro to create a Tuplet with an integer value
 //! @param _key The key
 //! @param _integer The integer value
-#define TupletInteger(_key, _integer) \
-((const Tuplet) { .type = IS_SIGNED(_integer) ? TUPLE_INT : TUPLE_UINT, .key = _key, .integer = { .storage = _integer, .width = sizeof(_integer) }})
+#define TupletInteger(_key, _integer)                           \
+  ((const Tuplet){                                              \
+    .type = IS_SIGNED(_integer) ? TUPLE_INT : TUPLE_UINT,       \
+    .key = _key,                                                \
+    .integer = {.storage = _integer, .width = sizeof(_integer)} \
+  })
 
 //! Callback for \ref dict_serialize_tuplets() utility.
 //! @param data The data of the serialized dictionary
 //! @param size The size of data
 //! @param context The context pointer as passed in to \ref dict_serialize_tuplets()
 //! @see dict_serialize_tuplets
-typedef void (*DictionarySerializeCallback)(const uint8_t * const data, const uint16_t size, void *context);
+typedef void (*DictionarySerializeCallback)(const uint8_t *const data, const uint16_t size,
+                                            void *context);
 
 //! Utility function that takes a list of Tuplets from which a dictionary
 //! will be serialized, ready to transmit or store.
 //! @note The callback will be called before the function returns, so the data that
 //! that `context` points to, can be stack allocated.
-//! @param callback The callback that will be called with the serialized data of the generated dictionary.
+//! @param callback The callback that will be called with the serialized data of the generated
+//! dictionary.
 //! @param context Pointer to any application specific data that gets passed into the callback.
 //! @param tuplets An array of Tuplets that need to be serialized into the dictionary.
 //! @param tuplets_count The number of tuplets that follow.
 //! @return \ref DICT_OK, \ref DICT_NOT_ENOUGH_STORAGE or \ref DICT_INVALID_ARGS
-DictionaryResult dict_serialize_tuplets(DictionarySerializeCallback callback, void *context, const Tuplet * const tuplets, const uint8_t tuplets_count);
+DictionaryResult dict_serialize_tuplets(DictionarySerializeCallback callback, void *context,
+                                        const Tuplet *const tuplets, const uint8_t tuplets_count);
 
 //! Utility function that takes an array of Tuplets and serializes them into
 //! a dictionary with a given buffer and size.
 //! @param tuplets The array of tuplets
 //! @param tuplets_count The number of tuplets in the array
 //! @param buffer The buffer in which to write the serialized dictionary
-//! @param [in,out] size_in_out In: the available buffer size in bytes. Out: the number of bytes written.
+//! @param [in,out] size_in_out In: the available buffer size in bytes. Out: the number of bytes
+//! written.
 //! @return \ref DICT_OK, \ref DICT_NOT_ENOUGH_STORAGE or \ref DICT_INVALID_ARGS
-DictionaryResult dict_serialize_tuplets_to_buffer(const Tuplet * const tuplets, const uint8_t tuplets_count, uint8_t *buffer, uint32_t *size_in_out);
+DictionaryResult dict_serialize_tuplets_to_buffer(const Tuplet *const tuplets,
+                                                  const uint8_t tuplets_count, uint8_t *buffer,
+                                                  uint32_t *size_in_out);
 
 //! Serializes an array of Tuplets into a dictionary with a given buffer and size.
 //! @param iter The dictionary iterator
 //! @param tuplets The array of tuplets
 //! @param tuplets_count The number of tuplets in the array
 //! @param buffer The buffer in which to write the serialized dictionary
-//! @param [in,out] size_in_out In: the available buffer size in bytes. Out: the number of bytes written.
+//! @param [in,out] size_in_out In: the available buffer size in bytes. Out: the number of bytes
+//! written.
 //! @return \ref DICT_OK, \ref DICT_NOT_ENOUGH_STORAGE or \ref DICT_INVALID_ARGS
-DictionaryResult dict_serialize_tuplets_to_buffer_with_iter(DictionaryIterator *iter, const Tuplet * const tuplets, const uint8_t tuplets_count, uint8_t *buffer, uint32_t *size_in_out);
+DictionaryResult dict_serialize_tuplets_to_buffer_with_iter(DictionaryIterator *iter,
+                                                            const Tuplet *const tuplets,
+                                                            const uint8_t tuplets_count,
+                                                            uint8_t *buffer, uint32_t *size_in_out);
 
 //! Serializes a Tuplet and writes the resulting Tuple into a dictionary.
 //! @param iter The dictionary iterator
 //! @param tuplet The Tuplet describing the key/value pair to write
 //! @return \ref DICT_OK, \ref DICT_NOT_ENOUGH_STORAGE or \ref DICT_INVALID_ARGS
-DictionaryResult dict_write_tuplet(DictionaryIterator *iter, const Tuplet * const tuplet);
+DictionaryResult dict_write_tuplet(DictionaryIterator *iter, const Tuplet *const tuplet);
 
 //! Calculates the number of bytes that a dictionary will occupy, given
 //! one or more Tuplets that need to be stored in the dictionary.
@@ -2073,37 +2230,42 @@ DictionaryResult dict_write_tuplet(DictionaryIterator *iter, const Tuplet * cons
 //! @param tuplets_count The total number of Tuplets that follow.
 //! @return The total number of bytes of storage needed.
 //! @see Tuplet
-uint32_t dict_calc_buffer_size_from_tuplets(const Tuplet * const tuplets, const uint8_t tuplets_count);
+uint32_t dict_calc_buffer_size_from_tuplets(const Tuplet *const tuplets,
+                                            const uint8_t tuplets_count);
 
 //! Type of the callback used in \ref dict_merge()
 //! @param key The key that is being updated.
-//! @param new_tuple The new tuple. The tuple points to the actual, updated destination dictionary or NULL_TUPLE
-//! in case there was an error (e.g. backing buffer was too small).
-//! Therefore the Tuple can be used after the callback returns, until the destination dictionary
-//! storage is free'd (by the application itself).
-//! @param old_tuple The values that will be replaced with `new_tuple`. The key, value and type will be
-//! equal to the previous tuple in the old destination dictionary, however the `old_tuple` points
+//! @param new_tuple The new tuple. The tuple points to the actual, updated destination dictionary
+//! or NULL_TUPLE in case there was an error (e.g. backing buffer was too small). Therefore the
+//! Tuple can be used after the callback returns, until the destination dictionary storage is free'd
+//! (by the application itself).
+//! @param old_tuple The values that will be replaced with `new_tuple`. The key, value and type will
+//! be equal to the previous tuple in the old destination dictionary, however the `old_tuple` points
 //! to a stack-allocated copy of the old data.
 //! @param context Pointer to application specific data
 //! The storage backing `old_tuple` can only be used during the callback and
 //! will no longer be valid after the callback returns.
 //! @see dict_merge
-typedef void (*DictionaryKeyUpdatedCallback)(const uint32_t key, const Tuple *new_tuple, const Tuple *old_tuple, void *context);
+typedef void (*DictionaryKeyUpdatedCallback)(const uint32_t key, const Tuple *new_tuple,
+                                             const Tuple *old_tuple, void *context);
 
 //! Merges entries from another "source" dictionary into a "destination" dictionary.
 //! All Tuples from the source are written into the destination dictionary, while
-//! updating the exsting Tuples with matching keys.
+//! updating the existing Tuples with matching keys.
 //! @param dest The destination dictionary to update
-//! @param [in,out] dest_max_size_in_out In: the maximum size of buffer backing `dest`. Out: the final size of the updated dictionary.
+//! @param [in,out] dest_max_size_in_out In: the maximum size of buffer backing `dest`. Out: the
+//! final size of the updated dictionary.
 //! @param source The source dictionary of which its Tuples will be used to update dest.
-//! @param update_existing_keys_only Specify True if only the existing keys in `dest` should be updated.
-//! @param key_callback The callback that will be called for each Tuple in the merged destination dictionary.
-//! @param context Pointer to app specific data that will get passed in when `update_key_callback` is called.
+//! @param update_existing_keys_only Specify True if only the existing keys in `dest` should be
+//! updated.
+//! @param key_callback The callback that will be called for each Tuple in the merged destination
+//! dictionary.
+//! @param context Pointer to app specific data that will get passed in when `update_key_callback`
+//! is called.
 //! @return \ref DICT_OK, \ref DICT_INVALID_ARGS, \ref DICT_NOT_ENOUGH_STORAGE
 DictionaryResult dict_merge(DictionaryIterator *dest, uint32_t *dest_max_size_in_out,
-                             DictionaryIterator *source,
-                             const bool update_existing_keys_only,
-                             const DictionaryKeyUpdatedCallback key_callback, void *context);
+                            DictionaryIterator *source, const bool update_existing_keys_only,
+                            const DictionaryKeyUpdatedCallback key_callback, void *context);
 
 //! Tries to find a Tuple with specified key in a dictionary
 //! @param iter Iterator to the dictionary to search in.
@@ -2225,73 +2387,80 @@ void dictation_session_enable_error_dialogs(DictationSession *session, bool is_e
 //! sets of key/value pairs. The key/value pairs are stored in the form of a Dictionary, the layout
 //! of which is left for the application developer to define.
 //!
-//! AppMessage implements a push-oriented messaging protocol, enabling your app to call functions and
-//! methods to push messages from Pebble to phone and vice versa. The protocol is symmetric: both Pebble
-//! and the phone can send messages. All messages are acknowledged. In this context, there is no
-//! client-server model, as such.
+//! AppMessage implements a push-oriented messaging protocol, enabling your app to call functions
+//! and methods to push messages from Pebble to phone and vice versa. The protocol is symmetric:
+//! both Pebble and the phone can send messages. All messages are acknowledged. In this context,
+//! there is no client-server model, as such.
 //!
-//! During the sending phase, one side initiates the communication by transferring a dictionary over the air.
-//! The other side then receives this message and is given an opportunity to perform actions on that data.
-//! As soon as possible, the other side is expected to reply to the message with a simple acknowledgment
-//! that the message was received successfully.
+//! During the sending phase, one side initiates the communication by transferring a dictionary over
+//! the air. The other side then receives this message and is given an opportunity to perform
+//! actions on that data. As soon as possible, the other side is expected to reply to the message
+//! with a simple acknowledgment that the message was received successfully.
 //!
-//! PebbleKit JavaScript provides you with a set of standard JavaScript APIs that let your app receive messages
-//! from the watch, make HTTP requests, and send new messages to the watch. AppMessage APIs are used to send and
-//! receive data. A Pebble watchapp can use the resources of the connected phone to fetch information from web services,
-//! send information to web APIs, or store login credentials. On the JavaScript side, you communicate
-//! with Pebble via a Pebble object exposed in the namespace.
+//! PebbleKit JavaScript provides you with a set of standard JavaScript APIs that let your app
+//! receive messages from the watch, make HTTP requests, and send new messages to the watch.
+//! AppMessage APIs are used to send and receive data. A Pebble watchapp can use the resources of
+//! the connected phone to fetch information from web services, send information to web APIs, or
+//! store login credentials. On the JavaScript side, you communicate with Pebble via a Pebble object
+//! exposed in the namespace.
 //!
 //! Messages always need to get either ACKnowledged or "NACK'ed," that is, not acknowledged.
-//! If not, messages will result in a time-out failure. The AppMessage subsystem takes care of this implicitly.
-//! In the phone libraries, this step is a bit more explicit.
+//! If not, messages will result in a time-out failure. The AppMessage subsystem takes care of this
+//! implicitly. In the phone libraries, this step is a bit more explicit.
 //!
 //! The Pebble watch interfaces make a distinction between the Inbox and the Outbox calls. The Inbox
-//! receives messages from the phone on the watch; the Outbox sends messages from the watch to the phone.
-//! These two buffers can be managed separately.
+//! receives messages from the phone on the watch; the Outbox sends messages from the watch to the
+//! phone. These two buffers can be managed separately.
 //!
 //! <h4>Warning</h4>
-//! A critical constraint of AppMessage is that messages are limited in size. An ingoing (outgoing) message
-//! larger than the inbox (outbox) will not be transmitted and will generate an error. You can choose your
-//! inbox and outbox size when you call app_message_open().
+//! A critical constraint of AppMessage is that messages are limited in size. An ingoing (outgoing)
+//! message larger than the inbox (outbox) will not be transmitted and will generate an error. You
+//! can choose your inbox and outbox size when you call app_message_open().
 //!
-//! Pebble SDK provides a static minimum guaranteed size (APP_MESSAGE_INBOX_SIZE_MINIMUM and APP_MESSAGE_OUTBOX_SIZE_MINIMUM).
-//! Requesting a buffer of the minimum guaranteed size (or smaller) is always guaranteed to succeed on all
-//! Pebbles in this SDK version or higher, and with every phone.
+//! Pebble SDK provides a static minimum guaranteed size (APP_MESSAGE_INBOX_SIZE_MINIMUM and
+//! APP_MESSAGE_OUTBOX_SIZE_MINIMUM). Requesting a buffer of the minimum guaranteed size (or
+//! smaller) is always guaranteed to succeed on all Pebbles in this SDK version or higher, and with
+//! every phone.
 //!
 //! In some context, Pebble might be able to provide your application with larger inbox/outbox.
-//! You can call app_message_inbox_size_maximum() and app_message_outbox_size_maximum() in your code to get
-//! the largest possible value you can use.
+//! You can call app_message_inbox_size_maximum() and app_message_outbox_size_maximum() in your code
+//! to get the largest possible value you can use.
 //!
 //! To always get the largest buffer available, follow this best practice:
 //!
 //! app_message_open(app_message_inbox_size_maximum(), app_message_outbox_size_maximum())
 //!
-//! AppMessage uses your application heap space. That means that the sizes you pick for the AppMessage
-//! inbox and outbox buffers are important in optimizing your app’s performance. The more you use for
-//! AppMessage, the less space you’ll have for the rest of your app.
+//! AppMessage uses your application heap space. That means that the sizes you pick for the
+//! AppMessage inbox and outbox buffers are important in optimizing your app’s performance. The more
+//! you use for AppMessage, the less space you’ll have for the rest of your app.
 //!
-//! To register callbacks, you should call app_message_register_inbox_received(), app_message_register_inbox_dropped(),
-//! app_message_register_outbox_sent(), app_message_register_outbox_failed().
+//! To register callbacks, you should call app_message_register_inbox_received(),
+//! app_message_register_inbox_dropped(), app_message_register_outbox_sent(),
+//! app_message_register_outbox_failed().
 //!
-//! Pebble recommends that you call them before app_message_open() to ensure you do not miss a message
-//! arriving between starting AppMessage and registering the callback. You can set a context that will be passed
-//! to all the callbacks with app_message_set_context().
+//! Pebble recommends that you call them before app_message_open() to ensure you do not miss a
+//! message arriving between starting AppMessage and registering the callback. You can set a context
+//! that will be passed to all the callbacks with app_message_set_context().
 //!
 //! In circumstances that may not be ideal, when using AppMessage several types of errors may occur.
 //! For example:
 //!
 //! * The send can’t start because the system state won't allow for a success. Several reasons
-//!  you're unable to perform a send: A send() is already occurring (only one is possible at a time) or Bluetooth
-//!  is not enabled or connected.
-//! * The send and receive occur, but the receiver can’t accept the message. For instance, there is no app
+//!  you're unable to perform a send: A send() is already occurring (only one is possible at a time)
+//!  or Bluetooth is not enabled or connected.
+//! * The send and receive occur, but the receiver can’t accept the message. For instance, there is
+//! no app
 //!   that receives such a message.
-//! * The send occurs, but the receiver either does not actually receive the message or can’t handle it
+//! * The send occurs, but the receiver either does not actually receive the message or can’t handle
+//! it
 //!   in a timely fashion.
-//! * In the case of a dropped message, the phone sends a message to the watchapp, while there is still
+//! * In the case of a dropped message, the phone sends a message to the watchapp, while there is
+//! still
 //!   an unprocessed message in the Inbox.
 //!
-//! Other errors are possible and described by AppMessageResult. A client of the AppMessage interface
-//! should use the result codes to be more robust in the face of communication problems either in the field or while debugging.
+//! Other errors are possible and described by AppMessageResult. A client of the AppMessage
+//! interface should use the result codes to be more robust in the face of communication problems
+//! either in the field or while debugging.
 //!
 //! Refer to the \htmlinclude app-phone-communication.html for a conceptual overview and code usage.
 //!
@@ -2354,16 +2523,18 @@ typedef enum {
 
 //! Open AppMessage to transfers.
 //!
-//! Use \ref dict_calc_buffer_size_from_tuplets() or \ref dict_calc_buffer_size() to estimate the size you need.
+//! Use \ref dict_calc_buffer_size_from_tuplets() or \ref dict_calc_buffer_size() to estimate the
+//! size you need.
 //!
 //! \param[in] size_inbound The required size for the Inbox buffer
 //! \param[in] size_outbound The required size for the Outbox buffer
 //!
 //! \return A result code such as \ref APP_MSG_OK or \ref APP_MSG_OUT_OF_MEMORY.
 //!
-//! \note It is recommended that if the Inbox will be used, that at least the Inbox callbacks should be registered
-//!   before this call.  Otherwise it is possible for an Inbox message to be NACK'ed without being seen by the
-//!   application.
+//! \note It is recommended that if the Inbox will be used, that at least the Inbox callbacks should
+//! be registered
+//!   before this call.  Otherwise it is possible for an Inbox message to be NACK'ed without being
+//!   seen by the application.
 //!
 AppMessageResult app_message_open(const uint32_t size_inbound, const uint32_t size_outbound);
 
@@ -2374,10 +2545,11 @@ void app_message_deregister_callbacks(void);
 //! Called after an incoming message is received.
 //!
 //! \param[in] iterator
-//!   The dictionary iterator to the received message.  Never NULL.  Note that the iterator cannot be modified or
-//!   saved off.  The library may need to re-use the buffered space where this message is supplied.  Returning from
-//!   the callback indicates to the library that the received message contents are no longer needed or have already
-//!   been externalized outside its buffering space and iterator.
+//!   The dictionary iterator to the received message.  Never NULL.  Note that the iterator cannot
+//!   be modified or saved off.  The library may need to re-use the buffered space where this
+//!   message is supplied.  Returning from the callback indicates to the library that the received
+//!   message contents are no longer needed or have already been externalized outside its buffering
+//!   space and iterator.
 //!
 //! \param[in] context
 //!   Pointer to application data as specified when registering the callback.
@@ -2394,16 +2566,17 @@ typedef void (*AppMessageInboxReceived)(DictionaryIterator *iterator, void *cont
 //!   Pointer to application data as specified when registering the callback.
 //!
 //! Note that you can call app_message_outbox_begin() from this handler to prepare a new message.
-//! This will invalidate the previous dictionary iterator; do not use it after calling app_message_outbox_begin().
+//! This will invalidate the previous dictionary iterator; do not use it after calling
+//! app_message_outbox_begin().
 //!
 typedef void (*AppMessageInboxDropped)(AppMessageResult reason, void *context);
 
 //! Called after an outbound message has been sent and the reply has been received.
 //!
 //! \param[in] iterator
-//!   The dictionary iterator to the sent message.  The iterator will be in the final state that was sent.  Note that
-//!   the iterator cannot be modified or saved off as the library will re-open the dictionary with dict_begin() after
-//!   this callback returns.
+//!   The dictionary iterator to the sent message.  The iterator will be in the final state that was
+//!   sent.  Note that the iterator cannot be modified or saved off as the library will re-open the
+//!   dictionary with dict_begin() after this callback returns.
 //!
 //! \param[in] context
 //!   Pointer to application data as specified when registering the callback.
@@ -2413,22 +2586,26 @@ typedef void (*AppMessageOutboxSent)(DictionaryIterator *iterator, void *context
 //! Called after an outbound message has not been sent successfully.
 //!
 //! \param[in] iterator
-//!   The dictionary iterator to the sent message.  The iterator will be in the final state that was sent.  Note that
-//!   the iterator cannot be modified or saved off as the library will re-open the dictionary with dict_begin() after
-//!   this callback returns.
+//!   The dictionary iterator to the sent message.  The iterator will be in the final state that was
+//!   sent.  Note that the iterator cannot be modified or saved off as the library will re-open the
+//!   dictionary with dict_begin() after this callback returns.
 //!
 //! \param[in] reason
-//!   The result of the operation.  Some possibilities for the value include \ref APP_MSG_SEND_TIMEOUT,
-//!   \ref APP_MSG_SEND_REJECTED, \ref APP_MSG_NOT_CONNECTED, \ref APP_MSG_APP_NOT_RUNNING, and the combination
+//!   The result of the operation.  Some possibilities for the value include \ref
+//!   APP_MSG_SEND_TIMEOUT,
+//!   \ref APP_MSG_SEND_REJECTED, \ref APP_MSG_NOT_CONNECTED, \ref APP_MSG_APP_NOT_RUNNING, and the
+//!   combination
 //!   `(APP_MSG_NOT_CONNECTED | APP_MSG_APP_NOT_RUNNING)`.
 //!
 //! \param context
 //!   Pointer to application data as specified when registering the callback.
 //!
 //! Note that you can call app_message_outbox_begin() from this handler to prepare a new message.
-//! This will invalidate the previous dictionary iterator; do not use it after calling app_message_outbox_begin().
+//! This will invalidate the previous dictionary iterator; do not use it after calling
+//! app_message_outbox_begin().
 //!
-typedef void (*AppMessageOutboxFailed)(DictionaryIterator *iterator, AppMessageResult reason, void *context);
+typedef void (*AppMessageOutboxFailed)(DictionaryIterator *iterator, AppMessageResult reason,
+                                       void *context);
 
 //! Gets the context that will be passed to all AppMessage callbacks.
 //!
@@ -2446,55 +2623,61 @@ void *app_message_set_context(void *context);
 
 //! Registers a function that will be called after any Inbox message is received successfully.
 //!
-//! Only one callback may be registered at a time.  Each subsequent call to this function will replace the previous
-//! callback.  The callback is optional; setting it to NULL will deregister the current callback and no function will
-//! be called anymore.
+//! Only one callback may be registered at a time.  Each subsequent call to this function will
+//! replace the previous callback.  The callback is optional; setting it to NULL will deregister the
+//! current callback and no function will be called anymore.
 //!
-//! \param[in] received_callback The callback that will be called going forward; NULL to not have a callback.
+//! \param[in] received_callback The callback that will be called going forward; NULL to not have a
+//! callback.
 //!
 //! \return The previous callback (or NULL) that was on record.
 //!
-AppMessageInboxReceived app_message_register_inbox_received(AppMessageInboxReceived received_callback);
+AppMessageInboxReceived app_message_register_inbox_received(
+    AppMessageInboxReceived received_callback);
 
-//! Registers a function that will be called after any Inbox message is received but dropped by the system.
+//! Registers a function that will be called after any Inbox message is received but dropped by the
+//! system.
 //!
-//! Only one callback may be registered at a time.  Each subsequent call to this function will replace the previous
-//! callback.  The callback is optional; setting it to NULL will deregister the current callback and no function will
-//! be called anymore.
+//! Only one callback may be registered at a time.  Each subsequent call to this function will
+//! replace the previous callback.  The callback is optional; setting it to NULL will deregister the
+//! current callback and no function will be called anymore.
 //!
-//! \param[in] dropped_callback The callback that will be called going forward; NULL to not have a callback.
+//! \param[in] dropped_callback The callback that will be called going forward; NULL to not have a
+//! callback.
 //!
 //! \return The previous callback (or NULL) that was on record.
 //!
 AppMessageInboxDropped app_message_register_inbox_dropped(AppMessageInboxDropped dropped_callback);
 
-//! Registers a function that will be called after any Outbox message is sent and an ACK reply occurs in a timely
-//! fashion.
+//! Registers a function that will be called after any Outbox message is sent and an ACK reply
+//! occurs in a timely fashion.
 //!
-//! Only one callback may be registered at a time.  Each subsequent call to this function will replace the previous
-//! callback.  The callback is optional; setting it to NULL will deregister the current callback and no function will
-//! be called anymore.
+//! Only one callback may be registered at a time.  Each subsequent call to this function will
+//! replace the previous callback.  The callback is optional; setting it to NULL will deregister the
+//! current callback and no function will be called anymore.
 //!
-//! \param[in] sent_callback The callback that will be called going forward; NULL to not have a callback.
+//! \param[in] sent_callback The callback that will be called going forward; NULL to not have a
+//! callback.
 //!
 //! \return The previous callback (or NULL) that was on record.
 //!
 AppMessageOutboxSent app_message_register_outbox_sent(AppMessageOutboxSent sent_callback);
 
-//! Registers a function that will be called after any Outbox message is not sent with a timely ACK reply.
-//! The call to \ref app_message_outbox_send() must have succeeded.
+//! Registers a function that will be called after any Outbox message is not sent with a timely ACK
+//! reply. The call to \ref app_message_outbox_send() must have succeeded.
 //!
-//! Only one callback may be registered at a time.  Each subsequent call to this function will replace the previous
-//! callback.  The callback is optional; setting it to NULL will deregister the current callback and no function will
-//! be called anymore.
+//! Only one callback may be registered at a time.  Each subsequent call to this function will
+//! replace the previous callback.  The callback is optional; setting it to NULL will deregister the
+//! current callback and no function will be called anymore.
 //!
-//! \param[in] failed_callback The callback that will be called going forward; NULL to not have a callback.
+//! \param[in] failed_callback The callback that will be called going forward; NULL to not have a
+//! callback.
 //!
 //! \return The previous callback (or NULL) that was on record.
 //!
 AppMessageOutboxFailed app_message_register_outbox_failed(AppMessageOutboxFailed failed_callback);
 
-//! Programatically determine the inbox size maximum in the current configuration.
+//! Programmatically determine the inbox size maximum in the current configuration.
 //!
 //! \return The inbox size maximum on this firmware.
 //!
@@ -2503,7 +2686,7 @@ AppMessageOutboxFailed app_message_register_outbox_failed(AppMessageOutboxFailed
 //!
 uint32_t app_message_inbox_size_maximum(void);
 
-//! Programatically determine the outbox size maximum in the current configuration.
+//! Programmatically determine the outbox size maximum in the current configuration.
 //!
 //! \return The outbox size maximum on this firmware.
 //!
@@ -2514,12 +2697,15 @@ uint32_t app_message_outbox_size_maximum(void);
 
 //! Begin writing to the Outbox's Dictionary buffer.
 //!
-//! \param[out] iterator Location to write the DictionaryIterator pointer.  This will be NULL on failure.
+//! \param[out] iterator Location to write the DictionaryIterator pointer.  This will be NULL on
+//! failure.
 //!
-//! \return A result code, including but not limited to \ref APP_MSG_OK, \ref APP_MSG_INVALID_ARGS or
+//! \return A result code, including but not limited to \ref APP_MSG_OK, \ref APP_MSG_INVALID_ARGS
+//! or
 //!   \ref APP_MSG_BUSY.
 //!
-//! \note After a successful call, one can add values to the dictionary using functions like \ref dict_write_data()
+//! \note After a successful call, one can add values to the dictionary using functions like \ref
+//! dict_write_data()
 //!   and friends.
 //!
 //! \sa Dictionary
@@ -2528,23 +2714,27 @@ AppMessageResult app_message_outbox_begin(DictionaryIterator **iterator);
 
 //! Sends the outbound dictionary.
 //!
-//! \return A result code, including but not limited to \ref APP_MSG_OK or \ref APP_MSG_BUSY.  The APP_MSG_OK code does
-//!         not mean that the message was sent successfully, but only that the start of processing was successful.
-//!         Since this call is asynchronous, callbacks provide the final result instead.
+//! \return A result code, including but not limited to \ref APP_MSG_OK or \ref APP_MSG_BUSY.  The
+//! APP_MSG_OK code does
+//!         not mean that the message was sent successfully, but only that the start of processing
+//!         was successful. Since this call is asynchronous, callbacks provide the final result
+//!         instead.
 //!
 //! \sa AppMessageOutboxSent
 //! \sa AppMessageOutboxFailed
 //!
 AppMessageResult app_message_outbox_send(void);
 
-//! As long as the firmware maintains its current major version, inboxes of this size or smaller will be allowed.
+//! As long as the firmware maintains its current major version, inboxes of this size or smaller
+//! will be allowed.
 //!
 //! \sa app_message_inbox_size_maximum()
 //! \sa APP_MESSAGE_OUTBOX_SIZE_MINIMUM
 //!
 #define APP_MESSAGE_INBOX_SIZE_MINIMUM 124
 
-//! As long as the firmware maintains its current major version, outboxes of this size or smaller will be allowed.
+//! As long as the firmware maintains its current major version, outboxes of this size or smaller
+//! will be allowed.
 //!
 //! \sa app_message_outbox_size_maximum()
 //! \sa APP_MESSAGE_INBOX_SIZE_MINIMUM
@@ -2654,7 +2844,7 @@ typedef struct AppSync {
 //! accepted by AppSync, updates for other keys that might come in will just be
 //! ignored.
 void app_sync_init(struct AppSync *s, uint8_t *buffer, const uint16_t buffer_size,
-                   const Tuplet * const keys_and_initial_values, const uint8_t count,
+                   const Tuplet *const keys_and_initial_values, const uint8_t count,
                    AppSyncTupleChangedCallback tuple_changed_callback,
                    AppSyncErrorCallback error_callback, void *context);
 
@@ -2677,7 +2867,7 @@ void app_sync_deinit(struct AppSync *s);
 //! @param count The number of Tuplets in the `keys_and_values_to_update` array.
 //! @return The result code from the \ref AppMessage subsystem.
 //! Can be \ref APP_MSG_OK, \ref APP_MSG_BUSY or \ref APP_MSG_INVALID_ARGS
-AppMessageResult app_sync_set(struct AppSync *s, const Tuplet * const keys_and_values_to_update,
+AppMessageResult app_sync_set(struct AppSync *s, const Tuplet *const keys_and_values_to_update,
                               const uint8_t count);
 
 //! Finds and gets a tuple in the "current" dictionary.
@@ -2685,7 +2875,7 @@ AppMessageResult app_sync_set(struct AppSync *s, const Tuplet * const keys_and_v
 //! @param key The key for which to find a Tuple
 //! @return Pointer to a found Tuple, or NULL if there was no Tuple with the
 //! specified key.
-const Tuple * app_sync_get(const struct AppSync *s, const uint32_t key);
+const Tuple *app_sync_get(const struct AppSync *s, const uint32_t key);
 
 //! @} // group AppSync
 
@@ -2769,7 +2959,7 @@ const Tuple * app_sync_get(const struct AppSync *s, const uint32_t key);
 //!   (width by height) and the first bit of image data is the pixel at (0, 0),
 //!   then the bounds.size would be `GSize(29, 5)` and bounds.origin would be `GPoint(0, 0)`.
 //!   ![](gbitmap.png)
-//!   In the illustration each pixel is a representated as a square. The white
+//!   In the illustration each pixel is a represented as a square. The white
 //!   squares are the bits that are used, the gray squares are the padding bits, because
 //!   each row of image data has to be a multiple of 4 bytes (32 bits).
 //!   The numbers in the column in the left are the offsets (in bytes) from the `*addr`
@@ -2780,11 +2970,12 @@ const Tuple * app_sync_get(const struct AppSync *s, const uint32_t key);
 //!   ![](pixel_bit_values.png)
 //!
 //! - \ref GBitmapFormat8Bit "GBitmapFormat8Bit":
-//!   Each pixel in the bitmap is represented by 1 byte. The color value of that byte correspends to
+//!   Each pixel in the bitmap is represented by 1 byte. The color value of that byte corresponds to
 //!   a GColor.argb value.
 //!   There is no restriction on row_size_bytes / stride.
 //!
-//! - \ref GBitmapFormat1BitPalette, \ref GBitmapFormat2BitPalette, \ref GBitmapFormat4BitPalette "GBitmapFormat4BitPalette":
+//! - \ref GBitmapFormat1BitPalette, \ref GBitmapFormat2BitPalette, \ref GBitmapFormat4BitPalette
+//! "GBitmapFormat4BitPalette":
 //!   Each pixel in the bitmap is represented by the number of bits the format specifies. Pixels
 //!   must be packed.
 //!   For example, in GBitmapFormat2BitPalette, each pixel uses 2 bits. This means 4 pixels / byte.
@@ -2813,7 +3004,7 @@ const Tuple * app_sync_get(const struct AppSync *s, const uint32_t key);
 
 //! Opaque reference to a resource.
 //! @see @c resource_get_handle()
-typedef void * ResHandle;
+typedef void *ResHandle;
 
 #define RESOURCE_ID_FONT_FALLBACK RESOURCE_ID_GOTHIC_14
 
@@ -2862,8 +3053,8 @@ size_t resource_load(ResHandle h, uint8_t *buffer, size_t max_length);
 //! @param buffer The buffer to load the resource data into
 //! @param num_bytes The maximum number of bytes to copy
 //! @return The number of bytes actually copied
-size_t resource_load_byte_range(
-    ResHandle h, uint32_t start_offset, uint8_t *buffer, size_t num_bytes);
+size_t resource_load_byte_range(ResHandle h, uint32_t start_offset, uint8_t *buffer,
+                                       size_t num_bytes);
 
 //! @} // group Resources
 
@@ -2884,24 +3075,24 @@ void app_event_loop(void);
 //! usage, slot/chunk/stack statistics) via app_log. Logging is only active when
 //! a Bluetooth log listener is connected; otherwise this flag has no effect.
 //! @see ModdableCreationRecord
-#define kModdableCreationFlagLogInstrumentation  (1 << 0)
+#define kModdableCreationFlagLogInstrumentation (1 << 0)
 
 //! Flag to enable XS debugging using xsbug.
 //! Should be used in combination with pebble build --debug
 //! @see ModdableCreationRecord
-#define kModdableCreationFlagDebug  (1 << 1)
+#define kModdableCreationFlagDebug (1 << 1)
 
 //! Configuration record for creating a Moddable XS virtual machine.
 //! Used with moddable_createMachine() to customize the JS runtime.
 //! Set recordSize to sizeof(ModdableCreationRecord) for version compatibility.
 typedef struct {
-	uint32_t		recordSize;	//!< Size of this struct in bytes (for versioning)
+  uint32_t recordSize; //!< Size of this struct in bytes (for versioning)
 
-	uint32_t		stack;		//!< Stack size in bytes (0 for default)
-	uint32_t		slot;		//!< Slot heap size in bytes (0 for default)
-	uint32_t		chunk;		//!< Chunk heap size in bytes (0 for default)
-	uint32_t		flags;		//!< Combination of kModdableCreationFlag* values
-	void			*fxBuildFFI; //!< Optional pointer to an fxBuildFFI function for custom native bindings
+  uint32_t stack;   //!< Stack size in bytes (0 for default)
+  uint32_t slot;    //!< Slot heap size in bytes (0 for default)
+  uint32_t chunk;   //!< Chunk heap size in bytes (0 for default)
+  uint32_t flags;   //!< Combination of kModdableCreationFlag* values
+  void *fxBuildFFI; //!< Optional pointer to an fxBuildFFI function for custom native bindings
 } ModdableCreationRecord;
 
 //! Create and start a Moddable XS virtual machine for an Alloy app.
@@ -2918,7 +3109,7 @@ void moddable_createMachine(ModdableCreationRecord *creation);
 //! Possible error codes from app_worker_launch, app_worker_kill
 typedef enum {
   //! Success
-  APP_WORKER_RESULT_SUCCESS= 0,
+  APP_WORKER_RESULT_SUCCESS = 0,
   //! No worker found for the current app
   APP_WORKER_RESULT_NO_WORKER = 1,
   //! A worker for a different app is already running
@@ -2942,8 +3133,8 @@ typedef struct {
 //! @return true if running
 bool app_worker_is_running(void);
 
-//! Launch the worker for the current app. Note that this is an asynchronous operation, a result code
-//! of APP_WORKER_RESULT_SUCCESS merely means that the request was successfully queued up.
+//! Launch the worker for the current app. Note that this is an asynchronous operation, a result
+//! code of APP_WORKER_RESULT_SUCCESS merely means that the request was successfully queued up.
 //! @return result code
 AppWorkerResult app_worker_launch(void);
 
@@ -2954,16 +3145,18 @@ AppWorkerResult app_worker_kill(void);
 
 //! Callback type for worker messages. Messages can be sent from worker to app or vice versa.
 //! @param type An application defined message type
-//! @param data pointer to message data. The receiver must know the structure of the data provided by the sender.
+//! @param data pointer to message data. The receiver must know the structure of the data provided
+//! by the sender.
 typedef void (*AppWorkerMessageHandler)(uint16_t type, AppWorkerMessage *data);
 
-//! Subscribe to worker messages. Once subscribed, the handler gets called on every message emitted by the other task
-//! (either worker or app).
+//! Subscribe to worker messages. Once subscribed, the handler gets called on every message emitted
+//! by the other task (either worker or app).
 //! @param handler A callback to be executed when the event is received
 //! @return true on success
 bool app_worker_message_subscribe(AppWorkerMessageHandler handler);
 
-//! Unsubscribe from worker messages. Once unsubscribed, the previously registered handler will no longer be called.
+//! Unsubscribe from worker messages. Once unsubscribed, the previously registered handler will no
+//! longer be called.
 //! @return true on success
 bool app_worker_message_unsubscribe(void);
 
@@ -3025,16 +3218,17 @@ void psleep(int millis);
 struct AppTimer;
 typedef struct AppTimer AppTimer;
 
-//! The type of function which can be called when a timer fires.  The argument will be the @p callback_data passed to
+//! The type of function which can be called when a timer fires.  The argument will be the @p
+//! callback_data passed to
 //! @ref app_timer_register().
-typedef void (*AppTimerCallback)(void* data);
+typedef void (*AppTimerCallback)(void *data);
 
 //! Registers a timer that ends up in callback being called some specified time in the future.
 //! @param timeout_ms The expiry time in milliseconds from the current time
 //! @param callback The callback that gets called at expiry time
 //! @param callback_data The data that will be passed to callback
 //! @return A pointer to an `AppTimer` that can be used to later reschedule or cancel this timer
-AppTimer* app_timer_register(uint32_t timeout_ms, AppTimerCallback callback, void* callback_data);
+AppTimer *app_timer_register(uint32_t timeout_ms, AppTimerCallback callback, void *callback_data);
 
 //! Reschedules an already running timer for some point in the future.
 //! Elapsed timers cannot be rescheduled.
@@ -3081,16 +3275,16 @@ void memory_cache_flush(void *start, size_t size);
 //! like saving user settings, caching data from the phone app, or counting high scores for
 //! Pebble watchapp games.
 //!
-//! In Pebble OS, storage is defined by a collection of fields that you can create, modify or delete.
-//! In the API, a field is specified as a key with a corresponding value.
+//! In Pebble OS, storage is defined by a collection of fields that you can create, modify or
+//! delete. In the API, a field is specified as a key with a corresponding value.
 //!
 //! Using the Storage API, every app is able to get its own persistent storage space. Each value
 //! in that space is associated with a uint32_t key.
 //!
 //! Storage supports saving integers, strings and byte arrays. The maximum size of byte arrays and
-//! strings is defined by PERSIST_DATA_MAX_LENGTH (currently set to 256 bytes). You call the function
-//! persist_exists(key), which returns a boolean indicating if the key exists or not.
-//! The Storage API enables your app to save its state, and when compared to using \ref AppMessage to
+//! strings is defined by PERSIST_DATA_MAX_LENGTH (currently set to 256 bytes). You call the
+//! function persist_exists(key), which returns a boolean indicating if the key exists or not. The
+//! Storage API enables your app to save its state, and when compared to using \ref AppMessage to
 //! retrieve values from the phone, it provides you with a much faster way to restore state.
 //! In addition, it draws less power from the battery.
 //!
@@ -3241,7 +3435,8 @@ int persist_write_string(const uint32_t key, const char *cstring);
 
 //! Deletes the value of a key from persistent storage.
 //! @param key The key of the field to delete from.
-//! @return S_TRUE if successful, E_DOES_NOT_EXIST if a value was not set, or another error value from \ref StatusCode.
+//! @return S_TRUE if successful, E_DOES_NOT_EXIST if a value was not set, or another error value
+//! from \ref StatusCode.
 status_t persist_delete(const uint32_t key);
 
 //! @} // group Storage
@@ -3250,27 +3445,28 @@ status_t persist_delete(const uint32_t key);
 //!   \brief Allows applications to schedule to be launched even if they are not running.
 //! @{
 
-//! WakeupId is an identifier for a wakeup event
+/** @brief WakeupId is an identifier for a wakeup event */
 typedef int32_t WakeupId;
 
-//! The type of function which can be called when a wakeup event occurs.  
-//! The arguments will be the id of the wakeup event that occurred, 
+//! The type of function which can be called when a wakeup event occurs.
+//! The arguments will be the id of the wakeup event that occurred,
 //! as well as the scheduled cookie provided to @c wakeup_schedule.
 typedef void (*WakeupHandler)(WakeupId wakeup_id, int32_t cookie);
 
 //! Registers a WakeupHandler to be called when wakeup events occur.
 //! @note The handler is only called for wakeup events which occur while the app is already running;
-//!       use @c launch_reason() === \ref APP_LAUNCH_WAKEUP to detect when the app was launched by a wakeup event.
+//!       use @c launch_reason() === \ref APP_LAUNCH_WAKEUP to detect when the app was launched by a
+//!       wakeup event.
 //! @param handler The callback that gets called when the wakeup event occurs
 void wakeup_service_subscribe(WakeupHandler handler);
 
 //! Registers a wakeup event that triggers a callback at the specified time.
 //! Applications may only schedule up to 8 wakeup events.
-//! Wakeup events are given a 1 minute duration window, in that no application may schedule a 
+//! Wakeup events are given a 1 minute duration window, in that no application may schedule a
 //! wakeup event with 1 minute of a currently scheduled wakeup event.
 //! @param timestamp The requested time (UTC) for the wakeup event to occur
 //! @param cookie The application specific reason for the wakeup event
-//! @param notify_if_missed On powering on Pebble, will alert user when 
+//! @param notify_if_missed On powering on Pebble, will alert user when
 //! notifications were missed due to Pebble being off.
 //! @return negative values indicate errors (StatusCode)
 //! E_RANGE if the event cannot be scheduled due to another event in that period.
@@ -3322,23 +3518,23 @@ bool wakeup_query(WakeupId wakeup_id, time_t *timestamp);
 //! is recommended to only handle the cases that the app needs to know about,
 //! rather than trying to handle all possible launch reasons.
 typedef enum {
-  APP_LAUNCH_SYSTEM = 0,  //!< App launched by the system
-  APP_LAUNCH_USER,        //!< App launched by user selection in launcher menu
-  APP_LAUNCH_PHONE,       //!< App launched by mobile or companion app
-  APP_LAUNCH_WAKEUP,      //!< App launched by wakeup event
-  APP_LAUNCH_WORKER,      //!< App launched by worker calling worker_launch_app()
-  APP_LAUNCH_QUICK_LAUNCH, //!< App launched by user using quick launch
-  APP_LAUNCH_TIMELINE_ACTION,  //!< App launched by user opening it from a pin
-  APP_LAUNCH_SMARTSTRAP,  //!< App launched by a smartstrap
+  APP_LAUNCH_SYSTEM = 0,      //!< App launched by the system
+  APP_LAUNCH_USER,            //!< App launched by user selection in launcher menu
+  APP_LAUNCH_PHONE,           //!< App launched by mobile or companion app
+  APP_LAUNCH_WAKEUP,          //!< App launched by wakeup event
+  APP_LAUNCH_WORKER,          //!< App launched by worker calling worker_launch_app()
+  APP_LAUNCH_QUICK_LAUNCH,    //!< App launched by user using quick launch
+  APP_LAUNCH_TIMELINE_ACTION, //!< App launched by user opening it from a pin
+  APP_LAUNCH_SMARTSTRAP,      //!< App launched by a smartstrap
 } AppLaunchReason;
 
 //! Details about how an app was quick launched.
 //! Returned by \ref app_launch_get_quick_launch_action.
 typedef enum {
-  APP_QUICK_LAUNCH_ACTION_NONE = 0,   //!< App was not launched via Quick Launch
-  APP_QUICK_LAUNCH_ACTION_HOLD,       //!< User held a single button
-  APP_QUICK_LAUNCH_ACTION_TAP,        //!< User tapped a button (single click)
-  APP_QUICK_LAUNCH_ACTION_COMBO,      //!< User held a button combination
+  APP_QUICK_LAUNCH_ACTION_NONE = 0, //!< App was not launched via Quick Launch
+  APP_QUICK_LAUNCH_ACTION_HOLD,     //!< User held a single button
+  APP_QUICK_LAUNCH_ACTION_TAP,      //!< User tapped a button (single click)
+  APP_QUICK_LAUNCH_ACTION_COMBO,    //!< User held a button combination
 } AppQuickLaunchAction;
 
 //! Provides the method used to launch the current application.
@@ -3375,10 +3571,10 @@ AppQuickLaunchAction launch_get_quick_launch_action(void);
 //! AppExitReason is used to notify the system of the reason of an application exiting, which may
 //! affect the part of the system UI that is presented after the application terminates.
 typedef enum AppExitReason {
-  APP_EXIT_NOT_SPECIFIED = 0,                    //!< Exit reason not specified
-  APP_EXIT_ACTION_PERFORMED_SUCCESSFULLY,        //!< Application performed an action when it exited
+  APP_EXIT_NOT_SPECIFIED = 0,             //!< Exit reason not specified
+  APP_EXIT_ACTION_PERFORMED_SUCCESSFULLY, //!< Application performed an action when it exited
 
-  NUM_EXIT_REASONS                               //!< Number of AppExitReason options
+  NUM_EXIT_REASONS //!< Number of AppExitReason options
 } AppExitReason;
 
 //! Set the app exit reason to a new reason.
@@ -3395,8 +3591,8 @@ void exit_reason_set(AppExitReason exit_reason);
 //!   For example, the app might use it to display a preview of its current state
 //!   such as the currently playing song or the number of pending notifications.
 //!
-//!   The glance is loaded with a stack of \ref AppGlanceSlice structs; only the latest slice is shown,
-//!   and they are set to expire at a certain time to show the next slice in the stack.
+//!   The glance is loaded with a stack of \ref AppGlanceSlice structs; only the latest slice is
+//!   shown, and they are set to expire at a certain time to show the next slice in the stack.
 //!
 //!   To update the glance with a stack of slices, you must define an
 //!   \ref AppGlanceReloadCallback and give it to \ref app_glance_reload.
@@ -3410,7 +3606,8 @@ void exit_reason_set(AppExitReason exit_reason);
 //!   Example code:
 //!   \code{.c}
 //!   #if !PBL_PLATFORM_APLITE
-//!   static void glance_reload_callback(AppGlanceReloadSession *session, size_t limit, void *context) {
+//!   static void glance_reload_callback(AppGlanceReloadSession *session, size_t limit, void
+//!   *context) {
 //!     AppGlanceSlice slice = {
 //!       .expiration_time = APP_GLANCE_SLICE_NO_EXPIRATION,
 //!       .layout.icon = APP_GLANCE_SLICE_DEFAULT_ICON,
@@ -3444,12 +3641,12 @@ typedef uint32_t PublishedId;
 
 //! Describes how the slice should be visualized in the app's glance in the launcher.
 typedef struct AppGlanceSliceLayout {
-    //! The published resource ID of the bitmap icon to display in the app's glance. Use \ref
-    //! APP_GLANCE_SLICE_DEFAULT_ICON to use the app's default bitmap icon.
-    PublishedId icon;
-    //! A template string to visualize in the app's glance. The string will be copied, so it is safe
-    //! to destroy after adding the slice to the glance. Use NULL if no string should be displayed.
-    const char *subtitle_template_string;
+  //! The published resource ID of the bitmap icon to display in the app's glance. Use \ref
+  //! APP_GLANCE_SLICE_DEFAULT_ICON to use the app's default bitmap icon.
+  PublishedId icon;
+  //! A template string to visualize in the app's glance. The string will be copied, so it is safe
+  //! to destroy after adding the slice to the glance. Use NULL if no string should be displayed.
+  const char *subtitle_template_string;
 } AppGlanceSliceLayout;
 
 //! An app's glance can change over time as defined by zero or more app glance slices that each
@@ -3520,10 +3717,10 @@ void app_glance_reload(AppGlanceReloadCallback callback, void *context);
 typedef union GColor8 {
   uint8_t argb;
   struct {
-    uint8_t b:2; //!< Blue
-    uint8_t g:2; //!< Green
-    uint8_t r:2; //!< Red
-    uint8_t a:2; //!< Alpha. 3 = 100% opaque, 2 = 66% opaque, 1 = 33% opaque, 0 = transparent.
+    uint8_t b : 2; //!< Blue
+    uint8_t g : 2; //!< Green
+    uint8_t r : 2; //!< Red
+    uint8_t a : 2; //!< Alpha. 3 = 100% opaque, 2 = 66% opaque, 1 = 33% opaque, 0 = transparent.
   };
 } GColor8;
 
@@ -3582,7 +3779,7 @@ typedef struct GPoint {
 //! @param point_a Pointer to the first point
 //! @param point_b Pointer to the second point
 //! @return `true` if both points are equal, `false` if not.
-bool gpoint_equal(const GPoint * const point_a, const GPoint * const point_b);
+bool gpoint_equal(const GPoint *const point_a, const GPoint *const point_b);
 
 //! Represents a 2-dimensional size.
 typedef struct GSize {
@@ -3623,14 +3820,14 @@ typedef struct GRect {
 //! @param rect_a Pointer to the first rectangle
 //! @param rect_b Pointer to the second rectangle
 //! @return `true` if both rectangles are equal, `false` if not.
-bool grect_equal(const GRect* const rect_a, const GRect* const rect_b);
+bool grect_equal(const GRect *const rect_a, const GRect *const rect_b);
 
 //! Tests whether the size of the rectangle is (0, 0).
 //! @param rect Pointer to the rectangle
 //! @return `true` if the rectangle its size is (0, 0), or `false` if not.
 //! @note If the width and/or height of a rectangle is negative, this
 //! function will return `true`!
-bool grect_is_empty(const GRect* const rect);
+bool grect_is_empty(const GRect *const rect);
 
 //! Converts a rectangle's values so that the components of its size
 //! (width and/or height) are both positive. In the width and/or height are negative,
@@ -3644,7 +3841,7 @@ void grect_standardize(GRect *rect);
 //! @param[in,out] rect_to_clip The rectangle that needs to be clipped (in place).
 //! @param rect_clipper The rectangle of which the edges will serve as "scissors"
 //! in order to trim `rect_to_clip`.
-void grect_clip(GRect * const rect_to_clip, const GRect * const rect_clipper);
+void grect_clip(GRect *const rect_to_clip, const GRect *const rect_clipper);
 
 //! Tests whether a rectangle contains a point.
 //! @param rect The rectangle
@@ -3660,7 +3857,8 @@ GPoint grect_center_point(const GRect *rect);
 
 //! Reduce the width and height of a rectangle by insetting each of the edges with
 //! a fixed inset. The returned rectangle will be centered relative to the input rectangle.
-//! @note The function will trip an assertion if the crop yields a rectangle with negative width or height.
+//! @note The function will trip an assertion if the crop yields a rectangle with negative width or
+//! height.
 //! @param rect The rectangle that will be inset
 //! @param crop_size_px The inset by which each of the rectangle will be inset.
 //! A positive inset value results in a smaller rectangle, while negative inset value results
@@ -3677,7 +3875,7 @@ GRect grect_crop(GRect rect, const int32_t crop_size_px);
 //! The format of a GBitmap can either be 1-bit or 8-bit.
 typedef enum GBitmapFormat {
   GBitmapFormat1Bit = 0, //<! 1-bit black and white. 0 = black, 1 = white.
-  GBitmapFormat8Bit,      //<! 6-bit color + 2 bit alpha channel. See \ref GColor8 for pixel format.
+  GBitmapFormat8Bit,     //<! 6-bit color + 2 bit alpha channel. See \ref GColor8 for pixel format.
   GBitmapFormat1BitPalette,
   GBitmapFormat2BitPalette,
   GBitmapFormat4BitPalette,
@@ -3712,7 +3910,7 @@ GBitmapFormat gbitmap_get_format(const GBitmap *bitmap);
 //! @return pointer to the raw image data for the GBitmap
 //! @see \ref gbitmap_get_bytes_per_row
 //! @see \ref GBitmap
-uint8_t* gbitmap_get_data(const GBitmap *bitmap);
+uint8_t *gbitmap_get_data(const GBitmap *bitmap);
 
 //! Set the bitmap data for the given \ref GBitmap.
 //! @param bitmap A pointer to the GBitmap to set data to
@@ -3723,8 +3921,8 @@ uint8_t* gbitmap_get_data(const GBitmap *bitmap);
 //! \ref GBitmapFormat1Bit must have a row size as a multiple of 4 bytes.
 //! @param free_on_destroy Set whether the data should be freed when the GBitmap is destroyed.
 //! @see \ref gbitmap_destroy
-void gbitmap_set_data(GBitmap *bitmap, uint8_t *data, GBitmapFormat format,
-                     uint16_t row_size_bytes, bool free_on_destroy);
+void gbitmap_set_data(GBitmap *bitmap, uint8_t *data, GBitmapFormat format, uint16_t row_size_bytes,
+                      bool free_on_destroy);
 
 //! Gets the bounds of the content for the \ref GBitmap. This is set when loading the image or
 //! if changed by \ref gbitmap_set_bounds.
@@ -3743,7 +3941,7 @@ void gbitmap_set_bounds(GBitmap *bitmap, GRect bounds);
 //! @param bitmap A pointer to the GBitmap to get the palette from.
 //! @return Pointer to a \ref GColor array containing the palette colors.
 //! @see \ref gbitmap_set_palette
-GColor* gbitmap_get_palette(const GBitmap *bitmap);
+GColor *gbitmap_get_palette(const GBitmap *bitmap);
 
 //! Set the palette for the given \ref GBitmap.
 //! @param bitmap A pointer to the GBitmap to set the palette to
@@ -3761,7 +3959,7 @@ void gbitmap_set_palette(GBitmap *bitmap, GColor *palette, bool free_on_destroy)
 //! @param resource_id The ID of the bitmap resource to load
 //! @return A pointer to the \ref GBitmap. `NULL` if the GBitmap could not
 //! be created
-GBitmap* gbitmap_create_with_resource(uint32_t resource_id);
+GBitmap *gbitmap_create_with_resource(uint32_t resource_id);
 
 //! Creates a new GBitmap on the heap initialized with the provided Pebble image data.
 //!
@@ -3776,7 +3974,7 @@ GBitmap* gbitmap_create_with_resource(uint32_t resource_id);
 //! lifetime of this GBitmap.
 //! @return A pointer to the \ref GBitmap. `NULL` if the \ref GBitmap could not
 //! be created
-GBitmap* gbitmap_create_with_data(const uint8_t *data);
+GBitmap *gbitmap_create_with_data(const uint8_t *data);
 
 //! Create a new \ref GBitmap on the heap as a sub-bitmap of a 'base' \ref
 //! GBitmap, using a GRect to indicate what portion of the base to use. The
@@ -3792,7 +3990,7 @@ GBitmap* gbitmap_create_with_data(const uint8_t *data);
 //! bounds of the base bitmap will be used to clip `sub_rect`.
 //! @return A pointer to the \ref GBitmap. `NULL` if the GBitmap could not
 //! be created
-GBitmap* gbitmap_create_as_sub_bitmap(const GBitmap *base_bitmap, GRect sub_rect);
+GBitmap *gbitmap_create_as_sub_bitmap(const GBitmap *base_bitmap, GRect sub_rect);
 
 //! Create a \ref GBitmap based on raw PNG data.
 //! The resulting \ref GBitmap must be destroyed using \ref gbitmap_destroy().
@@ -3802,7 +4000,7 @@ GBitmap* gbitmap_create_as_sub_bitmap(const GBitmap *base_bitmap, GRect sub_rect
 //! @param png_data_size PNG image size in bytes.
 //! @return A pointer to the \ref GBitmap. `NULL` if the \ref GBitmap could not
 //! be created
-GBitmap* gbitmap_create_from_png_data(const uint8_t *png_data, size_t png_data_size);
+GBitmap *gbitmap_create_from_png_data(const uint8_t *png_data, size_t png_data_size);
 
 //! Creates a new blank GBitmap on the heap initialized to zeroes.
 //! In the case that the format indicates a palettized bitmap, a palette of appropriate size will
@@ -3812,7 +4010,7 @@ GBitmap* gbitmap_create_from_png_data(const uint8_t *png_data, size_t png_data_s
 //! @param format The \ref GBitmapFormat the created image should be in.
 //! @return A pointer to the \ref GBitmap. `NULL` if the \ref GBitmap could not
 //! be created
-GBitmap* gbitmap_create_blank(GSize size, GBitmapFormat format);
+GBitmap *gbitmap_create_blank(GSize size, GBitmapFormat format);
 
 //! Creates a new blank GBitmap on the heap, initialized to zeroes, and assigns it the given
 //! palette.
@@ -3827,8 +4025,8 @@ GBitmap* gbitmap_create_blank(GSize size, GBitmapFormat format);
 //! @param free_on_destroy Set whether the palette data should be freed along with the bitmap data
 //! when the GBitmap is destroyed.
 //! @return A Pointer to the \ref GBitmap. `NULL` if the \ref GBitmap could not be created.
-GBitmap* gbitmap_create_blank_with_palette(GSize size, GBitmapFormat format,
-                                           GColor *palette, bool free_on_destroy);
+GBitmap *gbitmap_create_blank_with_palette(GSize size, GBitmapFormat format, GColor *palette,
+                                           bool free_on_destroy);
 
 //! Given a 1-bit GBitmap, create a new bitmap of format GBitmapFormat1BitPalette.
 //! The new data buffer is allocated on the heap, and a 2-color palette is allocated as well.
@@ -3837,21 +4035,23 @@ GBitmap* gbitmap_create_blank_with_palette(GSize size, GBitmapFormat format,
 //! @returns The newly created 1-bit palettized GBitmap, or NULL if there is not sufficient space.
 //! @note The new bitmap does not depend on any data from src_bitmap, so src_bitmap can be freed
 //! without worry.
-GBitmap* gbitmap_create_palettized_from_1bit(const GBitmap *src_bitmap);
+GBitmap *gbitmap_create_palettized_from_1bit(const GBitmap *src_bitmap);
 
 //! Destroy a \ref GBitmap.
 //! This must be called for every bitmap that's been created with gbitmap_create_*
 //!
-//! This function will also free the memory of the bitmap data (bitmap->addr) if the bitmap was created with \ref gbitmap_create_blank()
-//! or \ref gbitmap_create_with_resource().
+//! This function will also free the memory of the bitmap data (bitmap->addr) if the bitmap was
+//! created with \ref gbitmap_create_blank() or \ref gbitmap_create_with_resource().
 //!
 //! If the GBitmap was created with \ref gbitmap_create_with_data(), you must release the memory
 //! after calling gbitmap_destroy().
-void gbitmap_destroy(GBitmap* bitmap);
+void gbitmap_destroy(GBitmap *bitmap);
 
 //! Creates a GBitmapSequence from the specified resource (APNG/PNG files)
 //! @param resource_id Resource to load and create GBitmapSequence from.
 //! @return GBitmapSequence pointer if the resource was loaded, NULL otherwise
+//! @note APNG frames using the dispose operation APNG_DISPOSE_OP_PREVIOUS are not supported
+//! and are treated as APNG_DISPOSE_OP_NONE, so encode animations without it.
 GBitmapSequence *gbitmap_sequence_create_with_resource(uint32_t resource_id);
 
 //! Updates the contents of the bitmap sequence to the next frame
@@ -3864,8 +4064,8 @@ GBitmapSequence *gbitmap_sequence_create_with_resource(uint32_t resource_id);
 //! (includes out of memory errors).
 //! @note GBitmap must be large enough to accommodate the bitmap_sequence image
 //! \ref gbitmap_sequence_get_bitmap_size
-bool gbitmap_sequence_update_bitmap_next_frame(GBitmapSequence *bitmap_sequence,
-    GBitmap *bitmap, uint32_t *delay_ms);
+bool gbitmap_sequence_update_bitmap_next_frame(GBitmapSequence *bitmap_sequence, GBitmap *bitmap,
+                                               uint32_t *delay_ms);
 
 //! Updates the contents of the bitmap sequence to the frame at elapsed in the sequence.
 //! For looping animations this accounts for the loop, for example an animation of 1 second that
@@ -3881,8 +4081,8 @@ bool gbitmap_sequence_update_bitmap_next_frame(GBitmapSequence *bitmap_sequence,
 //! @note GBitmap must be large enough to accommodate the bitmap_sequence image
 //! \ref gbitmap_sequence_get_bitmap_size
 //! @note This function is disabled for play_count 0
-bool gbitmap_sequence_update_bitmap_by_elapsed(GBitmapSequence *bitmap_sequence,
-    GBitmap *bitmap, uint32_t elapsed_ms);
+bool gbitmap_sequence_update_bitmap_by_elapsed(GBitmapSequence *bitmap_sequence, GBitmap *bitmap,
+                                               uint32_t elapsed_ms);
 
 //! Deletes the GBitmapSequence structure and frees any allocated memory/decoder_data
 //! @param bitmap_sequence Pointer to the bitmap sequence to free (delete)
@@ -3931,20 +4131,20 @@ GSize gbitmap_sequence_get_bitmap_size(GBitmapSequence *bitmap_sequence);
 //! @see \ref gbitmap_get_data
 //! @see \ref gbitmap_get_bounds
 typedef struct {
-    //! Address of the byte at column 0 of a given data row in a bitmap. Use this to calculate the
-    //! memory address of a pixel. For GBitmapFormat8BitCircular or GBitmapFormat8Bit this would
-    //! be: `uint8_t *pixel_addr = row_info.addr + x`.
-    //! Note that this byte can be outside of the valid range for this row.
-    //! For example: The first valid pixel (`min_x=76`) of a row might start at 76 bytes after the
-    //! given data pointer (assuming that 1 pixel is represented as 1 byte as in
-    //! GBitmapFormat8BitCircular or GBitmapFormat8Bit).
-    uint8_t *data;
-    //! The absolute column of a first valid pixel for a given data row.
-    int16_t min_x;
-    //! The absolute column of the last valid pixel for a given data row.
-    //! For optimization reasons the result can be anywhere between
-    //! grect_get_max_x(bitmap_bounds) - 1 and the physical data boundary.
-    int16_t max_x;
+  //! Address of the byte at column 0 of a given data row in a bitmap. Use this to calculate the
+  //! memory address of a pixel. For GBitmapFormat8BitCircular or GBitmapFormat8Bit this would
+  //! be: `uint8_t *pixel_addr = row_info.addr + x`.
+  //! Note that this byte can be outside of the valid range for this row.
+  //! For example: The first valid pixel (`min_x=76`) of a row might start at 76 bytes after the
+  //! given data pointer (assuming that 1 pixel is represented as 1 byte as in
+  //! GBitmapFormat8BitCircular or GBitmapFormat8Bit).
+  uint8_t *data;
+  //! The absolute column of a first valid pixel for a given data row.
+  int16_t min_x;
+  //! The absolute column of the last valid pixel for a given data row.
+  //! For optimization reasons the result can be anywhere between
+  //! grect_get_max_x(bitmap_bounds) - 1 and the physical data boundary.
+  int16_t max_x;
 } GBitmapDataRowInfo;
 
 //! Provides information about a pixel data row
@@ -4063,20 +4263,16 @@ typedef struct {
 } GEdgeInsets;
 
 //! helper for \ref GEdgeInsets macro
-#define GEdgeInsets4(t, r, b, l) \
-  ((GEdgeInsets){.top = t, .right = r, .bottom = b, .left = l})
+#define GEdgeInsets4(t, r, b, l) ((GEdgeInsets){.top = t, .right = r, .bottom = b, .left = l})
 
 //! helper for \ref GEdgeInsets macro
-#define GEdgeInsets3(t, rl, b) \
-  ((GEdgeInsets){.top = t, .right = rl, .bottom = b, .left = rl})
+#define GEdgeInsets3(t, rl, b) ((GEdgeInsets){.top = t, .right = rl, .bottom = b, .left = rl})
 
 //! helper for \ref GEdgeInsets macro
-#define GEdgeInsets2(tb, rl) \
-  ((GEdgeInsets){.top = tb, .right = rl, .bottom = tb, .left = rl})
+#define GEdgeInsets2(tb, rl) ((GEdgeInsets){.top = tb, .right = rl, .bottom = tb, .left = rl})
 
 //! helper for \ref GEdgeInsets macro
-#define GEdgeInsets1(trbl) \
-  ((GEdgeInsets){.top = trbl, .right = trbl, .bottom = trbl, .left = trbl})
+#define GEdgeInsets1(trbl) ((GEdgeInsets){.top = trbl, .right = trbl, .bottom = trbl, .left = trbl})
 
 //! helper for \ref GEdgeInsets macro
 #define GEdgeInsetsN(_1, _2, _3, _4, NAME, ...) NAME
@@ -4095,7 +4291,7 @@ typedef struct {
 #define GEdgeInsets(...) \
   GEdgeInsetsN(__VA_ARGS__, GEdgeInsets4, GEdgeInsets3, GEdgeInsets2, GEdgeInsets1)(__VA_ARGS__)
 
-//! Returns a rectangle that is shrinked or expanded by the given edge insets.
+//! Returns a rectangle that is shrunk or expanded by the given edge insets.
 //! @note The rectangle is standardized and then the inset parameters are applied.
 //! If the resulting rectangle would have a negative height or width, a GRectZero is returned.
 //! @param rect The rectangle that will be inset
@@ -4140,17 +4336,17 @@ GRect grect_inset(GRect rect, GEdgeInsets insets);
 //! Sets the current stroke color of the graphics context.
 //! @param ctx The graphics context onto which to set the stroke color
 //! @param color The new stroke color
-void graphics_context_set_stroke_color(GContext* ctx, GColor color);
+void graphics_context_set_stroke_color(GContext *ctx, GColor color);
 
 //! Sets the current fill color of the graphics context.
 //! @param ctx The graphics context onto which to set the fill color
 //! @param color The new fill color
-void graphics_context_set_fill_color(GContext* ctx, GColor color);
+void graphics_context_set_fill_color(GContext *ctx, GColor color);
 
 //! Sets the current text color of the graphics context.
 //! @param ctx The graphics context onto which to set the text color
 //! @param color The new text color
-void graphics_context_set_text_color(GContext* ctx, GColor color);
+void graphics_context_set_text_color(GContext *ctx, GColor color);
 
 //! Sets the current bitmap compositing mode of the graphics context.
 //! The default mode is GCompOpAssign i.e. bitmap transparency disabled.
@@ -4162,22 +4358,24 @@ void graphics_context_set_text_color(GContext* ctx, GColor color);
 //! -- \ref graphics_draw_bitmap_in_rect(), \ref graphics_draw_rotated_bitmap, and
 //! anything that uses those APIs --, but it currently does not affect the filling or stroking
 //! operations.
-void graphics_context_set_compositing_mode(GContext* ctx, GCompOp mode);
+void graphics_context_set_compositing_mode(GContext *ctx, GCompOp mode);
 
 //! Sets whether antialiasing is applied to stroke drawing
 //! @param ctx The graphics context onto which to set the antialiasing
 //! @param enable True = antialiasing enabled, False = antialiasing disabled
 //! @note Default value is true.
-void graphics_context_set_antialiased(GContext* ctx, bool enable);
+void graphics_context_set_antialiased(GContext *ctx, bool enable);
 
 //! Sets the width of the stroke for drawing routines
 //! @param ctx The graphics context onto which to set the stroke width
 //! @param stroke_width Width in pixels of the stroke.
 //! @note If stroke width of zero is passed, it will be ignored and will not change the value
 //! stored in GContext. Currently, only odd stroke_width values are supported. If an even value
-//! is passed in, the value will be stored as is, but the drawing routines will round down to the
-//! previous integral value when drawing. Default value is 1.
-void graphics_context_set_stroke_width(GContext* ctx, uint8_t stroke_width);
+//! is passed in, the value will be stored as is, but line and circle drawing (including
+//! \ref GPath outlines) rounds it up to the next odd value when drawing.
+//! \ref graphics_draw_rect() draws a stroke width of 2 as 1, and \ref graphics_draw_arc()
+//! uses the width as given. Default value is 1.
+void graphics_context_set_stroke_width(GContext *ctx, uint8_t stroke_width);
 
 //! @} // group GraphicsContext
 
@@ -4229,13 +4427,13 @@ typedef enum {
 //! Draws a pixel at given point in the current stroke color
 //! @param ctx The destination graphics context in which to draw
 //! @param point The point at which to draw the pixel
-void graphics_draw_pixel(GContext* ctx, GPoint point);
+void graphics_draw_pixel(GContext *ctx, GPoint point);
 
 //! Draws line in the current stroke color, current stroke width and AA flag
 //! @param ctx The destination graphics context in which to draw
 //! @param p0 The starting point of the line
 //! @param p1 The ending point of the line
-void graphics_draw_line(GContext* ctx, GPoint p0, GPoint p1);
+void graphics_draw_line(GContext *ctx, GPoint p0, GPoint p1);
 
 //! Draws a 1-pixel wide rectangle outline in the current stroke color
 //! @param ctx The destination graphics context in which to draw
@@ -4256,13 +4454,13 @@ void graphics_fill_rect(GContext *ctx, GRect rect, uint16_t corner_radius,
 //! @param ctx The destination graphics context in which to draw
 //! @param p The center point of the circle
 //! @param radius The radius in pixels
-void graphics_draw_circle(GContext* ctx, GPoint p, uint16_t radius);
+void graphics_draw_circle(GContext *ctx, GPoint p, uint16_t radius);
 
 //! Fills a circle in the current fill color
 //! @param ctx The destination graphics context in which to draw
 //! @param p The center point of the circle
 //! @param radius The radius in pixels
-void graphics_fill_circle(GContext* ctx, GPoint p, uint16_t radius);
+void graphics_fill_circle(GContext *ctx, GPoint p, uint16_t radius);
 
 //! Draws the outline of a rounded rectangle in the current stroke color
 //! @param ctx The destination graphics context in which to draw
@@ -4285,7 +4483,7 @@ void graphics_draw_bitmap_in_rect(GContext *ctx, const GBitmap *bitmap, GRect re
 
 //! A shortcut to capture the framebuffer in the native format of the watch.
 //! @see graphics_capture_frame_buffer_format
-GBitmap* graphics_capture_frame_buffer(GContext* ctx);
+GBitmap *graphics_capture_frame_buffer(GContext *ctx);
 
 //! Captures the frame buffer for direct access, using the given format.
 //! Graphics functions will not affect the frame buffer while it is captured.
@@ -4319,14 +4517,14 @@ GBitmap *graphics_capture_frame_buffer_format(GContext *ctx, GBitmapFormat forma
 //! @param ctx The graphics context providing the frame buffer
 //! @param buffer The pointer to frame buffer
 //! @return True if the frame buffer was released successfully
-bool graphics_release_frame_buffer(GContext* ctx, GBitmap* buffer);
+bool graphics_release_frame_buffer(GContext *ctx, GBitmap *buffer);
 
 //! Whether or not the frame buffer has been captured by {@link graphics_capture_frame_buffer}.
 //! Graphics functions will not affect the frame buffer until it has been released by
 //! {@link graphics_release_frame_buffer}.
 //! @param ctx The graphics context providing the frame buffer
 //! @return True if the frame buffer has been captured
-bool graphics_frame_buffer_is_captured(GContext* ctx);
+bool graphics_frame_buffer_is_captured(GContext *ctx);
 
 //! Draws a rotated bitmap with a memory-sensitive 2x anti-aliasing technique
 //! (using ray-finding instead of super-sampling), which is thresholded into a b/w bitmap for 1-bit
@@ -4339,7 +4537,7 @@ bool graphics_frame_buffer_is_captured(GContext* ctx);
 //! and TRIG_MAX_ANGLE (360 degree rotation). Use \ref DEG_TO_TRIGANGLE to easily convert degrees
 //! to the appropriate value.
 //! @param dest_ic Where to draw the instance center of the rotated bitmap in the context.
-void graphics_draw_rotated_bitmap(GContext* ctx, GBitmap *src, GPoint src_ic, int rotation,
+void graphics_draw_rotated_bitmap(GContext *ctx, GBitmap *src, GPoint src_ic, int rotation,
                                   GPoint dest_ic);
 
 //! Values to specify how a given rectangle should be used to derive an oval shape.
@@ -4367,8 +4565,8 @@ typedef enum {
 //! @param angle_start Radial starting angle. Use \ref DEG_TO_TRIGANGLE to easily convert degrees
 //! to the appropriate value.
 //! @param angle_end Radial finishing angle. If smaller than `angle_start`, nothing will be drawn.
-void graphics_draw_arc(GContext *ctx, GRect rect, GOvalScaleMode scale_mode,
-                       int32_t angle_start, int32_t angle_end);
+void graphics_draw_arc(GContext *ctx, GRect rect, GOvalScaleMode scale_mode, int32_t angle_start,
+                       int32_t angle_end);
 
 //! Fills a circle clockwise between `angle_start` and `angle_end`, where 0° is
 //! the top of the circle. If the difference between `angle_start` and `angle_end` is greater
@@ -4387,8 +4585,7 @@ void graphics_draw_arc(GContext *ctx, GRect rect, GOvalScaleMode scale_mode,
 //! to the appropriate value.
 //! @param angle_end Radial finishing angle. If smaller than `angle_start`, nothing will be drawn.
 void graphics_fill_radial(GContext *ctx, GRect rect, GOvalScaleMode scale_mode,
-                          uint16_t inset_thickness,
-                          int32_t angle_start, int32_t angle_end);
+                          uint16_t inset_thickness, int32_t angle_start, int32_t angle_end);
 
 //! Calculates a GPoint located at the angle provided on the perimeter of a circle defined by the
 //! provided GRect.
@@ -4483,10 +4680,10 @@ typedef bool (*GDrawCommandListIteratorCb)(GDrawCommand *command, uint32_t index
 typedef struct GDrawCommandSequence GDrawCommandSequence;
 
 typedef enum {
-  GDrawCommandTypeInvalid = 0,  //!< Invalid draw command type
-  GDrawCommandTypePath,         //!< Arbitrary path draw command type
-  GDrawCommandTypeCircle,       //!< Circle draw command type
-  GDrawCommandTypePrecisePath,  //!< Arbitrary path drawn with sub-pixel precision (1/8th precision)
+  GDrawCommandTypeInvalid = 0, //!< Invalid draw command type
+  GDrawCommandTypePath,        //!< Arbitrary path draw command type
+  GDrawCommandTypeCircle,      //!< Circle draw command type
+  GDrawCommandTypePrecisePath, //!< Arbitrary path drawn with sub-pixel precision (1/8th precision)
 } GDrawCommandType;
 
 //! Draw a command
@@ -4800,17 +4997,17 @@ typedef struct GPath {
 //! * `offset`: (0, 0)
 //! @return A pointer to the GPath. `NULL` if the GPath could not
 //! be created
-GPath* gpath_create(const GPathInfo *init);
+GPath *gpath_create(const GPathInfo *init);
 
 //! Free a dynamically allocated gpath created with \ref gpath_create()
-void gpath_destroy(GPath* gpath);
+void gpath_destroy(GPath *gpath);
 
 //! Draws the fill of a path into a graphics context, using the current fill color,
 //! relative to the drawing area as set up by the layering system.
 //! @param ctx The graphics context to draw into
 //! @param path The path to fill
 //! @see \ref graphics_context_set_fill_color()
-void gpath_draw_filled(GContext* ctx, GPath *path);
+void gpath_draw_filled(GContext *ctx, GPath *path);
 
 //! Draws the outline of a path into a graphics context, using the current stroke color and
 //! width, relative to the drawing area as set up by the layering system. The first and last points
@@ -4819,7 +5016,7 @@ void gpath_draw_filled(GContext* ctx, GPath *path);
 //! @param path The path to draw
 //! @see \ref graphics_context_set_stroke_color()
 //! @see \ref gpath_draw_outline_open()
-void gpath_draw_outline(GContext* ctx, GPath *path);
+void gpath_draw_outline(GContext *ctx, GPath *path);
 
 //! Sets the absolute rotation of the path.
 //! The current rotation will be replaced by the specified angle.
@@ -4847,7 +5044,7 @@ void gpath_move_to(GPath *path, GPoint point);
 //! @param path The path to draw
 //! @see \ref graphics_context_set_stroke_color()
 //! @see \ref gpath_draw_outline()
-void gpath_draw_outline_open(GContext* ctx, GPath* path);
+void gpath_draw_outline_open(GContext *ctx, GPath *path);
 
 //! @} // group PathDrawing
 
@@ -4865,7 +5062,7 @@ typedef struct FontInfo FontInfo;
 //! @see \ref fonts_load_custom_font()
 //! @see \ref text_layer_set_font()
 //! @see \ref graphics_draw_text()
-typedef FontInfo* GFont;
+typedef FontInfo *GFont;
 
 //! Loads a system font corresponding to the specified font key.
 //! @param font_key The string key of the font to load. See
@@ -4916,14 +5113,14 @@ typedef enum {
   GTextOverflowModeWordWrap,
   //! On overflow, wrap words to a new line below the current one.
   //! Once vertical space is consumed, truncate as needed to fit a trailing ellipsis (...).
-  //! Clipping may occur if the vertical space cannot accomodate the first line of text.
+  //! Clipping may occur if the vertical space cannot accommodate the first line of text.
   GTextOverflowModeTrailingEllipsis,
   //! Acts like \ref GTextOverflowModeTrailingEllipsis, plus trims leading and trailing newlines,
   //! while treating all other newlines as spaces.
   GTextOverflowModeFill
 } GTextOverflowMode;
 
-//! Text aligment controls the way the text is aligned inside the box the text is drawn into.
+//! Text alignment controls the way the text is aligned inside the box the text is drawn into.
 //! @see graphics_draw_text
 //! @see text_layer_set_text_alignment
 typedef enum {
@@ -4984,7 +5181,7 @@ void graphics_text_attributes_enable_paging(GTextAttributes *text_attributes,
 
 //! Draw text into the current graphics context, using the context's current text color.
 //! The text will be drawn inside a box with the specified dimensions and
-//! configuration, with clipping occuring automatically.
+//! configuration, with clipping occurring automatically.
 //! @param ctx The destination graphics context in which to draw
 //! @param text The zero terminated UTF-8 string to draw
 //! @param font The font in which the text should be set
@@ -5024,8 +5221,8 @@ GSize graphics_text_layout_get_content_size(const char *text, GFont const font, 
 //! @return The maximum size occupied by the text
 //! @see app_graphics_text_layout_get_content_size
 GSize graphics_text_layout_get_content_size_with_attributes(
-  const char *text, GFont const font, const GRect box, const GTextOverflowMode overflow_mode,
-  const GTextAlignment alignment, GTextAttributes *text_attributes);
+    const char *text, GFont const font, const GRect box, const GTextOverflowMode overflow_mode,
+    const GTextAlignment alignment, GTextAttributes *text_attributes);
 
 //! @} // group TextDrawing
 
@@ -5049,7 +5246,7 @@ GSize graphics_text_layout_get_content_size_with_attributes(
 
 //! Error values which may be returned from the smartstrap APIs.
 typedef enum {
-  //! No error occured.
+  //! No error occurred.
   SmartstrapResultOk = 0,
   //! Invalid function arguments were supplied.
   SmartstrapResultInvalidArgs,
@@ -5062,7 +5259,7 @@ typedef enum {
   SmartstrapResultServiceUnavailable,
   //! The smartstrap reported that it does not support the requested attribute.
   SmartstrapResultAttributeUnsupported,
-  //! A time-out occured during the request.
+  //! A time-out occurred during the request.
   SmartstrapResultTimeOut,
 } SmartstrapResult;
 
@@ -5146,7 +5343,7 @@ void smartstrap_set_timeout(uint16_t timeout_ms);
 //! @param attribute_id The AttributeId to create the attribute for.
 //! @param buffer_length The length of the internal buffer which will be used to store the read
 //! and write requests for this attribute.
-//! @returns The newly created SmartstrapAttribute or NULL if an internal error occured or if the
+//! @returns The newly created SmartstrapAttribute or NULL if an internal error occurred or if the
 //! specified length is greater than SMARTSTRAP_ATTRIBUTE_LENGTH_MAXIMUM.
 SmartstrapAttribute *smartstrap_attribute_create(SmartstrapServiceId service_id,
                                                      SmartstrapAttributeId attribute_id,
@@ -5224,13 +5421,14 @@ typedef void *ClickRecognizerRef;
 
 //! Function signature of the callback that handles a recognized click pattern
 //! @param recognizer The click recognizer that detected a "click" pattern
-//! @param context Pointer to application specified data (see \ref window_set_click_config_provider_with_context() and
+//! @param context Pointer to application specified data (see \ref
+//! window_set_click_config_provider_with_context() and
 //! \ref window_set_click_context()). This defaults to the window.
 //! @see \ref ClickConfigProvider
 typedef void (*ClickHandler)(ClickRecognizerRef recognizer, void *context);
 
-//! This callback is called every time the window becomes visible (and when you call \ref window_set_click_config_provider() if
-//! the window is already visible).
+//! This callback is called every time the window becomes visible (and when you call \ref
+//! window_set_click_config_provider() if the window is already visible).
 //!
 //! Subscribe to click events using
 //!   \ref window_single_click_subscribe()
@@ -5239,7 +5437,8 @@ typedef void (*ClickHandler)(ClickRecognizerRef recognizer, void *context);
 //!   \ref window_long_click_subscribe()
 //!   \ref window_raw_click_subscribe()
 //! These subscriptions will get used by the click recognizers of each of the 4 buttons.
-//! @param context Pointer to application specific data (see \ref window_set_click_config_provider_with_context()).
+//! @param context Pointer to application specific data (see \ref
+//! window_set_click_config_provider_with_context()).
 typedef void (*ClickConfigProvider)(void *context);
 
 //! Gets the click count.
@@ -5251,12 +5450,14 @@ uint8_t click_number_of_clicks_counted(ClickRecognizerRef recognizer);
 
 //! Gets the button identifier.
 //! You can use this inside a click handler implementation to get the button id for the click event.
-//! @param recognizer The click recognizer for which to get the button id that caused the click event
+//! @param recognizer The click recognizer for which to get the button id that caused the click
+//! event
 //! @return the ButtonId of the click recognizer
 ButtonId click_recognizer_get_button_id(ClickRecognizerRef recognizer);
 
 //! Is this a repeating click.
-//! You can use this inside a click handler implementation to find out whether this is a repeating click or not.
+//! You can use this inside a click handler implementation to find out whether this is a repeating
+//! click or not.
 //! @param recognizer The click recognizer for which to find out whether this is a repeating click.
 //! @return true if this is a repeating click.
 bool click_recognizer_is_repeating(ClickRecognizerRef recognizer);
@@ -5271,11 +5472,11 @@ bool click_recognizer_is_repeating(ClickRecognizerRef recognizer);
 //! necessary to draw or redraw the object that it represents and uses graphics routines along with
 //! this state to draw itself when asked. Layers can be used to display various graphics.
 //!
-//! Layers are the basic building blocks for your application UI. Layers can be nested inside each other.
-//! Every window has a root layer which is always the topmost layer.
-//! You provide a function that is called to draw the content of the layer when needed; or
-//! you can use standard layers that are provided by the system, such as text layer, image layer,
-//! menu layer, action bar layer, and so on.
+//! Layers are the basic building blocks for your application UI. Layers can be nested inside each
+//! other. Every window has a root layer which is always the topmost layer. You provide a function
+//! that is called to draw the content of the layer when needed; or you can use standard layers that
+//! are provided by the system, such as text layer, image layer, menu layer, action bar layer, and
+//! so on.
 //!
 //! The Pebble layer hierarchy is the list of things that need to be drawn to the screen.
 //! Multiple layers can be arranged into a hierarchy. This enables ordering (front to back),
@@ -5312,7 +5513,7 @@ typedef struct Layer Layer;
 //! @param ctx The destination graphics context to draw into
 //! @see \ref Graphics
 //! @see \ref layer_set_update_proc()
-typedef void (*LayerUpdateProc)(struct Layer *layer, GContext* ctx);
+typedef void (*LayerUpdateProc)(struct Layer *layer, GContext *ctx);
 
 //! Creates a layer on the heap and sets its frame and bounds.
 //! Default values:
@@ -5325,7 +5526,7 @@ typedef void (*LayerUpdateProc)(struct Layer *layer, GContext* ctx);
 //! @see \ref layer_set_bounds()
 //! @return A pointer to the layer. `NULL` if the layer could not
 //! be created
-Layer* layer_create(GRect frame);
+Layer *layer_create(GRect frame);
 
 //! Creates a layer on the heap with extra space for callback data, and set its frame andbounds.
 //! Default values:
@@ -5339,10 +5540,10 @@ Layer* layer_create(GRect frame);
 //! @see \ref layer_set_frame()
 //! @see \ref layer_set_bounds()
 //! @return A pointer to the layer. `NULL` if the layer could not be created
-Layer* layer_create_with_data(GRect frame, size_t data_size);
+Layer *layer_create_with_data(GRect frame, size_t data_size);
 
 //! Destroys a layer previously created by layer_create
-void layer_destroy(Layer* layer);
+void layer_destroy(Layer *layer);
 
 //! Marks the complete layer as "dirty", awaiting to be asked by the system to redraw itself.
 //! Typically, this function is called whenever state has changed that affects what the layer
@@ -5350,7 +5551,8 @@ void layer_destroy(Layer* layer);
 //! * The layer's `.update_proc` will not be called before this function returns,
 //! but will be called asynchronously, shortly.
 //! * Internally, a call to this function will schedule a re-render of the window that the
-//! layer belongs to. In effect, all layers in that window's layer hierarchy will be asked to redraw.
+//! layer belongs to. In effect, all layers in that window's layer hierarchy will be asked to
+//! redraw.
 //! * If an earlier re-render request is still pending, this function is a no-op.
 //! @param layer The layer to mark dirty
 void layer_mark_dirty(Layer *layer);
@@ -5359,9 +5561,9 @@ void layer_mark_dirty(Layer *layer);
 //! The system will call the `update_proc` automatically when the layer needs to redraw itself, see
 //! also \ref layer_mark_dirty().
 //! @param layer Pointer to the layer structure.
-//! @param update_proc Pointer to the function that will be called when the layer needs to be rendered.
-//! Typically, one performs a series of drawing commands in the implementation of the `update_proc`,
-//! see \ref Drawing, \ref PathDrawing and \ref TextDrawing.
+//! @param update_proc Pointer to the function that will be called when the layer needs to be
+//! rendered. Typically, one performs a series of drawing commands in the implementation of the
+//! `update_proc`, see \ref Drawing, \ref PathDrawing and \ref TextDrawing.
 void layer_set_update_proc(Layer *layer, LayerUpdateProc update_proc);
 
 //! Sets the frame of the layer, which is it's bounding box relative to the coordinate
@@ -5499,7 +5701,7 @@ bool layer_get_clips(const Layer *layer);
 //! Gets the data from a layer that has been created with an extra data region.
 //! @param layer The layer to get the data region from.
 //! @return A void pointer to the data region.
-void* layer_get_data(const Layer *layer);
+void *layer_get_data(const Layer *layer);
 
 //! @} // group Layer
 
@@ -5601,10 +5803,10 @@ typedef enum PanAxis {
 //! Swipe direction, also used as a bitmask when configuring which directions a swipe recognizer
 //! accepts. Screen coordinates grow downward, so a positive y delta is a downward swipe.
 typedef enum SwipeDirection {
-  SwipeDirection_None  = 0,
-  SwipeDirection_Up    = 1 << 0,
-  SwipeDirection_Down  = 1 << 1,
-  SwipeDirection_Left  = 1 << 2,
+  SwipeDirection_None = 0,
+  SwipeDirection_Up = 1 << 0,
+  SwipeDirection_Down = 1 << 1,
+  SwipeDirection_Left = 1 << 2,
   SwipeDirection_Right = 1 << 3,
 } SwipeDirection;
 
@@ -5700,23 +5902,25 @@ void recognizer_set_fail_after(Recognizer *recognizer, Recognizer *fail_after);
 //! @addtogroup Window
 //! \brief The basic building block of the user interface
 //!
-//! Windows are the top-level elements in the UI hierarchy and the basic building blocks for a Pebble
-//! UI. A single window is always displayed at a time on Pebble, with the exception of when animating
-//! from one window to the other, which, in that case, is managed by the window stack. You can stack
-//! windows on top of each other, but only the topmost window will be visible.
+//! Windows are the top-level elements in the UI hierarchy and the basic building blocks for a
+//! Pebble UI. A single window is always displayed at a time on Pebble, with the exception of when
+//! animating from one window to the other, which, in that case, is managed by the window stack. You
+//! can stack windows on top of each other, but only the topmost window will be visible.
 //!
-//! Users wearing a Pebble typically interact with the content and media displayed in a window, clicking
-//! and pressing buttons on the watch, depending on what they see and wish to respond to in a window.
+//! Users wearing a Pebble typically interact with the content and media displayed in a window,
+//! clicking and pressing buttons on the watch, depending on what they see and wish to respond to in
+//! a window.
 //!
-//! Windows serve to display a hierarchy of layers on the screen and handle user input. When a window is
-//! visible, its root Layer (and all its child layers) are drawn onto the screen automatically.
+//! Windows serve to display a hierarchy of layers on the screen and handle user input. When a
+//! window is visible, its root Layer (and all its child layers) are drawn onto the screen
+//! automatically.
 //!
-//! You need a window, which always fills the entire screen, to display images, text, and graphics in
-//! your Pebble app. A layer by itself doesn’t display on Pebble; it must be in the current window’s
-//! layer hierarchy to be visible.
+//! You need a window, which always fills the entire screen, to display images, text, and graphics
+//! in your Pebble app. A layer by itself doesn’t display on Pebble; it must be in the current
+//! window’s layer hierarchy to be visible.
 //!
-//! The Window Stack serves as the global manager of what window is presented and makes sure that input
-//! events are forwarded to the topmost window.
+//! The Window Stack serves as the global manager of what window is presented and makes sure that
+//! input events are forwarded to the topmost window.
 //!
 //! Refer to the \htmlinclude UiFramework.html (chapter "Window") for a conceptual
 //! overview of Window, the Window Stack and relevant code examples.
@@ -5756,24 +5960,26 @@ typedef struct WindowHandlers {
   WindowHandler unload;
 } WindowHandlers;
 
-//! Creates a new Window on the heap and initalizes it with the default values.
+//! Creates a new Window on the heap and initializes it with the default values.
 //!
 //! * Background color : `GColorWhite`
-//! * Root layer's `update_proc` : function that fills the window's background using `background_color`.
+//! * Root layer's `update_proc` : function that fills the window's background using
+//! `background_color`.
 //! * `click_config_provider` : `NULL`
 //! * `window_handlers` : all `NULL`
 //! @return A pointer to the window. `NULL` if the window could not
 //! be created
-Window* window_create(void);
+Window *window_create(void);
 
 //! Destroys a Window previously created by window_create.
-void window_destroy(Window* window);
+void window_destroy(Window *window);
 
 //! Sets the click configuration provider callback function on the window.
 //! This will automatically setup the input handlers of the window as well to use
 //! the click recognizer subsystem.
 //! @param window The window for which to set the click config provider
-//! @param click_config_provider The callback that will be called to configure the click recognizers with the window
+//! @param click_config_provider The callback that will be called to configure the click recognizers
+//! with the window
 //! @see Clicks
 //! @see ClickConfigProvider
 void window_set_click_config_provider(Window *window, ClickConfigProvider click_config_provider);
@@ -5781,11 +5987,15 @@ void window_set_click_config_provider(Window *window, ClickConfigProvider click_
 //! Same as window_set_click_config_provider(), but will assign a custom context pointer
 //! (instead of the window pointer) that will be passed into the ClickHandler click event handlers.
 //! @param window The window for which to set the click config provider
-//! @param click_config_provider The callback that will be called to configure the click recognizers with the window
-//! @param context Pointer to application specific data that will be passed to the click configuration provider callback (defaults to the window).
+//! @param click_config_provider The callback that will be called to configure the click recognizers
+//! with the window
+//! @param context Pointer to application specific data that will be passed to the click
+//! configuration provider callback (defaults to the window).
 //! @see Clicks
 //! @see window_set_click_config_provider
-void window_set_click_config_provider_with_context(Window *window, ClickConfigProvider click_config_provider, void *context);
+void window_set_click_config_provider_with_context(Window *window,
+                                                   ClickConfigProvider click_config_provider,
+                                                   void *context);
 
 //! Gets the current click configuration provider of the window.
 //! @param window The window for which to get the click config provider
@@ -5825,7 +6035,7 @@ void window_set_window_handlers(Window *window, WindowHandlers handlers);
 //! a solid fill with the window's background color.
 //! @param window The window for which to get the root layer
 //! @return The window's root layer
-struct Layer* window_get_root_layer(const Window *window);
+struct Layer *window_get_root_layer(const Window *window);
 
 //! Sets the background color of the window, which is drawn automatically by the
 //! root layer of the window.
@@ -5853,62 +6063,82 @@ void window_set_user_data(Window *window, void *data);
 //! set using window_set_user_data().
 //! @see window_set_user_data
 //! @param window The window for which to get the user data
-void* window_get_user_data(const Window *window);
+void *window_get_user_data(const Window *window);
 
 //! Subscribe to single click events.
 //! @note Must be called from the \ref ClickConfigProvider.
-//! @note \ref window_single_click_subscribe() and \ref window_single_repeating_click_subscribe() conflict, and cannot both be used on the same button.
-//! @note When there is a multi_click and/or long_click setup, there will be a delay before the single click
+//! @note \ref window_single_click_subscribe() and \ref window_single_repeating_click_subscribe()
+//! conflict, and cannot both be used on the same button.
+//! @note When there is a multi_click and/or long_click setup, there will be a delay before the
+//! single click
 //! @param button_id The button events to subscribe to.
 //! @param handler The \ref ClickHandler to fire on this event.
-//! handler will get fired. On the other hand, when there is no multi_click nor long_click setup, the single click handler will fire directly on button down.
+//! handler will get fired. On the other hand, when there is no multi_click nor long_click setup,
+//! the single click handler will fire directly on button down.
 //! @see ButtonId
 //! @see Clicks
 //! @see window_single_repeating_click_subscribe
 void window_single_click_subscribe(ButtonId button_id, ClickHandler handler);
 
-//! Subscribe to single click event, with a repeat interval. A single click is detected every time "repeat_interval_ms" has been reached.
+//! Subscribe to single click event, with a repeat interval. A single click is detected every time
+//! "repeat_interval_ms" has been reached.
 //! @note Must be called from the \ref ClickConfigProvider.
-//! @note \ref window_single_click_subscribe() and \ref window_single_repeating_click_subscribe() conflict, and cannot both be used on the same button.
+//! @note \ref window_single_click_subscribe() and \ref window_single_repeating_click_subscribe()
+//! conflict, and cannot both be used on the same button.
 //! @note The back button cannot be overridden with a repeating click.
 //! @param button_id The button events to subscribe to.
-//! @param repeat_interval_ms When holding down, how many milliseconds before the handler is fired again.
-//! A value of 0ms means "no repeat timer". The minimum is 30ms, and values below will be disregarded.
-//! If there is a long-click handler subscribed on this button, `repeat_interval_ms` will not be used.
+//! @param repeat_interval_ms When holding down, how many milliseconds before the handler is fired
+//! again. A value of 0ms means "no repeat timer". The minimum is 30ms, and values below will be
+//! disregarded. If there is a long-click handler subscribed on this button, `repeat_interval_ms`
+//! will not be used.
 //! @param handler The \ref ClickHandler to fire on this event.
 //! @see window_single_click_subscribe
-void window_single_repeating_click_subscribe(ButtonId button_id, uint16_t repeat_interval_ms, ClickHandler handler);
+void window_single_repeating_click_subscribe(ButtonId button_id, uint16_t repeat_interval_ms,
+                                             ClickHandler handler);
 
 //! Subscribe to multi click events.
 //! @note Must be called from the \ref ClickConfigProvider.
 //! @param button_id The button events to subscribe to.
 //! @param min_clicks Minimum number of clicks before handler is fired. Defaults to 2.
-//! @param max_clicks Maximum number of clicks after which the click counter is reset. A value of 0 means use "min" also as "max".
-//! @param timeout The delay after which a sequence of clicks is considered finished, and the click counter is reset. A value of 0 means to use the system default 300ms.
-//! @param last_click_only Defaults to false. When true, only the handler for the last multi-click is called.
-//! @param handler The \ref ClickHandler to fire on this event. Fired for multi-clicks, as "filtered" by the `last_click_only`, `min`, and `max` parameters.
-void window_multi_click_subscribe(ButtonId button_id, uint8_t min_clicks, uint8_t max_clicks, uint16_t timeout, bool last_click_only, ClickHandler handler);
+//! @param max_clicks Maximum number of clicks after which the click counter is reset. A value of 0
+//! means use "min" also as "max".
+//! @param timeout The delay after which a sequence of clicks is considered finished, and the click
+//! counter is reset. A value of 0 means to use the system default 300ms.
+//! @param last_click_only Defaults to false. When true, only the handler for the last multi-click
+//! is called.
+//! @param handler The \ref ClickHandler to fire on this event. Fired for multi-clicks, as
+//! "filtered" by the `last_click_only`, `min`, and `max` parameters.
+void window_multi_click_subscribe(ButtonId button_id, uint8_t min_clicks, uint8_t max_clicks,
+                                  uint16_t timeout, bool last_click_only, ClickHandler handler);
 
 //! Subscribe to long click events.
 //! @note Must be called from the \ref ClickConfigProvider.
 //! @note The back button cannot be overridden with a long click.
 //! @param button_id The button events to subscribe to.
-//! @param delay_ms Milliseconds after which "handler" is fired. A value of 0 means to use the system default 500ms.
-//! @param down_handler The \ref ClickHandler to fire as soon as the button has been held for `delay_ms`. This may be NULL to have no down handler.
-//! @param up_handler The \ref ClickHandler to fire on the release of a long click. This may be NULL to have no up handler.
-void window_long_click_subscribe(ButtonId button_id, uint16_t delay_ms, ClickHandler down_handler, ClickHandler up_handler);
+//! @param delay_ms Milliseconds after which "handler" is fired. A value of 0 means to use the
+//! system default 500ms.
+//! @param down_handler The \ref ClickHandler to fire as soon as the button has been held for
+//! `delay_ms`. This may be NULL to have no down handler.
+//! @param up_handler The \ref ClickHandler to fire on the release of a long click. This may be NULL
+//! to have no up handler.
+void window_long_click_subscribe(ButtonId button_id, uint16_t delay_ms, ClickHandler down_handler,
+                                 ClickHandler up_handler);
 
 //! Subscribe to raw click events.
 //! @note Must be called from within the \ref ClickConfigProvider.
 //! @note The back button cannot be overridden with a raw click.
 //! @param button_id The button events to subscribe to.
-//! @param down_handler The \ref ClickHandler to fire as soon as the button has been pressed. This may be NULL to have no down handler.
-//! @param up_handler The \ref ClickHandler to fire on the release of the button. This may be NULL to have no up handler.
+//! @param down_handler The \ref ClickHandler to fire as soon as the button has been pressed. This
+//! may be NULL to have no down handler.
+//! @param up_handler The \ref ClickHandler to fire on the release of the button. This may be NULL
+//! to have no up handler.
 //! @param context If this context is not NULL, it will override the general context.
-void window_raw_click_subscribe(ButtonId button_id, ClickHandler down_handler, ClickHandler up_handler, void *context);
+void window_raw_click_subscribe(ButtonId button_id, ClickHandler down_handler,
+                                ClickHandler up_handler, void *context);
 
-//! Set the context that will be passed to handlers for the given button's events. By default the context passed to handlers
-//! is equal to the \ref ClickConfigProvider context (defaults to the window).
+//! Set the context that will be passed to handlers for the given button's events. By default the
+//! context passed to handlers is equal to the \ref ClickConfigProvider context (defaults to the
+//! window).
 //! @note Must be called from within the \ref ClickConfigProvider.
 //! @param button_id The button to set the context for.
 //! @param context Set the context that will be passed to handlers for the given button's events.
@@ -5924,18 +6154,20 @@ void window_set_click_context(ButtonId button_id, void *context);
 //! The navigation model of Pebble centers on the concept of a vertical “stack” of windows, similar
 //! to mobile app interactions.
 //!
-//! In working with the Window Stack API, the basic operations include push and pop. When an app wants to
-//! display a new window, it pushes a new window onto the stack. This appears like a window sliding in
-//! from the right. As an app is closed, the window is popped off the stack and disappears.
+//! In working with the Window Stack API, the basic operations include push and pop. When an app
+//! wants to display a new window, it pushes a new window onto the stack. This appears like a window
+//! sliding in from the right. As an app is closed, the window is popped off the stack and
+//! disappears.
 //!
-//! For more complicated operations, involving multiple windows, you can determine which windows reside
-//! on the stack, using window_stack_contains_window() and remove any specific window, using window_stack_remove().
+//! For more complicated operations, involving multiple windows, you can determine which windows
+//! reside on the stack, using window_stack_contains_window() and remove any specific window, using
+//! window_stack_remove().
 //!
 //! Refer to the \htmlinclude UiFramework.html (chapter "Window Stack") for a conceptual overview
 //! of the window stack and relevant code examples.
 //!
-//! Also see the \ref WindowHandlers of a \ref Window for the callbacks that can be added to a window
-//! in order to act upon window stack transitions.
+//! Also see the \ref WindowHandlers of a \ref Window for the callbacks that can be added to a
+//! window in order to act upon window stack transitions.
 //!
 //! @{
 
@@ -5949,7 +6181,7 @@ void window_stack_push(Window *window, bool animated);
 //! Pops the topmost window on the navigation stack
 //! @param animated See \ref window_stack_remove()
 //! @return The window that is popped, or NULL if there are no windows to pop.
-Window* window_stack_pop(bool animated);
+Window *window_stack_pop(bool animated);
 
 //! Pops all windows.
 //! See \ref window_stack_remove() for a description of the `animated` parameter and notes.
@@ -5972,7 +6204,7 @@ bool window_stack_remove(Window *window, bool animated);
 //! Gets the topmost window on the stack that belongs to the app.
 //! @return The topmost window on the stack that belongs to the app or
 //! NULL if no app window could be found.
-Window* window_stack_get_top_window(void);
+Window *window_stack_get_top_window(void);
 
 //! Checks if the window is on the window stack
 //! @param window The window to look for on the window stack
@@ -6021,7 +6253,7 @@ typedef enum {
   AnimationCurve_Reserved2 = 7,
 } AnimationCurve;
 
-//! Creates a new Animation on the heap and initalizes it with the default values.
+//! Creates a new Animation on the heap and initializes it with the default values.
 //!
 //! * Duration: 250ms,
 //! * Curve: \ref AnimationCurveEaseInOut (ease-in-out),
@@ -6032,7 +6264,7 @@ typedef enum {
 //! * Scheduled: no
 //! @return A pointer to the animation. `NULL` if the animation could not
 //! be created
-Animation * animation_create(void);
+Animation *animation_create(void);
 
 //! Destroys an Animation previously created by animation_create.
 //! @return true if successful, false on failure
@@ -6331,7 +6563,7 @@ typedef void (*AnimationSetupImplementation)(Animation *animation);
 //! Other system animation curve functions will result in a non-linear relation between
 //! distance_normalized and time.
 typedef void (*AnimationUpdateImplementation)(Animation *animation,
-              const AnimationProgress progress);
+                                              const AnimationProgress progress);
 
 //! Pointer to function that (optionally) cleans up the animation.
 //! This callback is called when the animation is removed from the scheduler.
@@ -6387,10 +6619,10 @@ bool animation_set_implementation(Animation *animation,
 //! @param animation The animation for which to get the implementation.
 //! @see AnimationImplementation
 //! @return NULL if animation implementation has not been setup.
-const AnimationImplementation* animation_get_implementation(Animation *animation);
+const AnimationImplementation *animation_get_implementation(Animation *animation);
 
 //! @addtogroup PropertyAnimation
-//! \brief A ProperyAnimation animates the value of a "property" of a "subject" over time.
+//! \brief A PropertyAnimation animates the value of a "property" of a "subject" over time.
 //!
 //! <h3>Animating a Layer's frame property</h3>
 //! Currently there is only one specific type of property animation offered off-the-shelf, namely
@@ -6474,7 +6706,7 @@ PropertyAnimation *property_animation_create_layer_frame(struct Layer *layer, GR
 //! @param to the origin that the layer should animate to
 //! @return A handle to the property animation. `NULL` if animation could not be created
 PropertyAnimation *property_animation_create_bounds_origin(struct Layer *layer, GPoint *from,
-    GPoint *to);
+                                                           GPoint *to);
 
 //! Creates a new PropertyAnimation on the heap and and initializes it with the specified values.
 //! The same defaults are used as with \ref animation_create().
@@ -6493,12 +6725,12 @@ PropertyAnimation *property_animation_create_bounds_origin(struct Layer *layer, 
 //! both `from_value` and `to_value`, will result in the animation having the same from- and to-
 //! values, effectively not doing anything.
 //! @return A handle to the property animation. `NULL` if animation could not be created
-PropertyAnimation* property_animation_create(const PropertyAnimationImplementation *implementation,
-                      void *subject, void *from_value, void *to_value);
+PropertyAnimation *property_animation_create(const PropertyAnimationImplementation *implementation,
+                                             void *subject, void *from_value, void *to_value);
 
 //! Destroy a property animation allocated by property_animation_create() or relatives.
 //! @param property_animation the return value from property_animation_create
-void property_animation_destroy(PropertyAnimation* property_animation);
+void property_animation_destroy(PropertyAnimation *property_animation);
 
 //! Default update callback for a property animations to update a property of type int16_t.
 //! Assign this function to the `.base.update` callback field of your
@@ -6606,7 +6838,8 @@ typedef uint32_t (*UInt32Getter)(void *subject);
 //! @see \ref PropertyAnimationAccessors
 typedef void (*GPointSetter)(void *subject, GPoint gpoint);
 
-//! Function signature of a getter function to get the current property of type GPoint of the subject.
+//! Function signature of a getter function to get the current property of type GPoint of the
+//! subject.
 //! @see \ref property_animation_create()
 //! @see \ref PropertyAnimationAccessors
 typedef GPointReturn (*GPointGetter)(void *subject);
@@ -6616,7 +6849,8 @@ typedef GPointReturn (*GPointGetter)(void *subject);
 //! @see \ref PropertyAnimationAccessors
 typedef void (*GRectSetter)(void *subject, GRect grect);
 
-//! Function signature of a getter function to get the current property of type GRect of the subject.
+//! Function signature of a getter function to get the current property of type GRect of the
+//! subject.
 //! @see \ref property_animation_create()
 //! @see \ref PropertyAnimationAccessors
 typedef GRectReturn (*GRectGetter)(void *subject);
@@ -6657,8 +6891,8 @@ typedef struct PropertyAnimationAccessors {
     UInt32Setter uint32;
   } setter;
   //! Function pointer to the implementation of the function that __gets__ the current property
-  //! value. This function will be called during \ref property_animation_create(), to get the current
-  //! property value, in case the `from_value` or `to_value` argument is `NULL`.
+  //! value. This function will be called during \ref property_animation_create(), to get the
+  //! current property value, in case the `from_value` or `to_value` argument is `NULL`.
   //! @see PropertyAnimationAccessors
   union {
     //! Use if the property to animate is of int16_t type
@@ -6693,104 +6927,104 @@ Animation *property_animation_get_animation(PropertyAnimation *property_animatio
 //! @param property_animation The property animation
 //! @return A clone of the original Animation
 #define property_animation_clone(property_animation) \
-    (PropertyAnimation *)animation_clone((Animation *)property_animation)
+  (PropertyAnimation *)animation_clone((Animation *)property_animation)
 
 //! Convenience function to retrieve the 'from' GRect value from property animation handle
 //! @param property_animation The PropertyAnimation to be accessed
 //! @param value_ptr The value will be retrieved into this pointer
 //! @return true on success, false on failure
 #define property_animation_get_from_grect(property_animation, value_ptr) \
-    property_animation_from(property_animation, value_ptr, sizeof(GRect), false)
+  property_animation_from(property_animation, value_ptr, sizeof(GRect), false)
 
 //! Convenience function to set the 'from' GRect value of property animation handle
 //! @param property_animation The PropertyAnimation to be accessed
 //! @param value_ptr Pointer to the new value
 //! @return true on success, false on failure
 #define property_animation_set_from_grect(property_animation, value_ptr) \
-    property_animation_from(property_animation, value_ptr, sizeof(GRect), true)
+  property_animation_from(property_animation, value_ptr, sizeof(GRect), true)
 
 //! Convenience function to retrieve the 'from' GPoint value from property animation handle
 //! @param property_animation The PropertyAnimation to be accessed
 //! @param value_ptr The value will be retrieved into this pointer
 //! @return true on success, false on failure
 #define property_animation_get_from_gpoint(property_animation, value_ptr) \
-    property_animation_from(property_animation, value_ptr, sizeof(GPoint), false)
+  property_animation_from(property_animation, value_ptr, sizeof(GPoint), false)
 
 //! Convenience function to set the 'from' GPoint value of property animation handle
 //! @param property_animation The PropertyAnimation to be accessed
 //! @param value_ptr Pointer to the new value
 //! @return true on success, false on failure
 #define property_animation_set_from_gpoint(property_animation, value_ptr) \
-    property_animation_from(property_animation, value_ptr, sizeof(GPoint), true)
+  property_animation_from(property_animation, value_ptr, sizeof(GPoint), true)
 
 //! Convenience function to retrieve the 'from' int16_t value from property animation handle
 //! @param property_animation The PropertyAnimation to be accessed
 //! @param value_ptr The value will be retrieved into this pointer
 //! @return true on success, false on failure
 #define property_animation_get_from_int16(property_animation, value_ptr) \
-    property_animation_from(property_animation, value_ptr, sizeof(int16_t), false)
+  property_animation_from(property_animation, value_ptr, sizeof(int16_t), false)
 
 //! Convenience function to set the 'from' int16_t value of property animation handle
 //! @param property_animation The PropertyAnimation to be accessed
 //! @param value_ptr Pointer to the new value
 //! @return true on success, false on failure
 #define property_animation_set_from_int16(property_animation, value_ptr) \
-    property_animation_from(property_animation, value_ptr, sizeof(int16_t), true)
+  property_animation_from(property_animation, value_ptr, sizeof(int16_t), true)
 
 //! Convenience function to retrieve the 'to' GRect value from property animation handle
 //! @param property_animation The PropertyAnimation to be accessed
 //! @param value_ptr The value will be retrieved into this pointer
 //! @return true on success, false on failure
 #define property_animation_get_to_grect(property_animation, value_ptr) \
-    property_animation_to(property_animation, value_ptr, sizeof(GRect), false)
+  property_animation_to(property_animation, value_ptr, sizeof(GRect), false)
 
 //! Convenience function to set the 'to' GRect value of property animation handle
 //! @param property_animation The PropertyAnimation to be accessed
 //! @param value_ptr Pointer to the new value
 //! @return true on success, false on failure
 #define property_animation_set_to_grect(property_animation, value_ptr) \
-    property_animation_to(property_animation, value_ptr, sizeof(GRect), true)
+  property_animation_to(property_animation, value_ptr, sizeof(GRect), true)
 
 //! Convenience function to retrieve the 'to' GPoint value from property animation handle
 //! @param property_animation The PropertyAnimation to be accessed
 //! @param value_ptr The value will be retrieved into this pointer
 //! @return true on success, false on failure
 #define property_animation_get_to_gpoint(property_animation, value_ptr) \
-    property_animation_to(property_animation, value_ptr, sizeof(GPoint), false)
+  property_animation_to(property_animation, value_ptr, sizeof(GPoint), false)
 
 //! Convenience function to set the 'to' GPoint value of property animation handle
 //! @param property_animation The PropertyAnimation to be accessed
 //! @param value_ptr Pointer to the new value
 //! @return true on success, false on failure
 #define property_animation_set_to_gpoint(property_animation, value_ptr) \
-    property_animation_to(property_animation, value_ptr, sizeof(GPoint), true)
+  property_animation_to(property_animation, value_ptr, sizeof(GPoint), true)
 
 //! Convenience function to retrieve the 'to' int16_t value from property animation handle
 //! @param property_animation The PropertyAnimation to be accessed
 //! @param value_ptr The value will be retrieved into this pointer
 //! @return true on success, false on failure
 #define property_animation_get_to_int16(property_animation, value_ptr) \
-    property_animation_to(property_animation, value_ptr, sizeof(int16_t), false)
+  property_animation_to(property_animation, value_ptr, sizeof(int16_t), false)
 
 //! Convenience function to set the 'to' int16_t value of property animation handle
 //! @param property_animation The PropertyAnimation to be accessed
 //! @param value_ptr Pointer to the new value
 //! @return true on success, false on failure
 #define property_animation_set_to_int16(property_animation, value_ptr) \
-    property_animation_to(property_animation, value_ptr, sizeof(int16_t), true)
+  property_animation_to(property_animation, value_ptr, sizeof(int16_t), true)
 
 //! Retrieve the subject of a property animation
 //! @param property_animation The PropertyAnimation to be accessed
 //! @param value_ptr Pointer used to store the subject of this property animation
 //! @return The subject of this PropertyAnimation
 #define property_animation_get_subject(property_animation, value_ptr) \
-    property_animation_subject(property_animation, value_ptr, false)
+  property_animation_subject(property_animation, value_ptr, false)
 
 //! Set the subject of a property animation
 //! @param property_animation The PropertyAnimation to be accessed
 //! @param value_ptr Pointer to the new subject value
 #define property_animation_set_subject(property_animation, value_ptr) \
-    property_animation_subject(property_animation, value_ptr, true)
+  property_animation_subject(property_animation, value_ptr, true)
 
 //! Helper function used by the property_animation_get|set_subject macros
 //! @param property_animation Handle to the property animation
@@ -6806,7 +7040,7 @@ bool property_animation_subject(PropertyAnimation *property_animation, void **su
 //! @param set true to set new value, false to retrieve existing one
 //! @return true if successful, false on failure (usually a bad animation_h)
 bool property_animation_from(PropertyAnimation *property_animation, void *from, size_t size,
-                              bool set);
+                             bool set);
 
 //! Helper function used by the property_animation_get|set_to_.* macros
 //! @param property_animation handle to the property animation
@@ -6814,8 +7048,7 @@ bool property_animation_from(PropertyAnimation *property_animation, void *from, 
 //! @param size Size of the to value
 //! @param set true to set new value, false to retrieve existing one
 //! @return true if successful, false on failure (usually a bad animation_h)
-bool property_animation_to(PropertyAnimation *property_animation, void *to, size_t size,
-                            bool set);
+bool property_animation_to(PropertyAnimation *property_animation, void *to, size_t size, bool set);
 
 //! @} // group PropertyAnimation
 
@@ -6956,24 +7189,25 @@ typedef struct TextLayer TextLayer;
 //! * Caching: `false`
 //!
 //! The text layer is automatically marked dirty after this operation.
-//! @param frame The frame with which to initialze the TextLayer
+//! @param frame The frame with which to initialize the TextLayer
 //! @return A pointer to the TextLayer. `NULL` if the TextLayer could not
 //! be created
-TextLayer* text_layer_create(GRect frame);
+TextLayer *text_layer_create(GRect frame);
 
 //! Destroys a TextLayer previously created by text_layer_create.
-void text_layer_destroy(TextLayer* text_layer);
+void text_layer_destroy(TextLayer *text_layer);
 
 //! Gets the "root" Layer of the text layer, which is the parent for the sub-
 //! layers used for its implementation.
 //! @param text_layer Pointer to the TextLayer for which to get the "root" Layer
 //! @return The "root" Layer of the text layer.
-Layer* text_layer_get_layer(TextLayer *text_layer);
+Layer *text_layer_get_layer(TextLayer *text_layer);
 
 //! Sets the pointer to the string where the TextLayer is supposed to find the text
 //! at a later point in time, when it needs to draw itself.
 //! @param text_layer The TextLayer of which to set the text
-//! @param text The new text to set onto the TextLayer. This must be a null-terminated and valid UTF-8 string!
+//! @param text The new text to set onto the TextLayer. This must be a null-terminated and valid
+//! UTF-8 string!
 //! @note The string is not copied, so its buffer most likely cannot be stack allocated,
 //! but is recommended to be a buffer that is long-lived, at least as long as the TextLayer
 //! is part of a visible Layer hierarchy.
@@ -6983,7 +7217,7 @@ void text_layer_set_text(TextLayer *text_layer, const char *text);
 //! Gets the pointer to the string that the TextLayer is using.
 //! @param text_layer The TextLayer for which to get the text
 //! @see text_layer_set_text
-const char* text_layer_get_text(TextLayer *text_layer);
+const char *text_layer_get_text(TextLayer *text_layer);
 
 //! Sets the background color of the bounding box that will be drawn behind the text
 //! @param text_layer The TextLayer of which to set the background color
@@ -7073,7 +7307,7 @@ void text_layer_set_size(TextLayer *text_layer, const GSize max_size);
 //! UP and DOWN buttons with scrolling up and down.
 //! * The SELECT button can be configured by installing a click configuration
 //! provider using \ref scroll_layer_set_callbacks().
-//! * To scroll programatically to a certain offset, use
+//! * To scroll programmatically to a certain offset, use
 //! \ref scroll_layer_set_content_offset().
 //! * It is possible to get called back for each scrolling increment, by
 //! installing the `.content_offset_changed_handler` callback using
@@ -7091,7 +7325,6 @@ typedef void (*ScrollLayerCallback)(struct ScrollLayer *scroll_layer, void *cont
 //! @note The context parameter can be set using scroll_layer_set_context() and
 //! gets passed in as context with all of these callbacks.
 typedef struct ScrollLayerCallbacks {
-
   //! Provider function to set up the SELECT button handlers. This will be
   //! called after the scroll layer has configured the click configurations for
   //! the up/down buttons, so it can also be used to modify the default up/down
@@ -7104,7 +7337,7 @@ typedef struct ScrollLayerCallbacks {
 
 } ScrollLayerCallbacks;
 
-//! Creates a new ScrollLayer on the heap and initalizes it with the default values:
+//! Creates a new ScrollLayer on the heap and initializes it with the default values:
 //! * Clips: `true`
 //! * Hidden: `false`
 //! * Content size: `frame.size`
@@ -7113,7 +7346,7 @@ typedef struct ScrollLayerCallbacks {
 //! * Callback context: `NULL`
 //! @return A pointer to the ScrollLayer. `NULL` if the ScrollLayer could not
 //! be created
-ScrollLayer* scroll_layer_create(GRect frame);
+ScrollLayer *scroll_layer_create(GRect frame);
 
 //! Destroys a ScrollLayer previously created by scroll_layer_create.
 void scroll_layer_destroy(ScrollLayer *scroll_layer);
@@ -7122,7 +7355,7 @@ void scroll_layer_destroy(ScrollLayer *scroll_layer);
 //! layers used for its implementation.
 //! @param scroll_layer Pointer to the ScrollLayer for which to get the "root" Layer
 //! @return The "root" Layer of the scroll layer.
-Layer* scroll_layer_get_layer(const ScrollLayer *scroll_layer);
+Layer *scroll_layer_get_layer(const ScrollLayer *scroll_layer);
 
 //! Adds the child layer to the content sub-layer of the ScrollLayer.
 //! This will make the child layer part of the scrollable contents.
@@ -7267,15 +7500,15 @@ ContentIndicator *scroll_layer_get_content_indicator(ScrollLayer *scroll_layer);
 //! @see \ref content_indicator_set_content_available
 typedef enum {
   ContentIndicatorDirectionUp = 0, //!< The up direction.
-  ContentIndicatorDirectionDown, //!< The down direction.
-  NumContentIndicatorDirections //!< The number of supported directions.
+  ContentIndicatorDirectionDown,   //!< The down direction.
+  NumContentIndicatorDirections    //!< The number of supported directions.
 } ContentIndicatorDirection;
 
 //! Struct used to configure directions for \ref ContentIndicator.
 //! @see \ref content_indicator_configure_direction
 typedef struct {
   Layer *layer; //!< The layer where the arrow indicator will be rendered when content is available.
-  bool times_out; //!< Whether the display of the arrow indicator should timeout.
+  bool times_out;   //!< Whether the display of the arrow indicator should timeout.
   GAlign alignment; //!< The alignment of the arrow within the provided layer.
   struct {
     GColor foreground; //!< The color of the arrow.
@@ -7316,8 +7549,7 @@ bool content_indicator_get_content_available(ContentIndicator *content_indicator
 //! @note If times_out is enabled, calling this function resets any previously scheduled timeout
 //! timer for the ContentIndicator.
 void content_indicator_set_content_available(ContentIndicator *content_indicator,
-                                             ContentIndicatorDirection direction,
-                                             bool available);
+                                             ContentIndicatorDirection direction, bool available);
 
 //! @} // group ScrollLayer
 
@@ -7365,7 +7597,7 @@ void content_indicator_set_content_available(ContentIndicator *content_indicator
 //! @param icon If non-null, draws an icon to the left of the text. If `NULL`,
 //! the icon will be omitted and the leftover space is used for the title and
 //! subtitle.
-void menu_cell_basic_draw(GContext* ctx, const Layer *cell_layer, const char *title,
+void menu_cell_basic_draw(GContext *ctx, const Layer *cell_layer, const char *title,
                           const char *subtitle, GBitmap *icon);
 
 //! Cell drawing function to draw a basic menu cell layout with title, subtitle
@@ -7376,7 +7608,7 @@ void menu_cell_basic_draw(GContext* ctx, const Layer *cell_layer, const char *ti
 //! @param cell_layer The layer of the cell to draw
 //! @param title If non-null, draws a title in larger text (28 points, bold
 //! Raster Gothic system font).
-void menu_cell_title_draw(GContext* ctx, const Layer *cell_layer, const char *title);
+void menu_cell_title_draw(GContext *ctx, const Layer *cell_layer, const char *title);
 
 //! Section header drawing function to draw a basic section header cell layout
 //! with the title of the section.
@@ -7386,13 +7618,13 @@ void menu_cell_title_draw(GContext* ctx, const Layer *cell_layer, const char *ti
 //! @param cell_layer The layer of the cell to draw
 //! @param title If non-null, draws the title in small text (14 points, bold
 //! Raster Gothic system font).
-void menu_cell_basic_header_draw(GContext* ctx, const Layer *cell_layer, const char *title);
+void menu_cell_basic_header_draw(GContext *ctx, const Layer *cell_layer, const char *title);
 
 //! Default section header height in pixels
-#define MENU_CELL_BASIC_HEADER_HEIGHT ((const int16_t) 16)
+#define MENU_CELL_BASIC_HEADER_HEIGHT ((const int16_t)16)
 
 
-#define MENU_INDEX_NOT_FOUND ((const uint16_t) ~0)
+#define MENU_INDEX_NOT_FOUND ((const uint16_t)~0)
 
 //! Data structure to represent an menu item's position in a menu, by specifying
 //! the section index and the row index within that section.
@@ -7404,7 +7636,7 @@ typedef struct MenuIndex {
 } MenuIndex;
 
 //! Macro to create a MenuIndex
-#define MenuIndex(section, row) ((MenuIndex){ (section), (row) })
+#define MenuIndex(section, row) ((MenuIndex){(section), (row)})
 
 //! Comparator function to determine the order of two MenuIndex values.
 //! @param a Pointer to the menu index of the first item
@@ -7454,8 +7686,7 @@ typedef uint16_t (*MenuLayerGetNumberOfRowsInSectionsCallback)(struct MenuLayer 
 //! @see \ref menu_layer_set_callbacks()
 //! @see \ref MenuLayerCallbacks
 typedef int16_t (*MenuLayerGetCellHeightCallback)(struct MenuLayer *menu_layer,
-                                                  MenuIndex *cell_index,
-                                                  void *callback_context);
+                                                  MenuIndex *cell_index, void *callback_context);
 
 //! Function signature for the callback to get the height of the section header
 //! at a given section index.
@@ -7467,8 +7698,7 @@ typedef int16_t (*MenuLayerGetCellHeightCallback)(struct MenuLayer *menu_layer,
 //! @see \ref menu_layer_set_callbacks()
 //! @see \ref MenuLayerCallbacks
 typedef int16_t (*MenuLayerGetHeaderHeightCallback)(struct MenuLayer *menu_layer,
-                                                    uint16_t section_index,
-                                                    void *callback_context);
+                                                    uint16_t section_index, void *callback_context);
 
 //! Function signature for the callback to get the height of the separator
 //! at a given index.
@@ -7494,10 +7724,8 @@ typedef int16_t (*MenuLayerGetSeparatorHeightCallback)(struct MenuLayer *menu_la
 //! ignored.
 //! @see \ref menu_layer_set_callbacks()
 //! @see \ref MenuLayerCallbacks
-typedef void (*MenuLayerDrawRowCallback)(GContext* ctx,
-                                         const Layer *cell_layer,
-                                         MenuIndex *cell_index,
-                                         void *callback_context);
+typedef void (*MenuLayerDrawRowCallback)(GContext *ctx, const Layer *cell_layer,
+                                         MenuIndex *cell_index, void *callback_context);
 
 //! Function signature for the callback to render the section header at a given
 //! section index.
@@ -7513,10 +7741,8 @@ typedef void (*MenuLayerDrawRowCallback)(GContext* ctx,
 //! ignored.
 //! @see \ref menu_layer_set_callbacks()
 //! @see \ref MenuLayerCallbacks
-typedef void (*MenuLayerDrawHeaderCallback)(GContext* ctx,
-                                            const Layer *cell_layer,
-                                            uint16_t section_index,
-                                            void *callback_context);
+typedef void (*MenuLayerDrawHeaderCallback)(GContext *ctx, const Layer *cell_layer,
+                                            uint16_t section_index, void *callback_context);
 
 //! Function signature for the callback to render the separator at a given
 //! MenuIndex.
@@ -7530,47 +7756,41 @@ typedef void (*MenuLayerDrawHeaderCallback)(GContext* ctx,
 //! ignored.
 //! @see \ref menu_layer_set_callbacks()
 //! @see \ref MenuLayerCallbacks
-typedef void (*MenuLayerDrawSeparatorCallback)(GContext* ctx,
-                                               const Layer *cell_layer,
-                                               MenuIndex *cell_index,
-                                               void *callback_context);
+typedef void (*MenuLayerDrawSeparatorCallback)(GContext *ctx, const Layer *cell_layer,
+                                               MenuIndex *cell_index, void *callback_context);
 
 //! Function signature for the callback to handle the event that a user hits
 //! the SELECT button.
-//! @param menu_layer The \ref MenuLayer for which the selection event occured
+//! @param menu_layer The \ref MenuLayer for which the selection event occurred
 //! @param cell_index The MenuIndex of the cell that is selected
 //! @param callback_context The callback context
 //! @see \ref menu_layer_set_callbacks()
 //! @see \ref MenuLayerCallbacks
-typedef void (*MenuLayerSelectCallback)(struct MenuLayer *menu_layer,
-                                        MenuIndex *cell_index,
+typedef void (*MenuLayerSelectCallback)(struct MenuLayer *menu_layer, MenuIndex *cell_index,
                                         void *callback_context);
 
 //! Function signature for the callback to handle a change in the current
 //! selected item in the menu.
-//! @param menu_layer The \ref MenuLayer for which the selection event occured
+//! @param menu_layer The \ref MenuLayer for which the selection event occurred
 //! @param new_index The MenuIndex of the new item that is selected now
 //! @param old_index The MenuIndex of the old item that was selected before
 //! @param callback_context The callback context
 //! @see \ref menu_layer_set_callbacks()
 //! @see \ref MenuLayerCallbacks
-typedef void (*MenuLayerSelectionChangedCallback)(struct MenuLayer *menu_layer,
-                                                  MenuIndex new_index,
-                                                  MenuIndex old_index,
-                                                  void *callback_context);
+typedef void (*MenuLayerSelectionChangedCallback)(struct MenuLayer *menu_layer, MenuIndex new_index,
+                                                  MenuIndex old_index, void *callback_context);
 
 //! Function signature for the callback which allows or changes selection behavior of the menu.
 //! In order to change the cell that should be selected, modify the passed in new_index.
 //! Preventing the selection from changing, new_index can be assigned the value of old_index.
-//! @param menu_layer The \ref MenuLayer for which the selection event that occured
+//! @param menu_layer The \ref MenuLayer for which the selection event that occurred
 //! @param new_index Pointer to the index that the MenuLayer is going to change selection to.
 //! @param old_index The index that is being unselected.
 //! @param callback_context The callback context
 //! @note \ref menu_layer_set_selected_index will not trigger this callback when
 //! the selection changes, but \ref menu_layer_set_selected_next will.
 typedef void (*MenuLayerSelectionWillChangeCallback)(struct MenuLayer *menu_layer,
-                                                     MenuIndex *new_index,
-                                                     MenuIndex old_index,
+                                                     MenuIndex *new_index, MenuIndex old_index,
                                                      void *callback_context);
 
 //! Function signature for the callback which draws the menu's background.
@@ -7580,10 +7800,8 @@ typedef void (*MenuLayerSelectionWillChangeCallback)(struct MenuLayer *menu_laye
 //! @param bg_layer The background's layer, containing the geometry of the background.
 //! @param highlight Whether this should be rendered as highlighted or not. Highlight style
 //! should match the highlight style of cells, since this color can be used for animating selection.
-typedef void (*MenuLayerDrawBackgroundCallback)(GContext* ctx,
-                                                const Layer *bg_layer,
-                                                bool highlight,
-                                                void *callback_context);
+typedef void (*MenuLayerDrawBackgroundCallback)(GContext *ctx, const Layer *bg_layer,
+                                                bool highlight, void *callback_context);
 
 //! Data structure containing all the callbacks of a \ref MenuLayer.
 typedef struct MenuLayerCallbacks {
@@ -7665,7 +7883,7 @@ typedef struct MenuLayerCallbacks {
   MenuLayerDrawBackgroundCallback draw_background;
 } MenuLayerCallbacks;
 
-//! Creates a new \ref MenuLayer on the heap and initalizes it with the default values.
+//! Creates a new \ref MenuLayer on the heap and initializes it with the default values.
 //!
 //! * Clips: `true`
 //! * Hidden: `false`
@@ -7677,22 +7895,22 @@ typedef struct MenuLayerCallbacks {
 //!   will be selected initially.
 //! @return A pointer to the \ref MenuLayer. `NULL` if the \ref MenuLayer could not
 //! be created
-MenuLayer* menu_layer_create(GRect frame);
+MenuLayer *menu_layer_create(GRect frame);
 
 //! Destroys a \ref MenuLayer previously created by menu_layer_create.
-void menu_layer_destroy(MenuLayer* menu_layer);
+void menu_layer_destroy(MenuLayer *menu_layer);
 
 //! Gets the "root" Layer of the \ref MenuLayer, which is the parent for the sub-
 //! layers used for its implementation.
 //! @param menu_layer Pointer to the MenuLayer for which to get the "root" Layer
 //! @return The "root" Layer of the \ref MenuLayer.
-Layer* menu_layer_get_layer(const MenuLayer *menu_layer);
+Layer *menu_layer_get_layer(const MenuLayer *menu_layer);
 
 //! Gets the ScrollLayer of the \ref MenuLayer, which is the layer responsible for
 //! the scrolling of the \ref MenuLayer.
 //! @param menu_layer Pointer to the \ref MenuLayer for which to get the ScrollLayer
 //! @return The ScrollLayer of the \ref MenuLayer.
-ScrollLayer* menu_layer_get_scroll_layer(const MenuLayer *menu_layer);
+ScrollLayer *menu_layer_get_scroll_layer(const MenuLayer *menu_layer);
 
 //! Sets the callbacks for the MenuLayer.
 //! @param menu_layer Pointer to the \ref MenuLayer for which to set the callbacks
@@ -7720,8 +7938,7 @@ void menu_layer_set_callbacks(MenuLayer *menu_layer, void *callback_context,
 //! @see \ref Clicks
 //! @see \ref window_set_click_config_provider_with_context()
 //! @see \ref scroll_layer_set_click_config_onto_window()
-void menu_layer_set_click_config_onto_window(MenuLayer *menu_layer,
-                                             struct Window *window);
+void menu_layer_set_click_config_onto_window(MenuLayer *menu_layer, struct Window *window);
 
 //! Values to specify how a (selected) row should be aligned relative to the
 //! visible area of the \ref MenuLayer.
@@ -7750,9 +7967,7 @@ typedef enum {
 //! @param animated Supply `true` to animate changing the selection, or `false`
 //! to change the selection instantly.
 //! @note If there is no next/previous item, this function is a no-op.
-void menu_layer_set_selected_next(MenuLayer *menu_layer,
-                                  bool up,
-                                  MenuRowAlign scroll_align,
+void menu_layer_set_selected_next(MenuLayer *menu_layer, bool up, MenuRowAlign scroll_align,
                                   bool animated);
 
 //! Selects the item with given \ref MenuIndex.
@@ -7761,12 +7976,11 @@ void menu_layer_set_selected_next(MenuLayer *menu_layer,
 //! @param scroll_align The alignment of the new selection
 //! @param animated Supply `true` to animate changing the selection, or `false`
 //! to change the selection instantly.
-//! @note If the section and/or row index exceeds the avaible number of sections
+//! @note If the section and/or row index exceeds the available number of sections
 //! or resp. rows, the exceeding index/indices will be capped, effectively
 //! selecting the last section and/or row, resp.
-void menu_layer_set_selected_index(MenuLayer *menu_layer,
-                                   MenuIndex index, MenuRowAlign scroll_align,
-                                   bool animated);
+void menu_layer_set_selected_index(MenuLayer *menu_layer, MenuIndex index,
+                                   MenuRowAlign scroll_align, bool animated);
 
 //! Gets the MenuIndex of the currently selected menu item.
 //! @param menu_layer The \ref MenuLayer for which to get the current selected index.
@@ -7847,19 +8061,19 @@ bool menu_layer_is_index_selected(const MenuLayer *menu_layer, MenuIndex *index)
 
 //! Constant value representing \ref MenuLayer short cell height when this item is
 //! the selected item on a round display.
-#define MENU_CELL_ROUND_FOCUSED_SHORT_CELL_HEIGHT ((const int16_t) 68)
+#define MENU_CELL_ROUND_FOCUSED_SHORT_CELL_HEIGHT ((const int16_t)68)
 
 //! Constant value representing \ref MenuLayer short cell height when this item is
 //! not the selected item on a round display.
-#define MENU_CELL_ROUND_UNFOCUSED_SHORT_CELL_HEIGHT ((const int16_t) 24)
+#define MENU_CELL_ROUND_UNFOCUSED_SHORT_CELL_HEIGHT ((const int16_t)24)
 
 //! Constant value representing \ref MenuLayer tall cell height when this item is
 //! the selected item on a round display.
-#define MENU_CELL_ROUND_FOCUSED_TALL_CELL_HEIGHT ((const int16_t) 84)
+#define MENU_CELL_ROUND_FOCUSED_TALL_CELL_HEIGHT ((const int16_t)84)
 
 //! Constant value representing \ref MenuLayer tall cell height when this item is
 //! not the selected item on a round display.
-#define MENU_CELL_ROUND_UNFOCUSED_TALL_CELL_HEIGHT ((const int16_t) 32)
+#define MENU_CELL_ROUND_UNFOCUSED_TALL_CELL_HEIGHT ((const int16_t)32)
 
 //! @} // group MenuLayer
 
@@ -7915,18 +8129,19 @@ typedef struct {
 //! @note This function does not add the menu's layer to the window.
 //! @return A pointer to the SimpleMenuLayer. `NULL` if the SimpleMenuLayer could not
 //! be created
-SimpleMenuLayer* simple_menu_layer_create(GRect frame, Window *window,
-    const SimpleMenuSection *sections, int32_t num_sections, void *callback_context);
+SimpleMenuLayer *simple_menu_layer_create(GRect frame, Window *window,
+                                          const SimpleMenuSection *sections, int32_t num_sections,
+                                          void *callback_context);
 
 //! Destroys a SimpleMenuLayer previously created by simple_menu_layer_create.
-void simple_menu_layer_destroy(SimpleMenuLayer* menu_layer);
+void simple_menu_layer_destroy(SimpleMenuLayer *menu_layer);
 
 //! Gets the "root" Layer of the simple menu layer, which is the parent for the
 //! sub-layers used for its implementation.
 //! @param simple_menu Pointer to the SimpleMenuLayer for which to get the
 //! "root" Layer
 //! @return The "root" Layer of the menu layer.
-Layer* simple_menu_layer_get_layer(const SimpleMenuLayer *simple_menu);
+Layer *simple_menu_layer_get_layer(const SimpleMenuLayer *simple_menu);
 
 //! Gets the row index of the currently selection menu item.
 //! @param simple_menu The SimpleMenuLayer for which to get the current
@@ -7938,7 +8153,8 @@ int simple_menu_layer_get_selected_index(const SimpleMenuLayer *simple_menu);
 //! @param index The row index of the item to select
 //! @param animated Supply `true` to animate changing the selection, or `false`
 //! to change the selection instantly.
-void simple_menu_layer_set_selected_index(SimpleMenuLayer *simple_menu, int32_t index, bool animated);
+void simple_menu_layer_set_selected_index(SimpleMenuLayer *simple_menu, int32_t index,
+                                          bool animated);
 
 //! @param simple_menu The \ref SimpleMenuLayer to get the \ref MenuLayer from.
 //! @return The \ref MenuLayer.
@@ -8024,14 +8240,9 @@ MenuLayer *simple_menu_layer_get_menu_layer(SimpleMenuLayer *simple_menu);
 #define ACTION_BAR_WIDTH _ACTION_BAR_WIDTH(PBL_PLATFORM_TYPE_CURRENT)
 
 //! The width of the action bar in pixels, for all platforms.
-#define _ACTION_BAR_WIDTH(plat) PBL_PLATFORM_SWITCH(plat, \
-  /*aplite*/ 30, \
-  /*basalt*/ 30, \
-  /*chalk*/ 40, \
-  /*diorite*/ 30, \
-  /*emery*/ 34, \
-  /*flint*/ 30, \
-  /*gabbro*/ 40)
+#define _ACTION_BAR_WIDTH(plat)                                                         \
+  PBL_PLATFORM_SWITCH(plat, /*aplite*/ 30, /*basalt*/ 30, /*chalk*/ 40, /*diorite*/ 30, \
+                      /*emery*/ 34, /*flint*/ 30, /*gabbro*/ 40)
 
 //! The maximum number of action bar items.
 #define NUM_ACTION_BAR_ITEMS 3
@@ -8047,14 +8258,14 @@ typedef enum {
 struct ActionBarLayer;
 typedef struct ActionBarLayer ActionBarLayer;
 
-//! Creates a new ActionBarLayer on the heap and initalizes it with the default values.
+//! Creates a new ActionBarLayer on the heap and initializes it with the default values.
 //! * Background color: \ref GColorBlack
 //! * No click configuration provider (`NULL`)
 //! * No icons
 //! * Not added to / associated with any window, thus not catching any button input yet.
 //! @return A pointer to the ActionBarLayer. `NULL` if the ActionBarLayer could not
 //! be created
-ActionBarLayer* action_bar_layer_create(void);
+ActionBarLayer *action_bar_layer_create(void);
 
 //! Destroys a ActionBarLayer previously created by action_bar_layer_create
 void action_bar_layer_destroy(ActionBarLayer *action_bar_layer);
@@ -8063,7 +8274,7 @@ void action_bar_layer_destroy(ActionBarLayer *action_bar_layer);
 //! layers used for its implementation.
 //! @param action_bar_layer Pointer to the ActionBarLayer for which to get the "root" Layer
 //! @return The "root" Layer of the action bar layer.
-Layer* action_bar_layer_get_layer(ActionBarLayer *action_bar_layer);
+Layer *action_bar_layer_get_layer(ActionBarLayer *action_bar_layer);
 
 //! Sets the context parameter, which will be passed in to \ref ClickHandler
 //! callbacks and the \ref ClickConfigProvider callback of the action bar.
@@ -8088,7 +8299,8 @@ void action_bar_layer_set_context(ActionBarLayer *action_bar, void *context);
 //! @param action_bar The action bar for which to assign a new click
 //! configuration provider
 //! @param click_config_provider The new click configuration provider
-void action_bar_layer_set_click_config_provider(ActionBarLayer *action_bar, ClickConfigProvider click_config_provider);
+void action_bar_layer_set_click_config_provider(ActionBarLayer *action_bar,
+                                                ClickConfigProvider click_config_provider);
 
 //! Sets an action bar icon onto one of the 3 slots as identified by `button_id`.
 //! Only \ref BUTTON_ID_UP, \ref BUTTON_ID_SELECT and \ref BUTTON_ID_DOWN can be
@@ -8128,7 +8340,7 @@ void action_bar_layer_clear_icon(ActionBarLayer *action_bar, ButtonId button_id)
 //! @note It is advised to call this is in the window's `.load` or `.appear`
 //! handler. Make sure to call \ref action_bar_layer_remove_from_window() in the
 //! window's `.unload` or `.disappear` handler.
-//! @note Adding additional layers to the window's root layer after this calll
+//! @note Adding additional layers to the window's root layer after this call
 //! can occlude the action bar.
 //! @param action_bar The action bar to associate with the window
 //! @param window The window with which the action bar is to be associated
@@ -8193,14 +8405,9 @@ typedef enum {
 #define STATUS_BAR_LAYER_HEIGHT _STATUS_BAR_LAYER_HEIGHT(PBL_PLATFORM_TYPE_CURRENT)
 
 //! The fixed height of the status bar, including separator height, for all platforms.
-#define _STATUS_BAR_LAYER_HEIGHT(plat) PBL_PLATFORM_SWITCH(plat, \
-  /*aplite*/ 16, \
-  /*basalt*/ 16, \
-  /*chalk*/ 24, \
-  /*diorite*/ 16, \
-  /*emery*/ 20, \
-  /*flint*/ 16, \
-  /*gabbro*/ 20)
+#define _STATUS_BAR_LAYER_HEIGHT(plat)                                                  \
+  PBL_PLATFORM_SWITCH(plat, /*aplite*/ 16, /*basalt*/ 16, /*chalk*/ 24, /*diorite*/ 16, \
+                      /*emery*/ 20, /*flint*/ 16, /*gabbro*/ 20)
 
 //! Creates a new StatusBarLayer on the heap and initializes it with the default values.
 //!
@@ -8261,8 +8468,8 @@ void status_bar_layer_set_separator_mode(StatusBarLayer *status_bar_layer,
 //! \brief Layer that displays a bitmap image.
 //!
 //! ![](bitmap_layer.png)
-//! BitmapLayer is a Layer subtype that draws a GBitmap within its frame. It uses an alignment property
-//! to specify how to position the bitmap image within its frame. Optionally, when the
+//! BitmapLayer is a Layer subtype that draws a GBitmap within its frame. It uses an alignment
+//! property to specify how to position the bitmap image within its frame. Optionally, when the
 //! background color is not GColorClear, it draws a solid background color behind the
 //! bitmap image, filling areas of the frame that are not covered by the bitmap image.
 //! Lastly, using the compositing mode property of the BitmapLayer, determines the way the
@@ -8280,7 +8487,7 @@ void status_bar_layer_set_separator_mode(StatusBarLayer *status_bar_layer,
 struct BitmapLayer;
 typedef struct BitmapLayer BitmapLayer;
 
-//! Creates a new bitmap layer on the heap and initalizes it the default values.
+//! Creates a new bitmap layer on the heap and initializes it the default values.
 //!
 //! * Bitmap: `NULL` (none)
 //! * Background color: \ref GColorClear
@@ -8288,22 +8495,22 @@ typedef struct BitmapLayer BitmapLayer;
 //! * Clips: `true`
 //! @return A pointer to the BitmapLayer. `NULL` if the BitmapLayer could not
 //! be created
-BitmapLayer* bitmap_layer_create(GRect frame);
+BitmapLayer *bitmap_layer_create(GRect frame);
 
 //! Destroys a window previously created by bitmap_layer_create
-void bitmap_layer_destroy(BitmapLayer* bitmap_layer);
+void bitmap_layer_destroy(BitmapLayer *bitmap_layer);
 
 //! Gets the "root" Layer of the bitmap layer, which is the parent for the sub-
 //! layers used for its implementation.
 //! @param bitmap_layer Pointer to the BitmapLayer for which to get the "root" Layer
 //! @return The "root" Layer of the bitmap layer.
-Layer* bitmap_layer_get_layer(const BitmapLayer *bitmap_layer);
+Layer *bitmap_layer_get_layer(const BitmapLayer *bitmap_layer);
 
 //! Gets the pointer to the bitmap image that the BitmapLayer is using.
 //!
 //! @param bitmap_layer The BitmapLayer for which to get the bitmap image
 //! @return A pointer to the bitmap image that the BitmapLayer is using
-const GBitmap* bitmap_layer_get_bitmap(BitmapLayer *bitmap_layer);
+const GBitmap *bitmap_layer_get_bitmap(BitmapLayer *bitmap_layer);
 
 //! Sets the bitmap onto the BitmapLayer. The bitmap is set by reference (no deep
 //! copy), thus the caller of this function has to make sure the bitmap is kept
@@ -8315,13 +8522,13 @@ const GBitmap* bitmap_layer_get_bitmap(BitmapLayer *bitmap_layer);
 void bitmap_layer_set_bitmap(BitmapLayer *bitmap_layer, const GBitmap *bitmap);
 
 //! Sets the alignment of the image to draw with in frame of the BitmapLayer.
-//! The aligment parameter specifies which edges of the bitmap should overlap
+//! The alignment parameter specifies which edges of the bitmap should overlap
 //! with the frame of the BitmapLayer.
 //! If the bitmap is smaller than the frame of the BitmapLayer, the background
 //! is filled with the background color.
 //!
 //! The bitmap layer is automatically marked dirty after this operation.
-//! @param bitmap_layer The BitmapLayer for which to set the aligment
+//! @param bitmap_layer The BitmapLayer for which to set the alignment
 //! @param alignment The new alignment for the image inside the BitmapLayer
 void bitmap_layer_set_alignment(BitmapLayer *bitmap_layer, GAlign alignment);
 
@@ -8358,18 +8565,22 @@ void bitmap_layer_set_compositing_mode(BitmapLayer *bitmap_layer, GCompOp mode);
 //! @addtogroup RotBitmapLayer
 //! \brief Layer that displays a rotated bitmap image.
 //!
-//! A RotBitmapLayer is like a \ref BitmapLayer but has the ability to be rotated (by default, around its center). The amount of rotation
-//! is specified using \ref rot_bitmap_layer_set_angle() or \ref rot_bitmap_layer_increment_angle(). The rotation argument
-//! to those functions is specified as an amount of clockwise rotation, where the value 0x10000 represents a full 360 degree
-//! rotation and 0 represent no rotation, and it scales linearly between those values, just like \ref sin_lookup.
+//! A RotBitmapLayer is like a \ref BitmapLayer but has the ability to be rotated (by default,
+//! around its center). The amount of rotation is specified using \ref rot_bitmap_layer_set_angle()
+//! or \ref rot_bitmap_layer_increment_angle(). The rotation argument to those functions is
+//! specified as an amount of clockwise rotation, where the value 0x10000 represents a full 360
+//! degree rotation and 0 represent no rotation, and it scales linearly between those values, just
+//! like \ref sin_lookup.
 //!
-//! The center of rotation in the source bitmap is always placed at the center of the RotBitmapLayer and the size of the RotBitmapLayer
-//! is automatically calculated so that the entire Bitmap can fit in at all rotation angles.
+//! The center of rotation in the source bitmap is always placed at the center of the RotBitmapLayer
+//! and the size of the RotBitmapLayer is automatically calculated so that the entire Bitmap can fit
+//! in at all rotation angles.
 //!
-//! For example, if the image is 10px wide and high, the RotBitmapLayer will be 14px wide ( sqrt(10^2+10^2) ).
+//! For example, if the image is 10px wide and high, the RotBitmapLayer will be 14px wide (
+//! sqrt(10^2+10^2) ).
 //!
-//! By default, the center of rotation in the source bitmap is the center of the bitmap but you can call \ref rot_bitmap_set_src_ic() to change the
-//! center of rotation.
+//! By default, the center of rotation in the source bitmap is the center of the bitmap but you can
+//! call \ref rot_bitmap_set_src_ic() to change the center of rotation.
 //!
 //! @note RotBitmapLayer has performance limitations that can degrade user
 //! experience (see \ref graphics_draw_rotated_bitmap). Use sparingly.
@@ -8386,7 +8597,7 @@ typedef struct RotBitmapLayer RotBitmapLayer;
 //! @param bitmap The bitmap to display in this RotBitmapLayer
 //! @return A pointer to the RotBitmapLayer. `NULL` if the RotBitmapLayer could not
 //! be created
-RotBitmapLayer* rot_bitmap_layer_create(GBitmap *bitmap);
+RotBitmapLayer *rot_bitmap_layer_create(GBitmap *bitmap);
 
 //! Destroys a RotBitmapLayer and frees all associated memory.
 //! @note It is the developer responsibility to free the \ref GBitmap.
@@ -8397,7 +8608,7 @@ void rot_bitmap_layer_destroy(RotBitmapLayer *bitmap);
 //! layers used for its implementation.
 //! @param rot_bitmap_layer Pointer to the RotBitmapLayer for which to get the "root" Layer
 //! @return The "root" Layer of the RotBitmapLayer.
-Layer* rot_bitmap_layer_get_layer(const RotBitmapLayer *rot_bitmap_layer);
+Layer *rot_bitmap_layer_get_layer(const RotBitmapLayer *rot_bitmap_layer);
 
 //! Defines what color to use in areas that are not covered by the source bitmap.
 //! By default this is \ref GColorClear.
@@ -8407,7 +8618,8 @@ void rot_bitmap_layer_set_corner_clip_color(RotBitmapLayer *bitmap, GColor color
 
 //! Sets the rotation angle of this RotBitmapLayer
 //! @param bitmap The RotBitmapLayer on which to change the rotation
-//! @param angle Rotation is an integer between 0 (no rotation) and 0x10000 (360 degree rotation). @see sin_lookup()
+//! @param angle Rotation is an integer between 0 (no rotation) and 0x10000 (360 degree rotation).
+//! @see sin_lookup()
 void rot_bitmap_layer_set_angle(RotBitmapLayer *bitmap, int32_t angle);
 
 //! Change the rotation angle of this RotBitmapLayer
@@ -8427,10 +8639,9 @@ void rot_bitmap_layer_increment_angle(RotBitmapLayer *bitmap, int32_t angle_chan
 //! @param ic The only point in the original image that will not be affected by the rotation.
 void rot_bitmap_set_src_ic(RotBitmapLayer *bitmap, GPoint ic);
 
-//! Sets the compositing mode of how the bitmap image is composited onto what has been drawn beneath the
-//! RotBitmapLayer.
-//! By default this is \ref GCompOpAssign, i.e. transparency disabled.
-//! The RotBitmapLayer is automatically marked dirty after this operation.
+//! Sets the compositing mode of how the bitmap image is composited onto what has been drawn beneath
+//! the RotBitmapLayer. By default this is \ref GCompOpAssign, i.e. transparency disabled. The
+//! RotBitmapLayer is automatically marked dirty after this operation.
 //! @param bitmap The RotBitmapLayer on which to change the rotation
 //! @param mode The compositing mode to set
 //! @see \ref GCompOp for visual examples of the different compositing modes.
@@ -8469,18 +8680,21 @@ typedef struct {
   NumberWindowCallback selected;
 } NumberWindowCallbacks;
 
-//! Creates a new NumberWindow on the heap and initalizes it with the default values.
+//! Creates a new NumberWindow on the heap and initializes it with the default values.
 //!
-//! @param label The title or prompt to display in the NumberWindow. Must be long-lived and cannot be stack-allocated.
+//! @param label The title or prompt to display in the NumberWindow. Must be long-lived and cannot
+//! be stack-allocated.
 //! @param callbacks The callbacks
 //! @param callback_context Pointer to application specific data that is passed
-//! @note The number window is not pushed to the window stack. Use \ref window_stack_push() to do this.
+//! @note The number window is not pushed to the window stack. Use \ref window_stack_push() to do
+//! this.
 //! @return A pointer to the NumberWindow. `NULL` if the NumberWindow could not
 //! be created
-NumberWindow* number_window_create(const char *label, NumberWindowCallbacks callbacks, void *callback_context);
+NumberWindow *number_window_create(const char *label, NumberWindowCallbacks callbacks,
+                                   void *callback_context);
 
 //! Destroys a NumberWindow previously created by number_window_create.
-void number_window_destroy(NumberWindow* number_window);
+void number_window_destroy(NumberWindow *number_window);
 
 //! Sets the text of the title or prompt label.
 //! @param numberwindow Pointer to the NumberWindow for which to set the label
@@ -8547,8 +8761,7 @@ typedef struct ActionMenu ActionMenu;
 //! @param performed_action the ActionMenuItem for the action that was performed,
 //! NULL if the ActionMenu is closing without an action being selected by the user
 //! @param context the context passed to the ActionMenu
-typedef void (*ActionMenuDidCloseCb)(ActionMenu *menu,
-                                     const ActionMenuItem *performed_action,
+typedef void (*ActionMenuDidCloseCb)(ActionMenu *menu, const ActionMenuItem *performed_action,
                                      void *context);
 
 //! enum value that controls whether menu items are displayed in a grid
@@ -8564,8 +8777,7 @@ typedef enum {
 //! @param context the context passed to the action menu
 //! @note the action menu is closed immediately after an action is performed,
 //! unless it is frozen in the ActionMenuPerformActionCb
-typedef void (*ActionMenuPerformActionCb)(ActionMenu *action_menu,
-                                          const ActionMenuItem *action,
+typedef void (*ActionMenuPerformActionCb)(ActionMenu *action_menu, const ActionMenuItem *action,
                                           void *context);
 
 //! Callback invoked for each item in an action menu hierarchy.
@@ -8576,13 +8788,13 @@ typedef void (*ActionMenuEachItemCb)(const ActionMenuItem *item, void *context);
 //! Configuration struct for the ActionMenu
 typedef struct {
   const ActionMenuLevel *root_level; //!< the root level of the ActionMenu
-  void *context; //!< a context pointer which will be accessbile when actions are performed
+  void *context; //!< a context pointer which will be accessible when actions are performed
   struct {
     GColor background; //!< the color of the left column of the ActionMenu
     GColor foreground; //!< the color of the individual "crumbs" that indicate menu depth
   } colors;
   ActionMenuDidCloseCb will_close; //!< Called immediately before the ActionMenu closes
-  ActionMenuDidCloseCb did_close; //!< a callback used to cleanup memory after the menu has closed
+  ActionMenuDidCloseCb did_close;  //!< a callback used to cleanup memory after the menu has closed
   ActionMenuAlign align;
 } ActionMenuConfig;
 
@@ -8617,18 +8829,15 @@ void action_menu_level_set_display_mode(ActionMenuLevel *level,
 //! @param cb the callback that will be triggered when this action is actuated
 //! @param action_data data to pass to the callback for this action
 //! @return a reference to the new \ref ActionMenuItem on success, NULL if the level is full
-ActionMenuItem *action_menu_level_add_action(ActionMenuLevel *level,
-                                             const char *label,
-                                             ActionMenuPerformActionCb cb,
-                                             void *action_data);
+ActionMenuItem *action_menu_level_add_action(ActionMenuLevel *level, const char *label,
+                                             ActionMenuPerformActionCb cb, void *action_data);
 
 //! Add a child to this ActionMenuLevel
 //! @param level the parent level
 //! @param child the child level
 //! @param label the text to display in the action menu for this level
 //! @return a reference to the new \ref ActionMenuItem on success, NULL if the level is full
-ActionMenuItem *action_menu_level_add_child(ActionMenuLevel *level,
-                                            ActionMenuLevel *child,
+ActionMenuItem *action_menu_level_add_child(ActionMenuLevel *level, ActionMenuLevel *child,
                                             const char *label);
 
 //! Destroy a hierarchy of ActionMenuLevels
@@ -8639,8 +8848,7 @@ ActionMenuItem *action_menu_level_add_child(ActionMenuLevel *level,
 //!       associated with each item in the callback
 //! @note Hierarchy is traversed in post-order.
 //!       In other words, all children items are freed before their parent is freed.
-void action_menu_hierarchy_destroy(const ActionMenuLevel *root,
-                                   ActionMenuEachItemCb each_cb,
+void action_menu_hierarchy_destroy(const ActionMenuLevel *root, ActionMenuEachItemCb each_cb,
                                    void *context);
 
 //! Get the context pointer this ActionMenu was created with
@@ -8693,10 +8901,11 @@ void action_menu_close(ActionMenu *action_menu, bool animated);
 //!
 //! The Vibes API provides calls that let you control Pebble’s vibration motor.
 //!
-//! The vibration motor can be used as a visceral mechanism for giving immediate feedback to the user.
-//! You can use it to highlight important moments in games, or to draw the attention of the user.
-//! However, you should use the vibration feature sparingly, because sustained use will rapidly deplete Pebble’s battery,
-//! and vibrating Pebble too much and too often can become annoying for users.
+//! The vibration motor can be used as a visceral mechanism for giving immediate feedback to the
+//! user. You can use it to highlight important moments in games, or to draw the attention of the
+//! user. However, you should use the vibration feature sparingly, because sustained use will
+//! rapidly deplete Pebble’s battery, and vibrating Pebble too much and too often can become
+//! annoying for users.
 //! @note When using these calls, if there is an ongoing vibration,
 //! calling any of the functions to emit (another) vibration will have no effect.
 //! @{
@@ -8762,35 +8971,50 @@ void vibes_enqueue_custom_pattern(VibePattern pattern);
 //! Raw PCM streaming allows apps to generate arbitrary audio in configurable formats.
 //! @{
 
+/** @brief Waveform used to synthesize a note. */
 typedef enum {
+  /** Sine wave. */
   SpeakerWaveformSine = 0,
+  /** Square wave. */
   SpeakerWaveformSquare,
+  /** Triangle wave. */
   SpeakerWaveformTriangle,
+  /** Sawtooth wave. */
   SpeakerWaveformSawtooth,
+  /** Number of waveforms. */
   SpeakerWaveformCount
 } SpeakerWaveform;
 
-//! A single note in a sequence.
-//! midi_note: MIDI note number (0-127, 60=C4). 0 = rest (silence).
-//! waveform: SpeakerWaveform value.
-//! duration_ms: Note duration in ms (max 10000).
-//! velocity: Volume 0-127 (0 = use global volume).
-typedef struct PACKED {
+/** @brief A single note in a sequence. */
+typedef struct __attribute__((__packed__)) {
+  /** MIDI note number (0-127, 60=C4). 0 = rest (silence). */
   uint8_t midi_note;
+  /** SpeakerWaveform value. */
   uint8_t waveform;
+  /** Note duration in ms (max 10000). */
   uint16_t duration_ms;
+  /** Volume 0-127 (0 = use global volume). */
   uint8_t velocity;
+  /** Reserved, set to 0. */
   uint8_t reserved;
 } SpeakerNote;
 
-//! PCM audio format for speaker streaming.
-//! Bit layout: bit0 = sample rate (0=8kHz, 1=16kHz), bit1 = bit depth (0=8-bit, 1=16-bit).
-//! All formats are mono signed PCM (8-bit samples are signed [-128,127], not unsigned).
+/**
+ * @brief PCM audio format for speaker streaming.
+ *
+ * Bit layout: bit0 = sample rate (0=8kHz, 1=16kHz), bit1 = bit depth (0=8-bit, 1=16-bit).
+ * All formats are mono signed PCM (8-bit samples are signed [-128,127], not unsigned).
+ */
 typedef enum {
-  SpeakerPcmFormat_8kHz_8bit = 0,    //!< 8kHz 8-bit signed (1 byte/sample)
-  SpeakerPcmFormat_16kHz_8bit = 1,   //!< 16kHz 8-bit signed (1 byte/sample)
-  SpeakerPcmFormat_8kHz_16bit = 2,   //!< 8kHz 16-bit signed little-endian (2 bytes/sample)
-  SpeakerPcmFormat_16kHz_16bit = 3,  //!< 16kHz 16-bit signed little-endian (2 bytes/sample)
+  /** 8kHz 8-bit signed (1 byte/sample) */
+  SpeakerPcmFormat_8kHz_8bit = 0,
+  /** 16kHz 8-bit signed (1 byte/sample) */
+  SpeakerPcmFormat_16kHz_8bit = 1,
+  /** 8kHz 16-bit signed little-endian (2 bytes/sample) */
+  SpeakerPcmFormat_8kHz_16bit = 2,
+  /** 16kHz 16-bit signed little-endian (2 bytes/sample) */
+  SpeakerPcmFormat_16kHz_16bit = 3,
+  /** Number of formats. */
   SpeakerPcmFormatCount
 } SpeakerPcmFormat;
 
@@ -8801,12 +9025,16 @@ typedef enum {
   SpeakerStatusDraining,
 } SpeakerStatus;
 
-//! Reason reported when speaker playback ends.
+/** @brief Reason reported when speaker playback ends. */
 typedef enum {
-  SpeakerFinishReasonDone = 0,       //!< Playback completed naturally
-  SpeakerFinishReasonStopped,        //!< Playback was stopped by the app
-  SpeakerFinishReasonPreempted,      //!< Preempted by higher priority source
-  SpeakerFinishReasonError,          //!< An error occurred
+  /** Playback completed naturally */
+  SpeakerFinishReasonDone = 0,
+  /** Playback was stopped by the app */
+  SpeakerFinishReasonStopped,
+  /** Preempted by higher priority source */
+  SpeakerFinishReasonPreempted,
+  /** An error occurred */
+  SpeakerFinishReasonError,
 } SpeakerFinishReason;
 
 //! Callback invoked when playback finishes.
@@ -8814,31 +9042,40 @@ typedef enum {
 //! @param ctx User context
 typedef void (*SpeakerFinishedCallback)(SpeakerFinishReason reason, void *ctx);
 
-//! A raw PCM sample that can be pitch-shifted when played by a track.
-//! data: mono signed PCM in the given format.
-//! num_bytes: size of data in bytes.
-//! format: sample rate + bit depth (see SpeakerPcmFormat).
-//! base_midi_note: the MIDI note at which the sample plays unshifted (e.g. 60 = C4).
-//!                 Notes above/below this value are produced by resampling.
-//! loop: if true, the sample restarts from the beginning each time it runs out,
-//!       and keeps playing until the owning note's duration elapses.
+/** @brief A raw PCM sample that can be pitch-shifted when played by a track. */
 typedef struct {
+  /** Mono signed PCM in the given format. */
   const void *data;
+  /** Size of data in bytes. */
   uint32_t num_bytes;
+  /** Sample rate + bit depth (see SpeakerPcmFormat). */
   SpeakerPcmFormat format;
+  /**
+   * The MIDI note at which the sample plays unshifted (e.g. 60 = C4).
+   * Notes above/below this value are produced by resampling.
+   */
   uint8_t base_midi_note;
+  /**
+   * If true, the sample restarts from the beginning each time it runs out,
+   * and keeps playing until the owning note's duration elapses.
+   */
   bool loop;
 } SpeakerSample;
 
-//! A single monophonic voice. Multiple tracks are mixed together by
-//! speaker_play_tracks() to produce polyphony.
-//! notes: array of notes to play sequentially.
-//! num_notes: length of the notes array.
-//! sample: if non-NULL, notes are played by pitch-shifting this sample;
-//!         note.waveform is ignored. If NULL, notes use their waveform field.
+/**
+ * @brief A single monophonic voice.
+ *
+ * Multiple tracks are mixed together by speaker_play_tracks() to produce polyphony.
+ */
 typedef struct {
+  /** Array of notes to play sequentially. */
   const SpeakerNote *notes;
+  /** Length of the notes array. */
   uint32_t num_notes;
+  /**
+   * If non-NULL, notes are played by pitch-shifting this sample;
+   * note.waveform is ignored. If NULL, notes use their waveform field.
+   */
   const SpeakerSample *sample;
 } SpeakerTrack;
 
@@ -8872,8 +9109,8 @@ bool speaker_play_tracks(const SpeakerTrack *tracks, uint32_t num_tracks, uint8_
 //! @param volume Playback volume (0-100)
 //! @param waveform Waveform to use
 //! @return true if playback started successfully
-bool speaker_play_tone(uint16_t frequency_hz, uint32_t duration_ms,
-                       uint8_t volume, SpeakerWaveform waveform);
+bool speaker_play_tone(uint16_t frequency_hz, uint32_t duration_ms, uint8_t volume,
+                       SpeakerWaveform waveform);
 
 //! Open a raw PCM stream for app-generated audio.
 //! @param format PCM format specifying sample rate and bit depth
@@ -8888,6 +9125,7 @@ bool speaker_stream_open(SpeakerPcmFormat format, uint8_t volume);
 uint32_t speaker_stream_write(const void *data, uint32_t num_bytes);
 
 //! Close the PCM stream. Buffered data will be played before stopping.
+//! Completion is asynchronous; use speaker_stop() to cancel immediately.
 void speaker_stream_close(void);
 
 //! Stop any active speaker playback immediately.
@@ -8938,9 +9176,10 @@ bool light_is_on(void);
 void light_enable_interaction(void);
 
 //! Turn the watch's backlight on or put it back into automatic control.
-//! Developers should take care when calling this function, keeping Pebble's backlight on for long periods of time
-//! will rapidly deplete the battery.
-//! @param enable Turn the backlight on if `true`, otherwise `false` to put it back into automatic control.
+//! Developers should take care when calling this function, keeping Pebble's backlight on for long
+//! periods of time will rapidly deplete the battery.
+//! @param enable Turn the backlight on if `true`, otherwise `false` to put it back into automatic
+//! control.
 void light_enable(bool enable);
 
 //! Tint the backlight LED to the given color. The color persists while the
@@ -9041,18 +9280,18 @@ bool quiet_time_is_active(void);
 //! structure containing broken-down time for expressing calendar time
 //! (ie. Year, Month, Day of Month, Hour of Day) and timezone information
 struct tm {
-  int tm_sec;     /*!< Seconds. [0-60] (1 leap second) */
-  int tm_min;     /*!< Minutes. [0-59] */
-  int tm_hour;    /*!< Hours.  [0-23] */
-  int tm_mday;    /*!< Day. [1-31] */
-  int tm_mon;     /*!< Month. [0-11] */
-  int tm_year;    /*!< Years since 1900 */
-  int tm_wday;    /*!< Day of week. [0-6] */
-  int tm_yday;    /*!< Days in year.[0-365] */
-  int tm_isdst;   /*!< DST. [-1/0/1] */
+  int tm_sec;   /*!< Seconds. [0-60] (1 leap second) */
+  int tm_min;   /*!< Minutes. [0-59] */
+  int tm_hour;  /*!< Hours.  [0-23] */
+  int tm_mday;  /*!< Day. [1-31] */
+  int tm_mon;   /*!< Month. [0-11] */
+  int tm_year;  /*!< Years since 1900 */
+  int tm_wday;  /*!< Day of week. [0-6] */
+  int tm_yday;  /*!< Days in year.[0-365] */
+  int tm_isdst; /*!< DST. [-1/0/1] */
 
-  int tm_gmtoff;  /*!< Total seconds east of UTC, DST included. tm_isdst is an indicator only --
-                       never add it to this value. */
+  int tm_gmtoff; /*!< Total seconds east of UTC, DST included. tm_isdst is an indicator only --
+                      never add it to this value. */
   char tm_zone[TZ_LEN]; /*!< Timezone abbreviation */
 };
 
@@ -9063,7 +9302,7 @@ struct tm {
 //! @param tm_p A pointer to a struct tm containing a broken out time value
 //! @return The number of bytes placed in the array s, not including the null byte,
 //!   0 if the value does not fit.
-size_t strftime(char* s, size_t maxsize, const char* format, const struct tm* tm_p);
+size_t strftime(char *s, size_t maxsize, const char *format, const struct tm *tm_p);
 
 //! convert the time value pointed at by clock to a struct tm which contains the time
 //! adjusted for the local timezone
@@ -9111,27 +9350,13 @@ double difftime(time_t end, time_t beginning);
 //! @return Current Unix Time milliseconds portion
 uint16_t time_ms(time_t *tloc, uint16_t *out_ms);
 
-//! Return the UTC time that corresponds to the start of today (midnight).
-//! @return the UTC time corresponding to the start of today (midnight)
+/**
+ * @brief Return the UTC time that corresponds to the start of today (midnight).
+ * @return the UTC time corresponding to the start of today (midnight)
+ */
 time_t time_start_of_today(void);
 
 //! @} // group StandardTime
 
 //! @} // group StandardC
-
-//! Get the most recent HRV peak-to-peak interval in milliseconds. The value is captured from
-//! \ref HealthEventHRVUpdate events, so it only updates while this app is subscribed via
-//! \ref health_service_events_subscribe() and holds an HRV sample period.
-//! @return PPI in ms, or 0 if no reading available.
-uint16_t health_service_peek_hrv_ppi_ms(void);
-
-//! Request HRV (peak-to-peak interval) sampling. While any app holds an HRV sample period, the
-//! sensor collects HRV alongside heart rate and HealthEventHRVUpdate events are delivered to
-//! health service subscribers.
-//! The HRV and heart rate sample periods (\ref health_service_set_heart_rate_sample_period)
-//! share the app's single sensor subscription: both may be active at once, the sensor is driven
-//! at the shorter of the two periods, and setting one period to 0 clears only that request.
-//! @param interval_sec desired sampling interval in seconds; 0 unsubscribes.
-//! @return true on success.
-bool health_service_set_hrv_sample_period(uint16_t interval_sec);
 

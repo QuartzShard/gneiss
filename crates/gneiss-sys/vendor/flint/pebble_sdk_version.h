@@ -64,6 +64,8 @@
 #define _PBL_API_EXISTS_health_service_events_unsubscribe
 #define _PBL_API_EXISTS_health_service_set_heart_rate_sample_period
 #define _PBL_API_EXISTS_health_service_get_heart_rate_sample_period_expiration_sec
+#define _PBL_API_EXISTS_health_service_peek_hrv_ppi_ms
+#define _PBL_API_EXISTS_health_service_set_hrv_sample_period
 #define _PBL_API_EXISTS_health_service_register_metric_alert
 #define _PBL_API_EXISTS_health_service_cancel_metric_alert
 #define _PBL_API_EXISTS_health_service_get_minute_history
@@ -567,8 +569,6 @@
 #define _PBL_API_EXISTS_difftime
 #define _PBL_API_EXISTS_time_ms
 #define _PBL_API_EXISTS_time_start_of_today
-#define _PBL_API_EXISTS_health_service_peek_hrv_ppi_ms
-#define _PBL_API_EXISTS_health_service_set_hrv_sample_period
 
 //! @addtogroup Misc
 //! @{
