@@ -373,6 +373,7 @@ pub struct Profile {
 	pub codegen_units:   u32,
 	pub panic:           String,
 	pub strip:           String,
+	pub debug:           String,
 	pub overflow_checks: bool,
 	pub trim_paths:      String,
 }
@@ -389,6 +390,9 @@ impl Default for Profile {
 			// `.rel.data`/`.got`, and `--strip-all` is rejected alongside
 			// `--emit-relocs`. The shipped `.bin` carries no symbols regardless.
 			strip:           "none".into(),
+			// Line tables, for `install --logs` to put a source line to a crash; the bundle only
+			// takes loadable sections, so they never reach the watch
+			debug:           "line-tables-only".into(),
 			overflow_checks: false,
 			trim_paths:      "all".into(),
 		}

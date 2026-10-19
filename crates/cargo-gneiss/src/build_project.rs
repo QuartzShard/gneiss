@@ -13,6 +13,13 @@ use gneiss_types::{Platform, pbpack::PbPack};
 use unix_time::Instant;
 use zip::write::FileOptions;
 
+/// Where `cargo gneiss build` keeps `platform`'s ELF for the bundle `pbw`: every platform's
+/// build writes the same Cargo artifact, so each is copied out beside the bundle.
+pub fn platform_elf(pbw: &std::path::Path, platform: Platform) -> std::path::PathBuf {
+	let stem = pbw.file_stem().unwrap_or_default().to_string_lossy();
+	pbw.with_file_name(format!("{stem}-{platform}.elf"))
+}
+
 fn build_elf(
 	platform: Platform,
 	pkg_id: &PackageId,
@@ -152,6 +159,10 @@ impl BuildProject {
 			let out_dir = out_dir.ok_or_eyre("No out dir")?;
 			log::debug!("ELF output at {elf_path}");
 			let elf_bytes = std::fs::read(&elf_path)?;
+			std::fs::write(
+				platform_elf(bundle_path.as_std_path(), platform),
+				&elf_bytes,
+			)?;
 			if let Some(fmt) = gneiss_build::fmt_report(&elf_bytes)? {
 				let callers = if fmt.callers.is_empty() {
 					String::from("\n  (no caller found)")

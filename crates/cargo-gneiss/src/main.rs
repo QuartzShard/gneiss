@@ -9,7 +9,11 @@ pub mod template;
 use clap::Parser;
 use color_eyre::eyre::Result;
 
-use crate::{build_project::BuildProject, install::Install, template::NewProject};
+use crate::{
+	build_project::BuildProject,
+	install::{Install, Logs},
+	template::NewProject,
+};
 
 #[derive(Debug, clap::Parser)]
 #[command(name = "cargo gneiss", about = "A build tool for Gneiss Pebble apps")]
@@ -23,6 +27,7 @@ enum Task {
 	New(NewProject),
 	Build(BuildProject),
 	Install(Install),
+	Logs(Logs),
 	#[cfg(unix)]
 	Emulator(emulator::Emulator),
 }
@@ -56,6 +61,7 @@ fn main() -> Result<()> {
 		Task::Emulator(emulator) => emulator.run(),
 		Task::Build(project) => project.build(),
 		Task::Install(install) => install.install(),
+		Task::Logs(logs) => logs.run(),
 	}?;
 
 	Ok(())

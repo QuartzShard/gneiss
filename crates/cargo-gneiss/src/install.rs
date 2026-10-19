@@ -5,8 +5,9 @@
 //! each binary message is an endpoint byte, then its payload. The phone installs a bundle itself;
 //! Pebble Protocol packets to and from the watch ride inside relay messages.
 use std::{
+	io::Read,
 	net::{Ipv6Addr, SocketAddr, SocketAddrV6, TcpStream, ToSocketAddrs},
-	path::PathBuf,
+	path::{Path, PathBuf},
 	sync::{
 		Arc,
 		atomic::{AtomicBool, Ordering},
@@ -20,8 +21,12 @@ use color_eyre::{
 };
 use gneiss_types::Platform;
 use tungstenite::{Message, WebSocket};
+use uuid::Uuid;
+
+use crate::build_project::platform_elf;
 
 mod adb;
+mod blame;
 
 /// Developer connection endpoints
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -61,6 +66,7 @@ impl Endpoint {
 #[repr(u16)]
 pub enum PebbleEndpoint {
 	Time            = 0x0B,
+	WatchVersion    = 0x10,
 	PhoneAppVersion = 0x11,
 	AppMessage      = 0x30,
 	AppRunState     = 0x34,
@@ -72,8 +78,9 @@ pub enum PebbleEndpoint {
 }
 
 impl PebbleEndpoint {
-	const ALL: [Self; 8] = [
+	const ALL: [Self; 9] = [
 		Self::Time,
+		Self::WatchVersion,
 		Self::PhoneAppVersion,
 		Self::AppMessage,
 		Self::AppRunState,
@@ -90,6 +97,22 @@ impl PebbleEndpoint {
 	}
 }
 
+const WATCH_VERSION_REQUEST: u8 = 0;
+const WATCH_VERSION_RESPONSE: u8 = 1;
+
+/// The start of a watch version response: the command, then the running firmware's metadata
+/// (PebbleOS's `FirmwareMetadata`) as far as its hardware platform.
+#[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
+#[repr(C, packed)]
+struct VersionResponse {
+	command:        u8,
+	_timestamp:     [u8; 4],
+	_version_tag:   [u8; 32],
+	_version_short: [u8; 8],
+	_flags:         u8,
+	/// PebbleOS's `FirmwareMetadataPlatform`
+	hw_platform:    u8,
+}
 const PHONE_PORT: u16 = 9000;
 /// As long as pebble-tool gives the phone to transfer and install a bundle
 const INSTALL_TIMEOUT: Duration = Duration::from_secs(300);
@@ -151,20 +174,20 @@ impl Install {
 		let pbw = std::fs::read(&pbw_path)
 			.wrap_err_with(|| format!("Can't read {}", pbw_path.display()))?;
 
-		let stop = Arc::new(AtomicBool::new(false));
-		if self.logs {
-			let stop = Arc::clone(&stop);
-			ctrlc::set_handler(move || stop.store(true, Ordering::Relaxed))?;
-		}
+		let stop = if self.logs { ctrl_c()? } else { Arc::default() };
+		let mut printer = self.logs.then(|| LogPrinter::new(Some((&pbw_path, &pbw))));
 		log::info!("Installing {}...", pbw_path.display());
 		#[cfg(unix)]
 		if let Some(platform) = self.target.emulator {
-			return crate::emulator::install::install(platform, &pbw, self.logs, self.yes, &stop);
+			if let Some(printer) = &mut printer {
+				printer.set_platform(platform);
+			}
+			return crate::emulator::install::install(platform, &pbw, printer, self.yes, &stop);
 		}
 
 		let mut ws = self.target.connect()?;
 		if self.logs {
-			set_log_shipping(&mut ws, true)?;
+			start_logs(&mut ws)?;
 		}
 		ws.send(Message::binary(frame(Endpoint::InstallBundle, &pbw)))?;
 		let deadline = Instant::now() + INSTALL_TIMEOUT;
@@ -179,26 +202,96 @@ impl Install {
 					_ => bail!("The app install failed"),
 				}
 			}
-			handle(&data, self.logs);
+			handle(&data, printer.as_mut());
 		}
 		log::info!("App install succeeded");
 
-		if self.logs {
-			log::info!("Printing app logs, Ctrl-C to stop");
-			while !stop.load(Ordering::Relaxed) {
-				match read(&mut ws) {
-					Ok(Some(data)) => handle(&data, true),
-					Ok(None) => {}
-					Err(e) => {
-						log::warn!("{e}");
-						return Ok(());
-					}
-				}
-			}
-			set_log_shipping(&mut ws, false)?;
+		match &mut printer {
+			Some(printer) => stream_logs(&mut ws, printer, &stop),
+			None => Ok(()),
 		}
-		Ok(())
 	}
+}
+
+#[derive(Debug, Clone, clap::Parser)]
+/// Print a watch's app logs until interrupted, without installing anything
+pub struct Logs {
+	/// The app whose hard faults to put source lines to. Defaults to this project's `cargo gneiss
+	/// build` output, if there is one
+	pbw:    Option<PathBuf>,
+	#[command(flatten)]
+	target: Target,
+}
+
+impl Logs {
+	pub fn run(&self) -> Result<()> {
+		let bundle = match &self.pbw {
+			Some(path) => Some(path.clone()),
+			None => default_pbw().ok(),
+		};
+		let bundle = bundle
+			.map(|path| {
+				let pbw = std::fs::read(&path)
+					.wrap_err_with(|| format!("Can't read {}", path.display()))?;
+				Ok::<_, color_eyre::Report>((path, pbw))
+			})
+			.transpose()?;
+		if bundle.is_none() {
+			log::info!(
+				"No app bundle to put crashes to source lines: name one, or run in its project"
+			);
+		}
+		let mut printer = LogPrinter::new(
+			bundle
+				.as_ref()
+				.map(|(path, pbw)| (path.as_path(), pbw.as_slice())),
+		);
+		let stop = ctrl_c()?;
+		#[cfg(unix)]
+		if let Some(platform) = self.target.emulator {
+			printer.set_platform(platform);
+			return crate::emulator::install::logs(platform, printer, &stop);
+		}
+		let mut ws = self.target.connect()?;
+		start_logs(&mut ws)?;
+		stream_logs(&mut ws, &mut printer, &stop)
+	}
+}
+
+/// A flag Ctrl-C sets, rather than ending the process.
+fn ctrl_c() -> Result<Arc<AtomicBool>> {
+	let stop = Arc::new(AtomicBool::new(false));
+	let flag = Arc::clone(&stop);
+	ctrlc::set_handler(move || flag.store(true, Ordering::Relaxed))?;
+	Ok(stop)
+}
+
+/// Turn on shipping app logs, and ask the watch's version, for the printer to learn its platform.
+fn start_logs(ws: &mut WebSocket<TcpStream>) -> Result<()> {
+	set_log_shipping(ws, true)?;
+	let request = pebble_packet(PebbleEndpoint::WatchVersion, &[WATCH_VERSION_REQUEST]);
+	ws.send(Message::binary(frame(Endpoint::RelayToWatch, &request)))?;
+	Ok(())
+}
+
+/// Print app logs until Ctrl-C, then turn shipping them off.
+fn stream_logs(
+	ws: &mut WebSocket<TcpStream>,
+	printer: &mut LogPrinter,
+	stop: &AtomicBool,
+) -> Result<()> {
+	log::info!("Printing app logs, Ctrl-C to stop");
+	while !stop.load(Ordering::Relaxed) {
+		match read(ws) {
+			Ok(Some(data)) => handle(&data, Some(&mut *printer)),
+			Ok(None) => {}
+			Err(e) => {
+				log::warn!("{e}");
+				return Ok(());
+			}
+		}
+	}
+	set_log_shipping(ws, false)
 }
 
 /// Where `cargo gneiss build` puts this project's bundle.
@@ -323,11 +416,11 @@ fn read(ws: &mut WebSocket<TcpStream>) -> Result<Option<Vec<u8>>> {
 	}
 }
 
-/// Print any logs in a message from the phone.
-fn handle(data: &[u8], logs: bool) {
-	if !logs {
+/// Print any logs in a message from the phone, and learn the watch's platform from its version.
+fn handle(data: &[u8], printer: Option<&mut LogPrinter>) {
+	let Some(printer) = printer else {
 		return;
-	}
+	};
 	match Endpoint::split(data) {
 		Some((Endpoint::RelayFromWatch, mut packets)) => {
 			// [u16 length][u16 endpoint][payload], big-endian, possibly several back to back
@@ -337,8 +430,14 @@ fn handle(data: &[u8], logs: bool) {
 				let Some((payload, rest)) = rest.split_at_checked(len) else {
 					break;
 				};
-				if PebbleEndpoint::from_raw(endpoint) == Some(PebbleEndpoint::AppLogs) {
-					print_app_log(payload);
+				match PebbleEndpoint::from_raw(endpoint) {
+					Some(PebbleEndpoint::AppLogs) => printer.print(payload),
+					Some(PebbleEndpoint::WatchVersion) => {
+						if let Some(platform) = watch_platform(payload) {
+							printer.set_platform(platform);
+						}
+					}
+					_ => {}
 				}
 				packets = rest;
 			}
@@ -350,29 +449,102 @@ fn handle(data: &[u8], logs: bool) {
 	}
 }
 
-/// An app log line: uuid (16), timestamp u32, level u8, message length u8, line u16, filename (16,
-/// NUL-padded), message.
-pub fn print_app_log(payload: &[u8]) {
-	let Some(fields) = payload.get(..40) else {
-		return;
-	};
-	let level = match fields[20] {
-		0..=1 => "ERROR",
-		2..=50 => "WARN",
-		51..=100 => "INFO",
-		101..=200 => "DEBUG",
-		_ => "VERBOSE",
-	};
-	let message_len = usize::from(fields[21]);
-	let line = u16::from_be_bytes([fields[22], fields[23]]);
-	let filename = &fields[24..40];
-	let filename = &filename[..filename.iter().position(|&b| b == 0).unwrap_or(16)];
-	let message = &payload[40..payload.len().min(40 + message_len)];
-	println!(
-		"{level:>7} {}:{line}> {}",
-		String::from_utf8_lossy(filename),
-		String::from_utf8_lossy(message)
-	);
+/// The platform of the watch whose version response is `payload`.
+fn watch_platform(payload: &[u8]) -> Option<Platform> {
+	let version: VersionResponse =
+		bytemuck::pod_read_unaligned(payload.get(..size_of::<VersionResponse>())?);
+	if version.command != WATCH_VERSION_RESPONSE {
+		return None;
+	}
+	Platform::from_hardware(version.hw_platform)
+}
+
+/// Prints app logs, and puts source lines to the installed app's hard faults.
+pub struct LogPrinter {
+	app: Option<Uuid>,
+	pbw: Option<PathBuf>,
+	/// The ELF to look faults up in, once the watch's platform is known
+	elf: Option<PathBuf>,
+}
+
+impl LogPrinter {
+	/// A printer for logs, putting source lines to the faults of `bundle`'s app, given its path and
+	/// contents.
+	pub fn new(bundle: Option<(&Path, &[u8])>) -> Self {
+		Self {
+			app: bundle.and_then(|(_, pbw)| bundle_uuid(pbw)),
+			pbw: bundle.map(|(path, _)| path.to_owned()),
+			elf: None,
+		}
+	}
+
+	pub fn set_platform(&mut self, platform: Platform) {
+		self.elf = self.pbw.as_deref().map(|pbw| platform_elf(pbw, platform));
+	}
+
+	/// An app log line: uuid (16), timestamp u32, level u8, message length u8, line u16, filename
+	/// (16, NUL-padded), message.
+	pub fn print(&self, payload: &[u8]) {
+		let Some(fields) = payload.get(..40) else {
+			return;
+		};
+		let level = match fields[20] {
+			0..=1 => "ERROR",
+			2..=50 => "WARN",
+			51..=100 => "INFO",
+			101..=200 => "DEBUG",
+			_ => "VERBOSE",
+		};
+		let message_len = usize::from(fields[21]);
+		let line = u16::from_be_bytes([fields[22], fields[23]]);
+		let filename = &fields[24..40];
+		let filename = &filename[..filename.iter().position(|&b| b == 0).unwrap_or(16)];
+		let message = String::from_utf8_lossy(&payload[40..payload.len().min(40 + message_len)]);
+		println!(
+			"{level:>7} {}:{line}> {message}",
+			String::from_utf8_lossy(filename)
+		);
+		if let Some(fault) = blame::Fault::parse(&message) {
+			self.blame(&fault);
+		}
+	}
+
+	fn blame(&self, fault: &blame::Fault) {
+		if Some(fault.uuid) != self.app {
+			return;
+		}
+		let lines = if fault.worker {
+			vec![String::from(
+				"Worker faults aren't blamed: gneiss builds no workers",
+			)]
+		} else {
+			match &self.elf {
+				None => vec![String::from(
+					"The watch's platform isn't known yet, so there's no ELF to blame this on",
+				)],
+				Some(elf) if !elf.exists() => vec![format!(
+					"No {} to blame this on: rebuild with `cargo gneiss build`",
+					elf.display()
+				)],
+				Some(elf) => blame::blame(elf, fault),
+			}
+		};
+		for line in lines {
+			println!("        {line}");
+		}
+	}
+}
+
+/// The app's UUID, from the bundle's `appinfo.json`.
+fn bundle_uuid(pbw: &[u8]) -> Option<Uuid> {
+	let mut zip = zip::ZipArchive::new(std::io::Cursor::new(pbw)).ok()?;
+	let mut info = String::new();
+	zip.by_name("appinfo.json")
+		.ok()?
+		.read_to_string(&mut info)
+		.ok()?;
+	let info: serde_json::Value = serde_json::from_str(&info).ok()?;
+	info.get("uuid")?.as_str()?.parse().ok()
 }
 
 fn set_log_shipping(ws: &mut WebSocket<TcpStream>, on: bool) -> Result<()> {
@@ -395,4 +567,22 @@ fn pebble_packet(endpoint: PebbleEndpoint, payload: &[u8]) -> Vec<u8> {
 	packet.extend_from_slice(&(endpoint as u16).to_be_bytes());
 	packet.extend_from_slice(payload);
 	packet
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+
+	#[test]
+	fn watch_platform_from_version() {
+		// As the emery emulator answered: command, timestamp, then "v4.41.2", hardware at 46
+		let mut payload = vec![0; 150];
+		payload[0] = WATCH_VERSION_RESPONSE;
+		payload[5..12].copy_from_slice(b"v4.41.2");
+		payload[46] = 0xF5;
+		assert_eq!(watch_platform(&payload), Some(Platform::Emery));
+		assert_eq!(watch_platform(&payload[..46]), None);
+		payload[0] = WATCH_VERSION_REQUEST;
+		assert_eq!(watch_platform(&payload), None);
+	}
 }

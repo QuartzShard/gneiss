@@ -1,6 +1,6 @@
 [package]
 name              = "cargo-gneiss"
-version           = "0.2.0"
+version           = "0.2.1"
 description       = "Create, build and install gneiss Pebble apps"
 rust-version      = "1.98"
 keywords          = ["pebble", "pebbleos", "cargo"]
@@ -37,11 +37,13 @@ serde_json = { workspace = true }
 tungstenite = { version = "0.30.0", default-features = false, features = ["handshake"] }
 ctrlc = "3.5.2"
 bzip2 = "0.4"
-bytemuck = { workspace = true }
+bytemuck = { workspace = true, features = ["derive"] }
 ureq = "3.4.2"
 tar = "0.4.46"
 sha2 = "0.10"
 flate2 = "1"
+addr2line = { version = "0.27.1", default-features = false, features = ["std", "rustc-demangle", "fallible-iterator", "smallvec"] }
+object = "0.40"
 
 [target.'cfg(unix)'.dependencies]
 libc = "0.2.189"

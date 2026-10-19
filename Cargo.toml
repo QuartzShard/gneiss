@@ -18,7 +18,7 @@ repository = "https://codeberg.org/quartzshard/gneiss"
 
 [workspace.dependencies]
 # Internal
-gneiss-types  = { path = "crates/gneiss-types",  version = "0.5" }
+gneiss-types  = { path = "crates/gneiss-types",  version = "0.5.1" }
 gneiss-build  = { path = "crates/gneiss-build",  version = "0.5" }
 gneiss-sys    = { path = "crates/gneiss-sys",    version = "0.5" }
 # Exact: gneiss and the code gneiss-macros generates only work in matching pairs

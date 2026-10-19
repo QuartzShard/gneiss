@@ -32,5 +32,6 @@ lto = "fat"
 codegen-units = 1
 panic = "abort"
 strip = "none"
+debug = "line-tables-only"
 overflow-checks = false
 trim-paths = "all"

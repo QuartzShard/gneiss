@@ -114,6 +114,21 @@ impl Platform {
 			Platform::Diorite => "diorite",
 		}
 	}
+
+	/// The platform of a watch, from the hardware platform it reports in its firmware metadata
+	/// (PebbleOS's `FirmwareMetadataPlatform`): boards, bigboards and emulators alike.
+	pub const fn from_hardware(hardware: u8) -> Option<Self> {
+		Some(match hardware {
+			1..=6 | 0xFF | 0xFE => Platform::Aplite,
+			7 | 8 | 10 | 0xFD | 0xFC => Platform::Basalt,
+			9 | 11 | 0xFB => Platform::Chalk,
+			12 | 14 | 0xFA | 0xF8 => Platform::Diorite,
+			13 | 16..=18 | 0xF9 | 0xF7 | 0xF5 | 0xF4 | 0xF3 => Platform::Emery,
+			15 | 0xF6 => Platform::Flint,
+			19..=21 | 0xF2 => Platform::Gabbro,
+			_ => return None,
+		})
+	}
 }
 
 impl fmt::Display for Platform {

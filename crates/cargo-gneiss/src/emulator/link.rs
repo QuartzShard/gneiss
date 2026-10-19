@@ -17,7 +17,7 @@ use color_eyre::{
 	eyre::{Context, bail},
 };
 
-use crate::install::{PebbleEndpoint, print_app_log};
+use crate::install::{LogPrinter, PebbleEndpoint};
 
 const HEADER: u16 = 0xFEED;
 const FOOTER: u16 = 0xBEEF;
@@ -60,25 +60,25 @@ const POLL: Duration = Duration::from_millis(250);
 
 pub struct Link<'a> {
 	/// `pebble.in`
-	writer: File,
+	writer:  File,
 	/// `pebble.out`
-	reader: File,
+	reader:  File,
 	/// Locked while this link reads
-	_lock:  File,
+	_lock:   File,
 	/// Bytes read, not yet a whole QEMU frame
-	frames: Vec<u8>,
+	frames:  Vec<u8>,
 	/// SPP bytes, not yet a whole Pebble Protocol packet
-	spp:    Vec<u8>,
-	/// Print app logs as they arrive
-	logs:   bool,
+	spp:     Vec<u8>,
+	/// Prints app logs as they arrive, if they're shipped
+	printer: Option<LogPrinter>,
 	/// Set by Ctrl-C
-	stop:   &'a AtomicBool,
+	stop:    &'a AtomicBool,
 }
 
 impl<'a> Link<'a> {
 	/// Connect to the emulator whose pipes are in `dir`, and tell it a phone is there. Output
-	/// waiting from before is dropped. Shipping app logs is switched to `logs`.
-	pub fn connect(dir: &Path, logs: bool, stop: &'a AtomicBool) -> Result<Self> {
+	/// waiting from before is dropped. App logs are shipped if there's a `printer` for them.
+	pub fn connect(dir: &Path, printer: Option<LogPrinter>, stop: &'a AtomicBool) -> Result<Self> {
 		let lock = File::create(dir.join(super::READER_LOCK))?;
 		// SAFETY: a valid file descriptor, for as long as `lock` lives
 		if unsafe { libc::flock(lock.as_raw_fd(), libc::LOCK_EX | libc::LOCK_NB) } != 0 {
@@ -95,7 +95,7 @@ impl<'a> Link<'a> {
 			_lock: lock,
 			frames: Vec::new(),
 			spp: Vec::new(),
-			logs,
+			printer,
 			stop,
 		};
 		while link.read(Duration::ZERO)? {}
@@ -103,7 +103,8 @@ impl<'a> Link<'a> {
 		link.send_qemu(Protocol::Bluetooth, &[1])?;
 		link.send(PebbleEndpoint::PhoneAppVersion, &phone_app_version())?;
 		link.send(PebbleEndpoint::Time, &set_utc()?)?;
-		link.send(PebbleEndpoint::AppLogs, &[u8::from(logs)])?;
+		let shipping = u8::from(link.printer.is_some());
+		link.send(PebbleEndpoint::AppLogs, &[shipping])?;
 		Ok(link)
 	}
 
@@ -169,8 +170,8 @@ impl<'a> Link<'a> {
 	fn handle(&mut self, endpoint: u16, payload: &[u8]) -> Result<bool> {
 		match PebbleEndpoint::from_raw(endpoint) {
 			Some(PebbleEndpoint::AppLogs) => {
-				if self.logs {
-					print_app_log(payload);
+				if let Some(printer) = &self.printer {
+					printer.print(payload);
 				}
 				Ok(true)
 			}

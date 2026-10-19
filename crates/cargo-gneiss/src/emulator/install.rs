@@ -17,7 +17,7 @@ use color_eyre::{
 use gneiss_types::{Platform, header::PebbleProcessInfo, stm_crc32::crc};
 
 use super::link::Link;
-use crate::install::PebbleEndpoint;
+use crate::install::{LogPrinter, PebbleEndpoint};
 
 const PUT_BYTES_CHUNK: usize = 2000;
 /// As long as the firmware waits between PutBytes messages
@@ -85,14 +85,15 @@ struct App {
 pub fn install(
 	platform: Platform,
 	pbw: &[u8],
-	logs: bool,
+	printer: Option<LogPrinter>,
 	yes: bool,
 	stop: &AtomicBool,
 ) -> Result<()> {
 	let app = App::read(pbw, platform)?;
 	check_sdk(&app, platform)?;
 	let dir = super::start(platform, false, yes)?;
-	let mut link = Link::connect(&dir, logs, stop)?;
+	let logs = printer.is_some();
+	let mut link = Link::connect(&dir, printer, stop)?;
 
 	let uuid = bytemuck::bytes_of(&app.header.uuid).to_vec();
 	insert_metadata(&mut link, &app.header)?;
@@ -109,13 +110,25 @@ pub fn install(
 	log::info!("App install succeeded");
 
 	if logs {
-		log::info!("Printing app logs, Ctrl-C to stop");
-		while !stop.load(Ordering::Relaxed) {
-			link.recv()?;
-		}
-		link.send(PebbleEndpoint::AppLogs, &[0])?;
+		stream_logs(&mut link, stop)?;
 	}
 	Ok(())
+}
+
+/// Print the app logs of `platform`'s running emulator until Ctrl-C.
+pub fn logs(platform: Platform, printer: LogPrinter, stop: &AtomicBool) -> Result<()> {
+	super::ensure_running(platform)?;
+	let mut link = Link::connect(&super::socket_dir(platform), Some(printer), stop)?;
+	stream_logs(&mut link, stop)
+}
+
+/// Print app logs until Ctrl-C, then turn shipping them off.
+fn stream_logs(link: &mut Link, stop: &AtomicBool) -> Result<()> {
+	log::info!("Printing app logs, Ctrl-C to stop");
+	while !stop.load(Ordering::Relaxed) {
+		link.recv()?;
+	}
+	link.send(PebbleEndpoint::AppLogs, &[0])
 }
 
 /// Refuse an app built for a newer SDK than `platform`'s emulator firmware runs.
