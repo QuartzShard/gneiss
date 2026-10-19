@@ -13,7 +13,7 @@ exclude = ["/.cargo"]
 
 [package.metadata.docs.rs]
 # Watch crates document as emery, on the built-in target with the same ABI
-features = ["emery"]
+features = ["emery", "user-panic-handler"]
 targets  = ["thumbv7m-none-eabi"]
 
 [lints]
