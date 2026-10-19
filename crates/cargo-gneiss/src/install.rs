@@ -21,6 +21,8 @@ use color_eyre::{
 use gneiss_types::Platform;
 use tungstenite::{Message, WebSocket};
 
+mod adb;
+
 /// Developer connection endpoints
 #[derive(Clone, Copy, PartialEq, Eq)]
 #[repr(u8)]
@@ -85,14 +87,22 @@ struct Target {
 	/// The platform of an emulator that pebble-tool already has running
 	#[arg(long)]
 	emulator: Option<Platform>,
+	/// The Pebble app on an Android phone over USB, through the adb server. Alone, the one phone
+	/// attached; `--adb=DEVICE` picks one as `adb devices` lists it
+	#[arg(long, value_name = "DEVICE", num_args = 0..=1, require_equals = true, default_missing_value = "")]
+	adb:      Option<String>,
 }
 
 impl Target {
-	fn host(&self) -> Result<String> {
-		match (&self.phone, self.emulator) {
-			(Some(phone), _) => phone_host(phone),
-			(None, Some(platform)) => Ok(format!("127.0.0.1:{}", emulator_port(platform)?)),
-			(None, None) => bail!("Pass --phone or --emulator"),
+	fn connect(&self) -> Result<WebSocket<TcpStream>> {
+		match (&self.phone, self.emulator, &self.adb) {
+			(Some(phone), ..) => connect(&phone_host(phone)?),
+			(_, Some(platform), _) => connect(&format!("127.0.0.1:{}", emulator_port(platform)?)),
+			(.., Some(device)) => {
+				let (stream, serial) = adb::open(Some(device.as_str()).filter(|d| !d.is_empty()))?;
+				handshake(stream, &format!("localhost:{PHONE_PORT}"), &serial)
+			}
+			_ => bail!("Pass --phone, --emulator or --adb"),
 		}
 	}
 }
@@ -105,7 +115,7 @@ impl Install {
 		};
 		let pbw = std::fs::read(&pbw_path)
 			.wrap_err_with(|| format!("Can't read {}", pbw_path.display()))?;
-		let mut ws = connect(&self.target.host()?)?;
+		let mut ws = self.target.connect()?;
 
 		let stop = Arc::new(AtomicBool::new(false));
 		if self.logs {
@@ -279,8 +289,13 @@ fn connect(host: &str) -> Result<WebSocket<TcpStream>> {
 		}
 		_ => host.to_owned(),
 	};
+	handshake(stream, &url_host, host)
+}
+
+/// A WebSocket over `stream`, to `url_host`; `peer` names it in errors.
+fn handshake(stream: TcpStream, url_host: &str, peer: &str) -> Result<WebSocket<TcpStream>> {
 	let (mut ws, _) = tungstenite::client(format!("ws://{url_host}/"), stream)
-		.map_err(|e| eyre!("WebSocket handshake with {host} failed: {e}"))?;
+		.map_err(|e| eyre!("WebSocket handshake with {peer} failed: {e}"))?;
 	// After the handshake, which a timeout would interrupt
 	ws.get_mut().set_read_timeout(Some(POLL))?;
 	Ok(ws)
