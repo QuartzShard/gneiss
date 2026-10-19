@@ -21,6 +21,7 @@ use gneiss_types::Platform;
 mod assets;
 pub mod install;
 mod link;
+mod monitor;
 mod state;
 
 use state::{Entry, State};
@@ -58,6 +59,19 @@ enum EmulatorCommand {
 	},
 	/// Stop an emulator, or all of them
 	Stop { platform: Option<Platform> },
+	/// Press a button on a running emulator
+	Press {
+		platform: Platform,
+		button:   monitor::Button,
+		/// Hold it this many milliseconds, rather than clicking: a long press is 500 or more
+		#[arg(long)]
+		hold:     Option<u64>,
+	},
+	/// Save a running emulator's screen as a PNG
+	Screenshot {
+		platform: Platform,
+		file:     PathBuf,
+	},
 }
 
 impl Emulator {
@@ -77,6 +91,16 @@ impl Emulator {
 				}
 				Ok(())
 			}
+			EmulatorCommand::Press {
+				platform,
+				button,
+				hold,
+			} => monitor::press(
+				*platform,
+				*button,
+				hold.map(std::time::Duration::from_millis),
+			),
+			EmulatorCommand::Screenshot { platform, file } => monitor::screenshot(*platform, file),
 		}
 	}
 }

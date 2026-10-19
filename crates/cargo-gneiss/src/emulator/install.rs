@@ -27,6 +27,9 @@ const BLOB_DB_APPS: u8 = 2;
 const PUT_BYTES_CHUNK: usize = 2000;
 /// As long as the firmware waits between PutBytes messages
 const TIMEOUT: Duration = Duration::from_secs(30);
+/// After the app reports running, until its launch animation ends and it takes button presses:
+/// 300 ms was enough on emery
+const LAUNCH_SETTLE: Duration = Duration::from_millis(500);
 
 /// PutBytes object types; `| 0x80` marks a transfer for an app fetch, by install id
 #[derive(Clone, Copy)]
@@ -97,6 +100,7 @@ pub fn install(
 		put_bytes(&mut link, Object::Worker, worker, install_id)?;
 	}
 	wait_until_running(&mut link, &uuid)?;
+	std::thread::sleep(LAUNCH_SETTLE);
 	log::info!("App install succeeded");
 
 	if logs {
