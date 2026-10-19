@@ -40,9 +40,9 @@ pub mod pbpack;
 )]
 mod pebble_process_info;
 pub use config::{
-	ALL_CFGS, Capabilities, Display, DisplayShape, FIRMWARE_RELEASE, PLATFORM_APLITE, PLATFORM_BASALT,
-	PLATFORM_CHALK, PLATFORM_DIORITE, PLATFORM_EMERY, PLATFORM_FLINT, PLATFORM_GABBRO,
-	PlatformConfig,
+	ALL_CFGS, Capabilities, Display, DisplayShape, FIRMWARE_RELEASE, PLATFORM_APLITE,
+	PLATFORM_BASALT, PLATFORM_CHALK, PLATFORM_DIORITE, PLATFORM_EMERY, PLATFORM_FLINT,
+	PLATFORM_GABBRO, PlatformConfig,
 };
 
 /// Application target platforms, by the internal name. Aliased to the hardware

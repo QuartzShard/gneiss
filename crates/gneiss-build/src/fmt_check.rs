@@ -13,7 +13,9 @@ pub struct FmtReport {
 }
 
 fn is_fmt(name: &str) -> bool {
-	name.starts_with("core::fmt::") || name.starts_with("alloc::fmt::") || name.contains(" as core::fmt::")
+	name.starts_with("core::fmt::")
+		|| name.starts_with("alloc::fmt::")
+		|| name.contains(" as core::fmt::")
 }
 
 /// What of `core::fmt` the ELF at `elf_bytes` links, or `None` if it links none. Finds callers

@@ -17,13 +17,8 @@ use color_eyre::{
 use gneiss_types::{Platform, header::PebbleProcessInfo, stm_crc32::crc};
 
 use super::link::Link;
-use crate::install::APP_LOGS;
+use crate::install::PebbleEndpoint;
 
-const BLOB_DB: u16 = 0xB1DB;
-const APP_RUN_STATE: u16 = 0x34;
-const APP_FETCH: u16 = 0x1771;
-const PUT_BYTES: u16 = 0xBEEF;
-const BLOB_DB_APPS: u8 = 2;
 const PUT_BYTES_CHUNK: usize = 2000;
 /// As long as the firmware waits between PutBytes messages
 const TIMEOUT: Duration = Duration::from_secs(30);
@@ -31,8 +26,48 @@ const TIMEOUT: Duration = Duration::from_secs(30);
 /// 300 ms was enough on emery
 const LAUNCH_SETTLE: Duration = Duration::from_millis(500);
 
+const BLOB_INSERT: u8 = 1;
+const BLOB_DB_APPS: u8 = 2;
+const BLOB_SUCCESS: u8 = 1;
+/// AppRunState's command to start an app
+const RUN_START: u8 = 1;
+/// AppRunState's update when an app is running
+const RUNNING: u8 = 1;
+/// AppFetch's command, in the watch's request and the reply alike
+const FETCH: u8 = 1;
+/// An app database entry's watchface background colour and template: unused
+const FACE_BACKGROUND: u8 = 0;
+const FACE_TEMPLATE: u8 = 0;
+/// An app database entry's name field
+const NAME_LEN: usize = 96;
+
+/// AppFetch replies
+#[derive(Clone, Copy)]
+#[repr(u8)]
+enum FetchStatus {
+	Start       = 1,
+	InvalidUuid = 3,
+}
+
+#[derive(Clone, Copy)]
+#[repr(u8)]
+enum PutBytesCommand {
+	Init    = 1,
+	Put     = 2,
+	Commit  = 3,
+	Install = 5,
+}
+
+#[derive(Clone, Copy)]
+#[repr(u8)]
+enum PutBytesResult {
+	Ack  = 1,
+	Nack = 2,
+}
+
 /// PutBytes object types; `| 0x80` marks a transfer for an app fetch, by install id
 #[derive(Clone, Copy)]
+#[repr(u8)]
 enum Object {
 	Resources = 4,
 	Binary    = 5,
@@ -55,43 +90,13 @@ pub fn install(
 	stop: &AtomicBool,
 ) -> Result<()> {
 	let app = App::read(pbw, platform)?;
-	let built = app.header.sdk_version;
-	let knows = platform.config().sdk_version;
-	if (built.major, built.minor) > (knows.major, knows.minor) {
-		bail!(
-			"The app is built for SDK {}.{}, but the {platform} emulator's firmware ({}) only runs \
-			 apps up to {}.{}: update cargo-gneiss",
-			built.major,
-			built.minor,
-			super::assets::version(platform),
-			knows.major,
-			knows.minor
-		);
-	}
+	check_sdk(&app, platform)?;
 	let dir = super::start(platform, false, yes)?;
 	let mut link = Link::connect(&dir, logs, stop)?;
-	if logs {
-		link.send(APP_LOGS, &[1])?;
-	}
 
 	let uuid = bytemuck::bytes_of(&app.header.uuid).to_vec();
 	insert_metadata(&mut link, &app.header)?;
-	let mut start = vec![1];
-	start.extend_from_slice(&uuid);
-	link.send(APP_RUN_STATE, &start)?;
-
-	let fetch = link.expect(APP_FETCH, TIMEOUT, "app launch")?;
-	let (Some(1), Some(requested), Some(id)) = (fetch.first(), fetch.get(1..17), fetch.get(17..21))
-	else {
-		bail!("The emulator sent an unexpected app fetch message");
-	};
-	if requested != uuid {
-		link.send(APP_FETCH, &[1, 3])?;
-		bail!("The emulator asked for a different app");
-	}
-	let install_id = u32::from_le_bytes(id.try_into()?);
-	link.send(APP_FETCH, &[1, 1])?;
-
+	let install_id = launch(&mut link, &uuid)?;
 	put_bytes(&mut link, Object::Binary, &app.binary, install_id)?;
 	if let Some(resources) = &app.resources {
 		put_bytes(&mut link, Object::Resources, resources, install_id)?;
@@ -108,9 +113,50 @@ pub fn install(
 		while !stop.load(Ordering::Relaxed) {
 			link.recv()?;
 		}
-		link.send(APP_LOGS, &[0])?;
+		link.send(PebbleEndpoint::AppLogs, &[0])?;
 	}
 	Ok(())
+}
+
+/// Refuse an app built for a newer SDK than `platform`'s emulator firmware runs.
+fn check_sdk(app: &App, platform: Platform) -> Result<()> {
+	let built = app.header.sdk_version;
+	let knows = platform.config().sdk_version;
+	if (built.major, built.minor) > (knows.major, knows.minor) {
+		bail!(
+			"The app is built for SDK {}.{}, but the {platform} emulator's firmware ({}) only runs \
+			 apps up to {}.{}: update cargo-gneiss",
+			built.major,
+			built.minor,
+			super::assets::version(platform),
+			knows.major,
+			knows.minor
+		);
+	}
+	Ok(())
+}
+
+/// Launch the app, and accept the watch's request for it. Returns the install id it gives.
+fn launch(link: &mut Link, uuid: &[u8]) -> Result<u32> {
+	let mut start = vec![RUN_START];
+	start.extend_from_slice(uuid);
+	link.send(PebbleEndpoint::AppRunState, &start)?;
+
+	let fetch = link.expect(PebbleEndpoint::AppFetch, TIMEOUT, "app launch")?;
+	let (Some(&FETCH), Some(requested), Some(id)) =
+		(fetch.first(), fetch.get(1..17), fetch.get(17..21))
+	else {
+		bail!("The emulator sent an unexpected app fetch message");
+	};
+	if requested != uuid {
+		link.send(PebbleEndpoint::AppFetch, &[
+			FETCH,
+			FetchStatus::InvalidUuid as u8,
+		])?;
+		bail!("The emulator asked for a different app");
+	}
+	link.send(PebbleEndpoint::AppFetch, &[FETCH, FetchStatus::Start as u8])?;
+	Ok(u32::from_le_bytes(id.try_into()?))
 }
 
 impl App {
@@ -175,30 +221,30 @@ fn insert_metadata(link: &mut Link, header: &PebbleProcessInfo) -> Result<()> {
 		header.process_version.minor,
 		header.sdk_version.major,
 		header.sdk_version.minor,
-		0,
-		0,
+		FACE_BACKGROUND,
+		FACE_TEMPLATE,
 	]);
-	let mut name = [0; 96];
+	let mut name = [0; NAME_LEN];
 	let header_name = bytemuck::cast_slice::<_, u8>(&header.name);
 	name[..header_name.len()].copy_from_slice(header_name);
 	metadata.extend_from_slice(&name);
 
-	let token: u16 = rand_token();
-	let mut insert = vec![1];
+	let token = clock_token();
+	let mut insert = vec![BLOB_INSERT];
 	insert.extend_from_slice(&token.to_le_bytes());
 	insert.push(BLOB_DB_APPS);
-	insert.push(16);
+	insert.push(u8::try_from(uuid.len())?);
 	insert.extend_from_slice(uuid);
 	insert.extend_from_slice(&u16::try_from(metadata.len())?.to_le_bytes());
 	insert.extend_from_slice(&metadata);
-	link.send(BLOB_DB, &insert)?;
+	link.send(PebbleEndpoint::BlobDb, &insert)?;
 
 	loop {
-		let response = link.expect(BLOB_DB, TIMEOUT, "app database insert")?;
+		let response = link.expect(PebbleEndpoint::BlobDb, TIMEOUT, "app database insert")?;
 		match response[..] {
 			[a, b, status] if u16::from_le_bytes([a, b]) == token => {
 				return match status {
-					1 => Ok(()),
+					BLOB_SUCCESS => Ok(()),
 					status => bail!(
 						"The emulator refused the app's database entry (BlobDB status {status})"
 					),
@@ -210,7 +256,7 @@ fn insert_metadata(link: &mut Link, header: &PebbleProcessInfo) -> Result<()> {
 }
 
 /// A token to match a BlobDB reply to its request.
-fn rand_token() -> u16 {
+fn clock_token() -> u16 {
 	let nanos = std::time::SystemTime::now()
 		.duration_since(std::time::UNIX_EPOCH)
 		.map_or(0, |d| d.subsec_nanos());
@@ -220,9 +266,8 @@ fn rand_token() -> u16 {
 /// Wait for the watch to say the app is running. Until then, the app fetch screen is in front, and
 /// the watch ignores launches, such as the next install's.
 fn wait_until_running(link: &mut Link, uuid: &[u8]) -> Result<()> {
-	const RUNNING: u8 = 1;
 	loop {
-		let update = link.expect(APP_RUN_STATE, TIMEOUT, "app launch")?;
+		let update = link.expect(PebbleEndpoint::AppRunState, TIMEOUT, "app launch")?;
 		if update.first() == Some(&RUNNING) && update.get(1..17) == Some(uuid) {
 			return Ok(());
 		}
@@ -231,38 +276,49 @@ fn wait_until_running(link: &mut Link, uuid: &[u8]) -> Result<()> {
 
 /// Send `object` through PutBytes: init, chunks, commit with its CRC, install. Big-endian.
 fn put_bytes(link: &mut Link, kind: Object, object: &[u8], install_id: u32) -> Result<()> {
-	let mut init = vec![1];
-	init.extend_from_slice(&u32::try_from(object.len())?.to_be_bytes());
+	let mut init = u32::try_from(object.len())?.to_be_bytes().to_vec();
 	init.push(kind as u8 | 0x80);
 	init.extend_from_slice(&install_id.to_be_bytes());
-	let cookie = put_bytes_step(link, &init, "PutBytes start")?;
+	let cookie = put_bytes_step(link, PutBytesCommand::Init, &init, "PutBytes start")?;
+	let cookie_bytes = cookie.to_be_bytes();
 
 	for chunk in object.chunks(PUT_BYTES_CHUNK) {
-		let mut put = vec![2];
-		put.extend_from_slice(&cookie.to_be_bytes());
+		let mut put = cookie_bytes.to_vec();
 		put.extend_from_slice(&u32::try_from(chunk.len())?.to_be_bytes());
 		put.extend_from_slice(chunk);
-		put_bytes_step(link, &put, "PutBytes data")?;
+		put_bytes_step(link, PutBytesCommand::Put, &put, "PutBytes data")?;
 	}
 
-	let mut commit = vec![3];
-	commit.extend_from_slice(&cookie.to_be_bytes());
+	let mut commit = cookie_bytes.to_vec();
 	commit.extend_from_slice(&crc(object).to_be_bytes());
-	put_bytes_step(link, &commit, "PutBytes commit")?;
-
-	let mut install = vec![5];
-	install.extend_from_slice(&cookie.to_be_bytes());
-	put_bytes_step(link, &install, "PutBytes install")?;
+	put_bytes_step(link, PutBytesCommand::Commit, &commit, "PutBytes commit")?;
+	put_bytes_step(
+		link,
+		PutBytesCommand::Install,
+		&cookie_bytes,
+		"PutBytes install",
+	)?;
 	Ok(())
 }
 
 /// Send one PutBytes message, and return the cookie from the watch's ACK.
-fn put_bytes_step(link: &mut Link, message: &[u8], what: &str) -> Result<u32> {
-	link.send(PUT_BYTES, message)?;
-	let response = link.expect(PUT_BYTES, TIMEOUT, what)?;
+fn put_bytes_step(
+	link: &mut Link,
+	command: PutBytesCommand,
+	body: &[u8],
+	what: &str,
+) -> Result<u32> {
+	let mut message = vec![command as u8];
+	message.extend_from_slice(body);
+	link.send(PebbleEndpoint::PutBytes, &message)?;
+	let response = link.expect(PebbleEndpoint::PutBytes, TIMEOUT, what)?;
 	match response[..] {
-		[1, a, b, c, d] => Ok(u32::from_be_bytes([a, b, c, d])),
-		[2, ..] => bail!("The emulator refused the {what}"),
+		[result, a, b, c, d] if result == PutBytesResult::Ack as u8 => {
+			Ok(u32::from_be_bytes([a, b, c, d]))
+		}
+		[result, ..] if result == PutBytesResult::Nack as u8 => {
+			bail!("The emulator refused the {what}")
+		}
 		_ => bail!("The emulator sent an unexpected answer to the {what}"),
 	}
 }

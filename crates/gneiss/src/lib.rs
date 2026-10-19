@@ -84,9 +84,9 @@
 /// For [`AsBytes`](resource::persist::AsBytes) and [`make_persistible`]. Derive its traits through
 /// this re-export with `#[bytemuck(crate = "gneiss::bytemuck")]`.
 pub use bytemuck;
-pub use gneiss_macros::{entry, make_persistible, menu, pbl_fmt_write, persist_keys, service};
 #[doc(hidden)]
 pub use gneiss_macros::__pbl_log;
+pub use gneiss_macros::{entry, make_persistible, menu, pbl_fmt_write, persist_keys, service};
 // gneiss's own macro output names `::gneiss`, as an app's does
 extern crate self as gneiss;
 pub use gneiss_sys as sys;

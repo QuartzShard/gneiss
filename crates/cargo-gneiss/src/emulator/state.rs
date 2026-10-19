@@ -23,7 +23,7 @@ fn path() -> PathBuf {
 }
 
 impl State {
-	/// The emulators still running: entries whose process is gone are dropped, with their sockets.
+	/// The emulators still running: entries whose process is gone are dropped, with their sockets and pipes.
 	pub fn load() -> Result<Self> {
 		let path = path();
 		let mut state: Self = match std::fs::read(&path) {

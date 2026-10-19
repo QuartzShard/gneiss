@@ -56,7 +56,8 @@ impl<const SLOTS: usize> Layout for BoardLayout<SLOTS> {
 
 	fn load(ctx: &mut WindowCtx<'_, BoardLines<SLOTS>>) -> Self {
 		let mut root = ctx.root();
-		let mut text = crate::fail::gneiss_expect!(TextLayer::new(root.bounds()), "board text layer");
+		let mut text =
+			crate::fail::gneiss_expect!(TextLayer::new(root.bounds()), "board text layer");
 		text.set_alignment(TextAlignment::Center)
 			.set_font(Font::system(sys::FONT_KEY_GOTHIC_18));
 		root.add_child(&mut text);

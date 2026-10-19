@@ -47,10 +47,10 @@ struct Download {
 	url:    String,
 	size:   u64,
 	sha256: String,
-	into:   Into,
+	unpack: Unpack,
 }
 
-enum Into {
+enum Unpack {
 	/// A QEMU release archive, unpacked into this directory
 	Qemu(PathBuf),
 	/// A file kept as it is
@@ -71,45 +71,9 @@ pub fn version(platform: Platform) -> &'static str {
 /// Everything `platform`'s emulator needs, downloading what isn't cached. Asks first, unless `yes`.
 pub fn locate(platform: Platform, yes: bool) -> Result<Assets> {
 	let cache = cache_dir()?;
-	let qemu_dir = cache.join("qemu").join(QEMU_RELEASE);
-	let qemu = qemu_dir.join("bin/qemu-pebble");
 	let version = version(platform);
 	let dir = cache.join("firmware").join(version).join(platform.as_str());
-
-	let mut downloads = Vec::new();
-	if !qemu.exists() {
-		let (url, size, sha256) = github_asset("coredevices/qemu", QEMU_RELEASE, &qemu_archive()?)?;
-		downloads.push(Download {
-			url,
-			size,
-			sha256,
-			into: Into::Qemu(qemu_dir),
-		});
-	}
-	for (part, file) in [("micro_flash", MICRO_FLASH), ("spi_flash", SPI_FLASH)] {
-		let path = dir.join(file);
-		if path.exists() {
-			continue;
-		}
-		if platform.config().frozen_at_revision.is_some() {
-			downloads.push(Download {
-				url:    FROZEN_SDK_URL.to_owned(),
-				size:   FROZEN_SDK_SIZE,
-				sha256: FROZEN_SDK_SHA256.to_owned(),
-				into:   Into::FrozenSdk(cache.join("firmware").join(FROZEN_SDK)),
-			});
-			break;
-		}
-		let name = format!("sdkshell_qemu_{platform}_{FIRMWARE_RELEASE}_{part}.bin");
-		let (url, size, sha256) = github_asset("coredevices/PebbleOS", FIRMWARE_RELEASE, &name)?;
-		downloads.push(Download {
-			url,
-			size,
-			sha256,
-			into: Into::File(path),
-		});
-	}
-
+	let downloads = missing(platform, &cache, &dir)?;
 	if !downloads.is_empty() {
 		confirm(platform, &downloads, yes)?;
 		for download in &downloads {
@@ -117,11 +81,58 @@ pub fn locate(platform: Platform, yes: bool) -> Result<Assets> {
 		}
 	}
 	Ok(Assets {
-		qemu,
+		qemu:        qemu_dir(&cache).join("bin/qemu-pebble"),
 		micro_flash: dir.join(MICRO_FLASH),
-		spi_flash: dir.join(SPI_FLASH),
-		version: version.to_owned(),
+		spi_flash:   dir.join(SPI_FLASH),
+		version:     version.to_owned(),
 	})
+}
+
+fn qemu_dir(cache: &Path) -> PathBuf {
+	cache.join("qemu").join(QEMU_RELEASE)
+}
+
+/// What `platform`'s emulator needs that isn't in `cache`, its firmware going in `dir`.
+fn missing(platform: Platform, cache: &Path, dir: &Path) -> Result<Vec<Download>> {
+	let mut downloads = Vec::new();
+	let qemu_dir = qemu_dir(cache);
+	if !qemu_dir.join("bin/qemu-pebble").exists() {
+		let (url, size, sha256) = github_asset("coredevices/qemu", QEMU_RELEASE, &qemu_archive()?)?;
+		downloads.push(Download {
+			url,
+			size,
+			sha256,
+			unpack: Unpack::Qemu(qemu_dir),
+		});
+	}
+	let firmware = [("micro_flash", MICRO_FLASH), ("spi_flash", SPI_FLASH)];
+	let absent: Vec<_> = firmware
+		.into_iter()
+		.filter(|(_, file)| !dir.join(file).exists())
+		.collect();
+	if absent.is_empty() {
+		return Ok(downloads);
+	}
+	if platform.config().frozen_at_revision.is_some() {
+		downloads.push(Download {
+			url:    FROZEN_SDK_URL.to_owned(),
+			size:   FROZEN_SDK_SIZE,
+			sha256: FROZEN_SDK_SHA256.to_owned(),
+			unpack: Unpack::FrozenSdk(cache.join("firmware").join(FROZEN_SDK)),
+		});
+		return Ok(downloads);
+	}
+	for (part, file) in absent {
+		let name = format!("sdkshell_qemu_{platform}_{FIRMWARE_RELEASE}_{part}.bin");
+		let (url, size, sha256) = github_asset("coredevices/PebbleOS", FIRMWARE_RELEASE, &name)?;
+		downloads.push(Download {
+			url,
+			size,
+			sha256,
+			unpack: Unpack::File(dir.join(file)),
+		});
+	}
+	Ok(downloads)
 }
 
 fn qemu_archive() -> Result<String> {
@@ -167,9 +178,9 @@ fn confirm(platform: Platform, downloads: &[Download], yes: bool) -> Result<()> 
 fn fetch(download: &Download) -> Result<()> {
 	let data = get_file(&download.url, download.size)?;
 	verify(&data, &download.sha256, &download.url)?;
-	match &download.into {
-		Into::File(path) => write(path, &data),
-		Into::Qemu(dir) => {
+	match &download.unpack {
+		Unpack::File(path) => write(path, &data),
+		Unpack::Qemu(dir) => {
 			let partial = dir.with_extension("partial");
 			if partial.exists() {
 				std::fs::remove_dir_all(&partial)?;
@@ -184,7 +195,7 @@ fn fetch(download: &Download) -> Result<()> {
 			std::fs::rename(&partial, dir)?;
 			Ok(())
 		}
-		Into::FrozenSdk(dir) => frozen_firmware(&data, dir),
+		Unpack::FrozenSdk(dir) => frozen_firmware(&data, dir),
 	}
 }
 

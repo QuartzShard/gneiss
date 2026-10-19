@@ -9,9 +9,15 @@ const VERSION: u16 = 1;
 // Keep in sync with VIBE_SCORE_MAX_REPEAT_DELAY_MS in vibe_score.c; the
 // firmware refuses to load scores exceeding it
 const MAX_REPEAT_DELAY_MS: u16 = 60000;
-const ATTR_NOTE_LIST: u8 = 0x01;
-const ATTR_PATTERN: u8 = 0x02;
-const ATTR_REPEAT_DELAY: u8 = 0x03;
+
+/// The tag of a score attribute
+#[derive(Clone, Copy)]
+#[repr(u8)]
+enum Attribute {
+	NoteList    = 0x01,
+	Pattern     = 0x02,
+	RepeatDelay = 0x03,
+}
 
 #[derive(Debug, Deserialize)]
 struct VibeScore {
@@ -62,8 +68,8 @@ fn serialise(score: &VibeScore) -> Result<Vec<u8>> {
 		.collect::<Result<_>>()?;
 
 	let mut attrs = vec![2 + u8::from(score.repeat_delay_ms.is_some())];
-	let mut push_attr = |id: u8, payload: &[u8]| {
-		attrs.push(id);
+	let mut push_attr = |id: Attribute, payload: &[u8]| {
+		attrs.push(id as u8);
 		attrs.extend((payload.len() as u16).to_le_bytes());
 		attrs.extend_from_slice(payload);
 	};
@@ -77,10 +83,10 @@ fn serialise(score: &VibeScore) -> Result<Vec<u8>> {
 			b
 		})
 		.collect();
-	push_attr(ATTR_NOTE_LIST, &notes);
-	push_attr(ATTR_PATTERN, &indices);
+	push_attr(Attribute::NoteList, &notes);
+	push_attr(Attribute::Pattern, &indices);
 	if let Some(delay) = score.repeat_delay_ms {
-		push_attr(ATTR_REPEAT_DELAY, &delay.to_le_bytes());
+		push_attr(Attribute::RepeatDelay, &delay.to_le_bytes());
 	}
 
 	let mut vibe = b"VIBE".to_vec();

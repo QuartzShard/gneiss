@@ -1,7 +1,7 @@
 //! `cargo gneiss install`: send an app bundle to a watch, through the phone app's developer
-//! connection or an emulator that pebble-tool is running.
+//! connection, or to an emulator (see [`crate::emulator::install`]).
 //!
-//! Both speak the developer connection's WebSocket protocol (libpebble2's websocket transport):
+//! The developer connection is a WebSocket protocol (libpebble2's websocket transport):
 //! each binary message is an endpoint byte, then its payload. The phone installs a bundle itself;
 //! Pebble Protocol packets to and from the watch ride inside relay messages.
 use std::{
@@ -56,8 +56,40 @@ impl Endpoint {
 	}
 }
 
-/// Pebble Protocol endpoint for app logs: the shipping switch towards the watch, log lines back
-pub const APP_LOGS: u16 = 2006;
+/// Pebble Protocol endpoints
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[repr(u16)]
+pub enum PebbleEndpoint {
+	Time            = 0x0B,
+	PhoneAppVersion = 0x11,
+	AppMessage      = 0x30,
+	AppRunState     = 0x34,
+	/// The shipping switch towards the watch, log lines back
+	AppLogs         = 2006,
+	AppFetch        = 0x1771,
+	BlobDb          = 0xB1DB,
+	PutBytes        = 0xBEEF,
+}
+
+impl PebbleEndpoint {
+	const ALL: [Self; 8] = [
+		Self::Time,
+		Self::PhoneAppVersion,
+		Self::AppMessage,
+		Self::AppRunState,
+		Self::AppLogs,
+		Self::AppFetch,
+		Self::BlobDb,
+		Self::PutBytes,
+	];
+
+	pub fn from_raw(raw: u16) -> Option<Self> {
+		Self::ALL
+			.into_iter()
+			.find(|endpoint| *endpoint as u16 == raw)
+	}
+}
+
 const PHONE_PORT: u16 = 9000;
 /// As long as pebble-tool gives the phone to transfer and install a bundle
 const INSTALL_TIMEOUT: Duration = Duration::from_secs(300);
@@ -305,7 +337,7 @@ fn handle(data: &[u8], logs: bool) {
 				let Some((payload, rest)) = rest.split_at_checked(len) else {
 					break;
 				};
-				if endpoint == APP_LOGS {
+				if PebbleEndpoint::from_raw(endpoint) == Some(PebbleEndpoint::AppLogs) {
 					print_app_log(payload);
 				}
 				packets = rest;
@@ -344,7 +376,7 @@ pub fn print_app_log(payload: &[u8]) {
 }
 
 fn set_log_shipping(ws: &mut WebSocket<TcpStream>, on: bool) -> Result<()> {
-	let packet = pebble_packet(APP_LOGS, &[u8::from(on)]);
+	let packet = pebble_packet(PebbleEndpoint::AppLogs, &[u8::from(on)]);
 	ws.send(Message::binary(frame(Endpoint::RelayToWatch, &packet)))?;
 	Ok(())
 }
@@ -356,11 +388,11 @@ fn frame(endpoint: Endpoint, payload: &[u8]) -> Vec<u8> {
 	frame
 }
 
-fn pebble_packet(endpoint: u16, payload: &[u8]) -> Vec<u8> {
+fn pebble_packet(endpoint: PebbleEndpoint, payload: &[u8]) -> Vec<u8> {
 	let len = u16::try_from(payload.len()).expect("Pebble Protocol payloads fit a u16");
 	let mut packet = Vec::with_capacity(4 + payload.len());
 	packet.extend_from_slice(&len.to_be_bytes());
-	packet.extend_from_slice(&endpoint.to_be_bytes());
+	packet.extend_from_slice(&(endpoint as u16).to_be_bytes());
 	packet.extend_from_slice(payload);
 	packet
 }

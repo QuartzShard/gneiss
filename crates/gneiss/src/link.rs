@@ -163,7 +163,11 @@ impl<'msg> Outbox<'msg> {
 			log::gneiss_log!(Warn, "Outbox already open");
 			None
 		} else {
-			log::gneiss_log!(Error, "Unexpected response opening outbox: {:#x}", result.bits());
+			log::gneiss_log!(
+				Error,
+				"Unexpected response opening outbox: {:#x}",
+				result.bits()
+			);
 			None
 		}
 	}

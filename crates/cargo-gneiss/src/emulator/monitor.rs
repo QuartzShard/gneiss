@@ -1,5 +1,4 @@
-//! Buttons and screenshots through QEMU's monitor, a text console on its own socket: free to use
-//! while something else holds the Pebble Protocol socket, such as `install --logs`.
+//! Screenshots through QEMU's monitor, a text console on its own socket.
 use std::{
 	io::{Read, Write},
 	os::unix::net::UnixStream,
@@ -15,51 +14,6 @@ use gneiss_types::Platform;
 
 const PROMPT: &str = "(qemu) ";
 const TIMEOUT: Duration = Duration::from_secs(10);
-/// The Pebble machines ignore key-up: each key-down holds its button this long, and another
-/// key-down for it starts the wait again, as keyboard autorepeat does
-const RELEASE: Duration = Duration::from_millis(250);
-/// How often a hold sends its key again
-const REPEAT: Duration = Duration::from_millis(100);
-
-#[derive(Debug, Clone, Copy, clap::ValueEnum)]
-pub enum Button {
-	Back,
-	Up,
-	Select,
-	Down,
-}
-
-impl Button {
-	/// The key QEMU's Pebble machines read the button from
-	fn key(self) -> &'static str {
-		match self {
-			Self::Back => "left",
-			Self::Up => "up",
-			Self::Select => "right",
-			Self::Down => "down",
-		}
-	}
-}
-
-/// Click `button`, or hold it for `hold`, returning once it's released.
-pub fn press(platform: Platform, button: Button, hold: Option<Duration>) -> Result<()> {
-	let mut monitor = Monitor::connect(platform)?;
-	let key = format!("sendkey {}", button.key());
-	let start = Instant::now();
-	let mut last = Instant::now();
-	monitor.run(&key)?;
-	while let Some(hold) = hold
-		&& start.elapsed() + REPEAT + RELEASE < hold
-	{
-		std::thread::sleep(REPEAT);
-		last = Instant::now();
-		monitor.run(&key)?;
-	}
-	std::thread::sleep(
-		(last + RELEASE + Duration::from_millis(50)).saturating_duration_since(Instant::now()),
-	);
-	Ok(())
-}
 
 /// Save the screen to `path` as a PNG.
 pub fn screenshot(platform: Platform, path: &Path) -> Result<()> {
@@ -81,9 +35,7 @@ struct Monitor(UnixStream);
 
 impl Monitor {
 	fn connect(platform: Platform) -> Result<Self> {
-		if super::state::State::load()?.get(platform).is_none() {
-			bail!("No {platform} emulator is running");
-		}
+		super::ensure_running(platform)?;
 		let path = super::socket_dir(platform).join(super::MONITOR_SOCKET);
 		let stream = UnixStream::connect(&path)
 			.wrap_err_with(|| format!("Can't connect to {}", path.display()))?;

@@ -1,11 +1,12 @@
-//! Pebble Protocol with an emulator, over its UART1 socket in QEMU's framing.
+//! Pebble Protocol with an emulator, over its UART1 FIFOs in QEMU's framing.
 //!
 //! A QEMU frame is `0xFEED`, a protocol id, the payload length (at most 2048), the payload, then
 //! `0xBEEF`, all big-endian. Pebble Protocol travels as SPP frames, split anywhere, so it's
 //! reassembled as a stream: `[u16 length][u16 endpoint][payload]`, big-endian.
 use std::{
+	fs::{File, OpenOptions},
 	io::{ErrorKind, Read, Write},
-	os::unix::net::UnixStream,
+	os::{fd::AsRawFd, unix::fs::OpenOptionsExt},
 	path::Path,
 	sync::atomic::{AtomicBool, Ordering},
 	time::{Duration, Instant, SystemTime},
@@ -16,23 +17,54 @@ use color_eyre::{
 	eyre::{Context, bail},
 };
 
-use crate::install::{APP_LOGS, print_app_log};
+use crate::install::{PebbleEndpoint, print_app_log};
 
 const HEADER: u16 = 0xFEED;
 const FOOTER: u16 = 0xBEEF;
 const MAX_FRAME: usize = 2048;
-const PROTOCOL_SPP: u16 = 1;
-const PROTOCOL_BT_CONNECTION: u16 = 3;
+/// What a QEMU frame carries
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[repr(u16)]
+pub enum Protocol {
+	/// Pebble Protocol
+	Spp          = 1,
+	Tap          = 2,
+	Bluetooth    = 3,
+	Compass      = 4,
+	Battery      = 5,
+	Button       = 8,
+	TimeFormat   = 9,
+	TimelinePeek = 10,
+	ContentSize  = 11,
+}
 
-pub const PHONE_APP_VERSION: u16 = 0x11;
-pub const TIME: u16 = 0x0B;
-pub const APP_MESSAGE: u16 = 0x30;
+#[derive(Clone, Copy)]
+#[repr(u8)]
+enum AppMessageCommand {
+	Push = 1,
+	Nack = 0x7F,
+}
+
+/// PhoneAppVersion messages: the watch's request, and the phone's answer
+#[derive(Clone, Copy)]
+#[repr(u8)]
+enum VersionMessage {
+	Request  = 0,
+	Response = 1,
+}
+
+const TIME_SET_UTC: u8 = 3;
 
 /// How often a blocked read wakes up to check for a deadline or Ctrl-C
 const POLL: Duration = Duration::from_millis(250);
 
 pub struct Link<'a> {
-	stream: UnixStream,
+	/// `pebble.in`
+	writer: File,
+	/// `pebble.out`
+	reader: File,
+	/// Locked while this link reads
+	_lock:  File,
 	/// Bytes read, not yet a whole QEMU frame
 	frames: Vec<u8>,
 	/// SPP bytes, not yet a whole Pebble Protocol packet
@@ -44,50 +76,51 @@ pub struct Link<'a> {
 }
 
 impl<'a> Link<'a> {
-	/// Connect to the emulator whose sockets are in `dir`, and tell it a phone is there.
+	/// Connect to the emulator whose pipes are in `dir`, and tell it a phone is there. Output
+	/// waiting from before is dropped. Shipping app logs is switched to `logs`.
 	pub fn connect(dir: &Path, logs: bool, stop: &'a AtomicBool) -> Result<Self> {
-		let path = dir.join(super::PEBBLE_SOCKET);
-		let stream = UnixStream::connect(&path).wrap_err_with(|| {
-			format!(
-				"Can't connect to {}: is something else connected to the emulator?",
-				path.display()
-			)
-		})?;
-		stream.set_read_timeout(Some(POLL))?;
+		let lock = File::create(dir.join(super::READER_LOCK))?;
+		// SAFETY: a valid file descriptor, for as long as `lock` lives
+		if unsafe { libc::flock(lock.as_raw_fd(), libc::LOCK_EX | libc::LOCK_NB) } != 0 {
+			bail!("Another session is connected to the emulator, such as an `install --logs`");
+		}
+		let pipe = dir.join(super::PEBBLE_PIPE);
+		let reader = OpenOptions::new()
+			.read(true)
+			.custom_flags(libc::O_NONBLOCK)
+			.open(pipe.with_extension("out"))?;
 		let mut link = Self {
-			stream,
+			writer: writer(dir)?,
+			reader,
+			_lock: lock,
 			frames: Vec::new(),
 			spp: Vec::new(),
 			logs,
 			stop,
 		};
-		link.send_qemu(PROTOCOL_BT_CONNECTION, &[1])?;
-		link.send(PHONE_APP_VERSION, &phone_app_version())?;
-		link.send(TIME, &set_utc()?)?;
+		while link.read(Duration::ZERO)? {}
+		link.frames.clear();
+		link.send_qemu(Protocol::Bluetooth, &[1])?;
+		link.send(PebbleEndpoint::PhoneAppVersion, &phone_app_version())?;
+		link.send(PebbleEndpoint::Time, &set_utc()?)?;
+		link.send(PebbleEndpoint::AppLogs, &[u8::from(logs)])?;
 		Ok(link)
 	}
 
-	pub fn send(&mut self, endpoint: u16, payload: &[u8]) -> Result<()> {
+	pub fn send(&mut self, endpoint: PebbleEndpoint, payload: &[u8]) -> Result<()> {
 		let len = u16::try_from(payload.len()).wrap_err("Pebble Protocol payload over 64 KiB")?;
 		let mut packet = Vec::with_capacity(4 + payload.len());
 		packet.extend_from_slice(&len.to_be_bytes());
-		packet.extend_from_slice(&endpoint.to_be_bytes());
+		packet.extend_from_slice(&(endpoint as u16).to_be_bytes());
 		packet.extend_from_slice(payload);
 		for chunk in packet.chunks(MAX_FRAME) {
-			self.send_qemu(PROTOCOL_SPP, chunk)?;
+			self.send_qemu(Protocol::Spp, chunk)?;
 		}
 		Ok(())
 	}
 
-	fn send_qemu(&mut self, protocol: u16, payload: &[u8]) -> Result<()> {
-		let mut frame = Vec::with_capacity(8 + payload.len());
-		frame.extend_from_slice(&HEADER.to_be_bytes());
-		frame.extend_from_slice(&protocol.to_be_bytes());
-		frame.extend_from_slice(&u16::try_from(payload.len())?.to_be_bytes());
-		frame.extend_from_slice(payload);
-		frame.extend_from_slice(&FOOTER.to_be_bytes());
-		self.stream.write_all(&frame)?;
-		Ok(())
+	fn send_qemu(&mut self, protocol: Protocol, payload: &[u8]) -> Result<()> {
+		write_frame(&mut self.writer, protocol, payload)
 	}
 
 	/// The next Pebble Protocol packet that isn't handled here, or `None` if nothing came within
@@ -100,18 +133,23 @@ impl<'a> Link<'a> {
 				}
 				continue;
 			}
-			if !self.next_frame() && !self.read()? {
+			if !self.next_frame() && !self.read(POLL)? {
 				return Ok(None);
 			}
 		}
 	}
 
 	/// The next packet for `endpoint`, waiting up to `timeout`. Others are dropped.
-	pub fn expect(&mut self, endpoint: u16, timeout: Duration, what: &str) -> Result<Vec<u8>> {
+	pub fn expect(
+		&mut self,
+		endpoint: PebbleEndpoint,
+		timeout: Duration,
+		what: &str,
+	) -> Result<Vec<u8>> {
 		let deadline = Instant::now() + timeout;
 		loop {
 			if let Some((from, payload)) = self.recv()?
-				&& from == endpoint
+				&& from == endpoint as u16
 			{
 				return Ok(payload);
 			}
@@ -129,24 +167,29 @@ impl<'a> Link<'a> {
 
 	/// Packets a connected phone answers whatever it's doing. Returns whether `endpoint` was one.
 	fn handle(&mut self, endpoint: u16, payload: &[u8]) -> Result<bool> {
-		match endpoint {
-			APP_LOGS => {
+		match PebbleEndpoint::from_raw(endpoint) {
+			Some(PebbleEndpoint::AppLogs) => {
 				if self.logs {
 					print_app_log(payload);
 				}
 				Ok(true)
 			}
 			// A push from the app: NACK it, as there's no phone-side app to take it
-			APP_MESSAGE => {
-				if let [1, transaction, ..] = payload {
-					self.send(APP_MESSAGE, &[0x7F, *transaction])?;
+			Some(PebbleEndpoint::AppMessage) => {
+				if let [command, transaction, ..] = *payload
+					&& command == AppMessageCommand::Push as u8
+				{
+					self.send(PebbleEndpoint::AppMessage, &[
+						AppMessageCommand::Nack as u8,
+						transaction,
+					])?;
 				}
 				Ok(true)
 			}
 			// The firmware asks once a session opens; the answer was sent on connecting
-			PHONE_APP_VERSION => {
-				if payload.first() == Some(&0) {
-					self.send(PHONE_APP_VERSION, &phone_app_version())?;
+			Some(PebbleEndpoint::PhoneAppVersion) => {
+				if payload.first() == Some(&(VersionMessage::Request as u8)) {
+					self.send(PebbleEndpoint::PhoneAppVersion, &phone_app_version())?;
 				}
 				Ok(true)
 			}
@@ -154,21 +197,27 @@ impl<'a> Link<'a> {
 		}
 	}
 
-	/// Read what's waiting into `frames`. Returns whether anything came.
-	fn read(&mut self) -> Result<bool> {
+	/// Read what's waiting into `frames`, waiting up to `wait` for something. Returns whether
+	/// anything came.
+	fn read(&mut self, wait: Duration) -> Result<bool> {
+		let mut poll = libc::pollfd {
+			fd:      self.reader.as_raw_fd(),
+			events:  libc::POLLIN,
+			revents: 0,
+		};
+		#[allow(clippy::cast_possible_truncation)]
+		// SAFETY: one valid pollfd
+		if unsafe { libc::poll(&raw mut poll, 1, wait.as_millis() as libc::c_int) } <= 0 {
+			return Ok(false);
+		}
 		let mut buf = [0; 4096];
-		match self.stream.read(&mut buf) {
-			Ok(0) => bail!("The emulator closed the connection"),
+		match self.reader.read(&mut buf) {
+			Ok(0) => bail!("The emulator closed its pipe"),
 			Ok(n) => {
 				self.frames.extend_from_slice(&buf[..n]);
 				Ok(true)
 			}
-			Err(e)
-				if matches!(
-					e.kind(),
-					ErrorKind::WouldBlock | ErrorKind::TimedOut | ErrorKind::Interrupted
-				) =>
-			{
+			Err(e) if matches!(e.kind(), ErrorKind::WouldBlock | ErrorKind::Interrupted) => {
 				Ok(false)
 			}
 			Err(e) => Err(e.into()),
@@ -205,7 +254,7 @@ impl<'a> Link<'a> {
 				self.frames.drain(..2);
 				continue;
 			}
-			if protocol == PROTOCOL_SPP {
+			if protocol == Protocol::Spp as u16 {
 				self.spp.extend_from_slice(&frame[6..6 + len]);
 			}
 			self.frames.drain(..6 + len + 2);
@@ -223,15 +272,59 @@ impl<'a> Link<'a> {
 	}
 }
 
+/// `pebble.in` of the emulator whose pipes are in `dir`, to write frames to.
+pub fn writer(dir: &Path) -> Result<File> {
+	let path = dir.join(super::PEBBLE_PIPE).with_extension("in");
+	// Non-blocking only to open, so a FIFO nothing reads is an error rather than a hang
+	let file = OpenOptions::new()
+		.write(true)
+		.custom_flags(libc::O_NONBLOCK)
+		.open(&path)
+		.wrap_err_with(|| format!("Can't open {}: is the emulator running?", path.display()))?;
+	// SAFETY: a valid file descriptor; clears O_NONBLOCK, so writes wait for room
+	unsafe { libc::fcntl(file.as_raw_fd(), libc::F_SETFL, 0) };
+	Ok(file)
+}
+
+/// Write one QEMU frame in one `write`: at most 2056 bytes, under `PIPE_BUF`, so frames from
+/// different processes never interleave.
+pub fn write_frame(writer: &mut File, protocol: Protocol, payload: &[u8]) -> Result<()> {
+	let mut frame = Vec::with_capacity(8 + payload.len());
+	frame.extend_from_slice(&HEADER.to_be_bytes());
+	frame.extend_from_slice(&(protocol as u16).to_be_bytes());
+	frame.extend_from_slice(&u16::try_from(payload.len())?.to_be_bytes());
+	frame.extend_from_slice(payload);
+	frame.extend_from_slice(&FOOTER.to_be_bytes());
+	let written = writer.write(&frame)?;
+	if written != frame.len() {
+		bail!(
+			"Wrote {written} of a {}-byte frame to the emulator",
+			frame.len()
+		);
+	}
+	Ok(())
+}
+
 /// The answer to the firmware's phone app version request: an Android phone app with every
 /// protocol capability, as PebbleOS's own `pbl` tool gives it.
 fn phone_app_version() -> Vec<u8> {
-	let mut payload = vec![1];
-	payload.extend_from_slice(&0xFFFF_FFFF_u32.to_be_bytes());
-	payload.extend_from_slice(&0x8000_0000_u32.to_be_bytes());
-	payload.extend_from_slice(&2_u32.to_be_bytes());
-	payload.extend_from_slice(&[2, 3, 0, 0]);
-	payload.extend_from_slice(&u64::MAX.to_be_bytes());
+	// Neither read by firmware since 3.0
+	const PROTOCOL_VERSION: u32 = 0xFFFF_FFFF;
+	const SESSION_CAPABILITIES: u32 = 0x8000_0000;
+	/// The phone's OS, in the low three bits
+	const ANDROID: u32 = 2;
+	const RESPONSE_VERSION: u8 = 2;
+	/// major, minor, bugfix
+	const APP_VERSION: [u8; 3] = [3, 0, 0];
+	const ALL_CAPABILITIES: u64 = u64::MAX;
+
+	let mut payload = vec![VersionMessage::Response as u8];
+	payload.extend_from_slice(&PROTOCOL_VERSION.to_be_bytes());
+	payload.extend_from_slice(&SESSION_CAPABILITIES.to_be_bytes());
+	payload.extend_from_slice(&ANDROID.to_be_bytes());
+	payload.push(RESPONSE_VERSION);
+	payload.extend_from_slice(&APP_VERSION);
+	payload.extend_from_slice(&ALL_CAPABILITIES.to_be_bytes());
 	payload
 }
 
@@ -241,7 +334,7 @@ fn set_utc() -> Result<Vec<u8>> {
 		.duration_since(SystemTime::UNIX_EPOCH)?
 		.as_secs();
 	let (offset_secs, zone) = local_zone(now);
-	let mut payload = vec![3];
+	let mut payload = vec![TIME_SET_UTC];
 	payload.extend_from_slice(&u32::try_from(now)?.to_be_bytes());
 	payload.extend_from_slice(&i16::try_from(offset_secs / 60)?.to_be_bytes());
 	let zone = &zone.as_bytes()[..zone.len().min(u8::MAX.into())];

@@ -108,7 +108,11 @@ impl NewProject {
 		]
 		.into_iter()
 		.flat_map(|f| ["-C", f])
-		.chain(["-Zfmt-debug=none", "-Zunstable-options", "-Cpanic=immediate-abort"])
+		.chain([
+			"-Zfmt-debug=none",
+			"-Zunstable-options",
+			"-Cpanic=immediate-abort",
+		])
 		.map(String::from)
 		.collect();
 		let target = BTreeMap::from_iter(vec![(

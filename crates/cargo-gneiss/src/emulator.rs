@@ -1,8 +1,9 @@
 //! `cargo gneiss emulator`: run a Pebble emulator, `qemu-pebble`, without pebble-tool.
 //!
-//! Each platform's emulator runs detached, in its own process group, with its serial ports and
-//! monitor on Unix sockets in a directory under [`runtime_dir`]. Its SPI flash, which keeps the
-//! apps installed on it, lives under [`data_dir`], one per firmware version.
+//! Each platform's emulator runs detached, in its own process group, with its Pebble Protocol
+//! UART on a pair of FIFOs, and its console and monitor on Unix sockets, in a directory under
+//! [`runtime_dir`]. Its SPI flash, which keeps the apps installed on it, lives under [`data_dir`],
+//! one per firmware version.
 use std::{
 	fs::File,
 	io::Read,
@@ -19,6 +20,7 @@ use color_eyre::{
 use gneiss_types::Platform;
 
 mod assets;
+mod control;
 pub mod install;
 mod link;
 mod monitor;
@@ -26,8 +28,11 @@ mod state;
 
 use state::{Entry, State};
 
-/// UART1: Pebble Protocol, in QEMU's framing
-pub const PEBBLE_SOCKET: &str = "pebble.sock";
+/// UART1: Pebble Protocol, in QEMU's framing, through the FIFOs `pebble.in` and `pebble.out`. Any
+/// number of processes can write to `pebble.in`, a frame per `write`; one reads `pebble.out`, holding
+/// [`READER_LOCK`].
+pub const PEBBLE_PIPE: &str = "pebble";
+pub const READER_LOCK: &str = "reader.lock";
 /// UART2: the firmware's debug console
 const CONSOLE_SOCKET: &str = "console.sock";
 pub const MONITOR_SOCKET: &str = "monitor.sock";
@@ -62,7 +67,7 @@ enum EmulatorCommand {
 	/// Press a button on a running emulator
 	Press {
 		platform: Platform,
-		button:   monitor::Button,
+		button:   control::Button,
 		/// Hold it this many milliseconds, rather than clicking: a long press is 500 or more
 		#[arg(long)]
 		hold:     Option<u64>,
@@ -72,6 +77,8 @@ enum EmulatorCommand {
 		platform: Platform,
 		file:     PathBuf,
 	},
+	#[command(flatten)]
+	Control(control::Control),
 }
 
 impl Emulator {
@@ -95,60 +102,35 @@ impl Emulator {
 				platform,
 				button,
 				hold,
-			} => monitor::press(
+			} => control::press(
 				*platform,
 				*button,
-				hold.map(std::time::Duration::from_millis),
+				hold.map_or(control::CLICK, Duration::from_millis),
 			),
 			EmulatorCommand::Screenshot { platform, file } => monitor::screenshot(*platform, file),
+			EmulatorCommand::Control(control) => control.run(),
 		}
 	}
 }
 
-/// Where a running emulator's sockets are.
+/// Where a running emulator's sockets and pipes are.
 pub fn socket_dir(platform: Platform) -> PathBuf {
 	runtime_dir().join(platform.as_str())
 }
 
 /// Start `platform`'s emulator if it isn't running, and wait for it to boot. Returns the directory
-/// with its sockets.
+/// with its sockets and pipes.
 pub fn start(platform: Platform, wipe: bool, yes: bool) -> Result<PathBuf> {
 	let mut state = State::load()?;
 	let dir = socket_dir(platform);
 	if let Some(entry) = state.get(platform) {
-		if wipe {
-			bail!("The {platform} emulator is running: stop it before wiping its flash");
-		}
-		let wanted = assets::version(platform);
-		if entry.version != wanted {
-			bail!(
-				"The {platform} emulator running is firmware {}, not {wanted}: stop it with `cargo \
-				 gneiss emulator stop {platform}`",
-				entry.version
-			);
-		}
-		log::info!(
-			"The {platform} emulator is already running ({})",
-			entry.version
-		);
+		reuse(entry, platform, wipe)?;
 		return Ok(dir);
 	}
 
 	let assets = assets::locate(platform, yes)?;
-	let flash = data_dir()?
-		.join(&assets.version)
-		.join(platform.as_str())
-		.join("qemu_spi_flash.bin");
-	if wipe || !flash.exists() {
-		fresh_flash(&assets.spi_flash, &flash)?;
-	}
-
-	if dir.exists() {
-		std::fs::remove_dir_all(&dir).wrap_err_with(|| format!("Can't clear {}", dir.display()))?;
-	}
-	std::fs::create_dir_all(&dir).wrap_err_with(|| format!("Can't create {}", dir.display()))?;
-	let log = File::create(dir.join(LOG))?;
-
+	let flash = flash_image(&assets, platform, wipe)?;
+	let log = fresh_dir(&dir)?;
 	log::info!("Starting the {platform} emulator ({})", assets.version);
 	let mut child = Command::new(&assets.qemu)
 		.args(qemu_args(platform, &assets.micro_flash, &flash, &dir)?)
@@ -179,6 +161,59 @@ pub fn start(platform: Platform, wipe: bool, yes: bool) -> Result<PathBuf> {
 	Ok(dir)
 }
 
+/// Check the running emulator `entry` will do: not for a wipe, and on the firmware this
+/// cargo-gneiss runs.
+fn reuse(entry: &Entry, platform: Platform, wipe: bool) -> Result<()> {
+	if wipe {
+		bail!("The {platform} emulator is running: stop it before wiping its flash");
+	}
+	let wanted = assets::version(platform);
+	if entry.version != wanted {
+		bail!(
+			"The {platform} emulator running is firmware {}, not {wanted}: stop it with `cargo \
+			 gneiss emulator stop {platform}`",
+			entry.version
+		);
+	}
+	log::info!(
+		"The {platform} emulator is already running ({})",
+		entry.version
+	);
+	Ok(())
+}
+
+/// `platform`'s flash image for `assets`' firmware, fresh if `wipe` or there's none yet.
+fn flash_image(assets: &assets::Assets, platform: Platform, wipe: bool) -> Result<PathBuf> {
+	let flash = data_dir()?
+		.join(&assets.version)
+		.join(platform.as_str())
+		.join("qemu_spi_flash.bin");
+	if wipe || !flash.exists() {
+		fresh_flash(&assets.spi_flash, &flash)?;
+	}
+	Ok(flash)
+}
+
+/// Empty `dir`, then make its pipes and QEMU's log, returned.
+fn fresh_dir(dir: &Path) -> Result<File> {
+	if dir.exists() {
+		std::fs::remove_dir_all(dir).wrap_err_with(|| format!("Can't clear {}", dir.display()))?;
+	}
+	std::fs::create_dir_all(dir).wrap_err_with(|| format!("Can't create {}", dir.display()))?;
+	for end in ["in", "out"] {
+		fifo(&dir.join(format!("{PEBBLE_PIPE}.{end}")))?;
+	}
+	Ok(File::create(dir.join(LOG))?)
+}
+
+/// An error unless `platform`'s emulator is running.
+pub fn ensure_running(platform: Platform) -> Result<()> {
+	if State::load()?.get(platform).is_none() {
+		bail!("No {platform} emulator is running");
+	}
+	Ok(())
+}
+
 pub fn stop(platform: Platform) -> Result<()> {
 	let mut state = State::load()?;
 	let Some(entry) = state.remove(platform) else {
@@ -206,7 +241,6 @@ pub fn stop(platform: Platform) -> Result<()> {
 enum Flash {
 	/// The SPI flash, as a drive the machine finds by its id
 	Spi,
-	/// An `mtd` drive
 	Mtd,
 }
 
@@ -230,7 +264,7 @@ fn qemu_args(
 		"-serial",
 		"null",
 		"-serial",
-		&socket(PEBBLE_SOCKET)?,
+		&format!("pipe:{}", option_path(&dir.join(PEBBLE_PIPE))?),
 		"-serial",
 		&socket(CONSOLE_SOCKET)?,
 		"-kernel",
@@ -274,6 +308,16 @@ fn qemu_args(
 		args.extend(["-audio".to_owned(), format!("driver={driver},id=audio0")]);
 	}
 	Ok(args)
+}
+
+fn fifo(path: &Path) -> Result<()> {
+	let c_path = std::ffi::CString::new(path_str(path)?)?;
+	// SAFETY: a NUL-terminated path
+	if unsafe { libc::mkfifo(c_path.as_ptr(), 0o600) } != 0 {
+		return Err(std::io::Error::last_os_error())
+			.wrap_err_with(|| format!("Can't create {}", path.display()));
+	}
+	Ok(())
 }
 
 fn path_str(path: &Path) -> Result<&str> {
@@ -352,7 +396,7 @@ fn wait_for_boot(child: &mut Child, dir: &Path) -> Result<()> {
 	}
 }
 
-/// Per-session files: sockets, logs and the state file
+/// Per-session files: sockets, pipes, logs and the state file
 fn runtime_dir() -> PathBuf {
 	std::env::var_os("XDG_RUNTIME_DIR")
 		.map_or_else(std::env::temp_dir, PathBuf::from)
