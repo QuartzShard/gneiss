@@ -129,7 +129,7 @@ impl<F: for<'n> FnMut(*mut Header, Click, &mut UiQueue<'n>)> Callable<ClickSig> 
 }
 
 impl ClickHandler {
-	fn new<F: for<'n> FnMut(*mut Header, Click, &mut UiQueue<'n>) + 'static>(
+	pub(super) fn new<F: for<'n> FnMut(*mut Header, Click, &mut UiQueue<'n>) + 'static>(
 		subscribed: ClickKinds,
 		closure: F,
 	) -> Self {
@@ -185,16 +185,35 @@ unsafe fn replace(
 	button: Button,
 	handler: Option<ClickHandler>,
 ) {
+	// SAFETY: forwarded. The provider installed is click_config, for this window
+	unsafe {
+		replace_with(window, ui, button, handler, || {
+			sys::window_set_click_config_provider(window, Some(click_config));
+		});
+	}
+}
+
+/// [`replace`], with `install` installing the click config provider, which the firmware reruns
+/// immediately if the window is on screen.
+///
+/// # Safety
+/// As [`replace`], and `install` must only install [`click_config`] for `window`.
+pub(super) unsafe fn replace_with(
+	window: *mut sys::Window,
+	ui: &mut UiGuard,
+	button: Button,
+	handler: Option<ClickHandler>,
+	install: impl FnOnce(),
+) {
 	// SAFETY: no other borrow into the window is live, and holding a UiGuard excludes a running
 	// handler whose box this could drop
 	*unsafe { &mut (*header(window)).clicks }.get_mut(button) = handler;
-	// SAFETY: window is live. Reruns the provider immediately if the window is on screen
-	ui.os_lend(|| unsafe {
-		sys::window_set_click_config_provider(window, Some(click_config));
-	});
+	// SAFETY: user code only gets a `&mut UiGuard` outside callbacks, where nothing borrows a
+	// window except through the guard, and the provider only borrows the header's handlers
+	unsafe { ui.os_lend(install) };
 }
 
-unsafe extern "C" fn click_config(context: *mut ffi::c_void) {
+pub(super) unsafe extern "C" fn click_config(context: *mut ffi::c_void) {
 	let _ui = UiGuard::enter_internal();
 	// SAFETY: we never set a click context, so the firmware passes the window
 	let clicks = unsafe { &mut (*header(context.cast())).clicks };
@@ -268,8 +287,9 @@ unsafe extern "C" fn click_config(context: *mut ffi::c_void) {
 
 /// Pops the window, as the firmware's own Back handling does until Back is first subscribed.
 unsafe extern "C" fn back_pop(_recognizer: sys::ClickRecognizerRef, _context: *mut ffi::c_void) {
-	// SAFETY: popping fires this window's callbacks synchronously, so the guard is lent for it
-	UiGuard::enter_internal().os_lend(|| unsafe { sys::window_stack_pop(true) });
+	// SAFETY: popping fires this window's callbacks synchronously, so the guard is lent for it.
+	// Nothing here borrows the window
+	unsafe { UiGuard::enter_internal().os_lend(|| sys::window_stack_pop(true)) };
 }
 
 unsafe extern "C" fn click<const KIND: u8>(

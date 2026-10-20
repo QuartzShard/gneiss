@@ -244,7 +244,8 @@ fn regen_sys() -> Result<()> {
 		clang_args.extend_from_slice(&["-I", &plat_vendor_arg].map(String::from));
 		clang_args.extend(platforms.clang_args(platform)?);
 
-		let macro_fallback = workspace_root().join(format!("target/xtask/macro-fallback/{platform}"));
+		let macro_fallback =
+			workspace_root().join(format!("target/xtask/macro-fallback/{platform}"));
 		std::fs::create_dir_all(&macro_fallback)?;
 		let bindings = bindgen::builder()
 			.header(plat_vendor.join("pebble.h").display().to_string())

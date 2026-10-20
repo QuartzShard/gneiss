@@ -11,7 +11,7 @@ use core::slice;
 extern crate alloc;
 
 use crate::{
-	SyncCell,
+	SyncCell, log,
 	resource::{
 		ImageKey, PdcKey, PdcSeqKey,
 		persist::{__persist_pod, __recover_pod, Persist, PersistKey, Recover},
@@ -112,6 +112,7 @@ pub struct GBitMap {
 impl GBitMap {
 	/// Load the image resource `key`. `None` if the firmware is out of memory.
 	pub fn load(key: ImageKey) -> Option<Self> {
+		log::gneiss_log!(Debug, "Loading image resource {}", key.0.get());
 		let inner = unsafe { sys::gbitmap_create_with_resource(key.0.get()) };
 		(!inner.is_null()).then_some(GBitMap {
 			inner,
@@ -181,6 +182,7 @@ pub struct DrawCommand {
 impl DrawCommand {
 	/// Load the resource `key`. `None` if the firmware is out of memory.
 	pub fn load(key: PdcKey) -> Option<Self> {
+		log::gneiss_log!(Debug, "Loading draw command resource {}", key.0.get());
 		let inner = unsafe { sys::gdraw_command_image_create_with_resource(key.0.get()) };
 		if inner.is_null() {
 			None
@@ -213,6 +215,11 @@ pub struct DrawCommandSequence {
 impl DrawCommandSequence {
 	/// Load the resource `key`. `None` if the firmware is out of memory.
 	pub fn load(key: PdcSeqKey) -> Option<Self> {
+		log::gneiss_log!(
+			Debug,
+			"Loading draw command sequence resource {}",
+			key.0.get()
+		);
 		let inner = unsafe { sys::gdraw_command_sequence_create_with_resource(key.0.get()) };
 		if inner.is_null() {
 			None

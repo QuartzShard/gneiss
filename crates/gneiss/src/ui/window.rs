@@ -99,7 +99,7 @@ static DESTROYING: SyncCell<bool> = SyncCell::new(false);
 /// # Safety
 /// `window` must be a live window created by [`Window::new`], not used again, and `free` must free
 /// its user data.
-unsafe fn drop_window(window: *mut sys::Window, free: unsafe fn(*mut c_void)) {
+pub(super) unsafe fn drop_window(window: *mut sys::Window, free: unsafe fn(*mut c_void)) {
 	// SAFETY: the window is live, and its handle, the only other way to it, is gone
 	unsafe {
 		let header = header(window);
@@ -249,36 +249,67 @@ impl<D: 'static> Layout for NoLayout<D> {
 	}
 }
 
+impl<C: Layout> WindowData<C> {
+	pub(super) fn new(data: Option<C::Data>) -> Self {
+		Self {
+			header: Header {
+				tag:          TypeId::of::<WindowData<C>>(),
+				clicks:       ClickHandlers::new(),
+				menu:         None,
+				free:         None,
+				next_dropped: None,
+			},
+			layout: None,
+			data,
+			pending: None,
+		}
+	}
+}
+
 impl<C: Layout> Window<C> {
+	pub(super) const HANDLERS: sys::WindowHandlers = sys::WindowHandlers {
+		load:      Some(Self::__load),
+		appear:    Some(Self::__appear),
+		disappear: Some(Self::__disappear),
+		unload:    Some(Self::__unload),
+	};
+
 	/// Create a window with persistent data `data`. `None` if the firmware is out of memory.
 	pub fn new(data: Option<C::Data>) -> Option<Self> {
-		let ptr = create(sys::WindowHandlers {
-			load:      Some(Self::__load),
-			appear:    Some(Self::__appear),
-			disappear: Some(Self::__disappear),
-			unload:    Some(Self::__unload),
-		})?;
-		let data = Box::new_in(
-			WindowData::<C> {
-				header: Header {
-					tag:          TypeId::of::<WindowData<C>>(),
-					clicks:       ClickHandlers::new(),
-					menu:         None,
-					free:         None,
-					next_dropped: None,
-				},
-				layout: None,
-				data,
-				pending: None,
-			},
-			PebbleAlloc,
-		);
-		// SAFETY: ptr was just created
-		unsafe { sys::window_set_user_data(ptr, Box::into_raw_with_allocator(data).0.cast()) };
-		Some(Self {
+		// SAFETY: the data is a WindowData<C>, and the handlers are this type's
+		unsafe {
+			let ptr = Self::create_with(Self::HANDLERS, WindowData::<C>::new(data))?;
+			Some(Self::from_raw(ptr))
+		}
+	}
+
+	/// The handle to a window from [`create_with`](Self::create_with).
+	///
+	/// # Safety
+	/// `ptr` must be a live window with no other handle, whose user data starts with a
+	/// `WindowData<C>`. Dropping the handle frees its user data as a `WindowData<C>`.
+	pub(super) unsafe fn from_raw(ptr: *mut sys::Window) -> Self {
+		Self {
 			ptr,
 			data: PhantomData,
-		})
+		}
+	}
+
+	/// A firmware window with `handlers`, whose user data is `data`. `None` if the firmware is out
+	/// of memory.
+	///
+	/// # Safety
+	/// `T` must be `repr(C)` and start with a `WindowData<C>`, and `handlers` must be
+	/// [`HANDLERS`](Self::HANDLERS), or call them for the window.
+	pub(super) unsafe fn create_with<T>(
+		handlers: sys::WindowHandlers,
+		data: T,
+	) -> Option<*mut sys::Window> {
+		let ptr = create(handlers)?;
+		let data = Box::new_in(data, PebbleAlloc);
+		// SAFETY: ptr was just created
+		unsafe { sys::window_set_user_data(ptr, Box::into_raw_with_allocator(data).0.cast()) };
+		Some(ptr)
 	}
 
 	/// The window's [`WindowCtx`], from outside its callbacks.
@@ -369,7 +400,7 @@ fn trace(event: &str, window: *mut sys::Window, layout: &str) {
 // SAFETY: the OS only fires handlers on a live window, and each borrows its fields
 // once per call; UiGuard rules out reentrancy
 impl<C: Layout> Window<C> {
-	unsafe extern "C" fn __load(window: *mut sys::Window) {
+	pub(super) unsafe extern "C" fn __load(window: *mut sys::Window) {
 		let _ui = UiGuard::enter_internal();
 		trace_ui!("load", window, C);
 		let (layout, data) = unsafe {
@@ -404,7 +435,7 @@ impl<C: Layout> Window<C> {
 		}
 	}
 
-	unsafe extern "C" fn __unload(window: *mut sys::Window) {
+	pub(super) unsafe extern "C" fn __unload(window: *mut sys::Window) {
 		let _ui = UiGuard::enter_internal();
 		trace_ui!("unload", window, C);
 		let (layout, data) = unsafe {

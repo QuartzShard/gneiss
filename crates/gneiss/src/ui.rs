@@ -89,6 +89,7 @@ use crate::{
 	ui::window::{WindowData, header},
 };
 
+mod action_bar;
 mod bitmap;
 mod board;
 mod click;
@@ -100,6 +101,9 @@ mod status_bar;
 mod text;
 mod window;
 
+pub use action_bar::{
+	ACTION_BAR_WIDTH, ActionBar, ActionButton, ActionClickKinds, ActionWindow, PressAnimation,
+};
 pub use bitmap::{Align, BitmapLayer};
 pub use board::{BoardLayout, BoardLines, StatusBoard};
 pub use click::{Button, Click, ClickHandler, ClickHandlers, ClickKinds};
@@ -126,11 +130,13 @@ pub(super) fn ui_idle() -> bool {
 }
 
 /// Permission to touch the UI: borrowing a window's layout or data, changing click handlers,
-/// navigating, reloading a menu. At most one exists at a time. gneiss holds it around every UI
+/// navigating, reloading a menu. At most one is usable at a time. gneiss holds it around every UI
 /// callback it runs (window lifecycle, layer drawing, clicks, every menu callback),
 /// `#[gneiss::entry]` hands one to `main`, and anything else, such as a service handler or timer,
-/// takes its own with [`enter`](Self::enter). So a `&mut UiGuard` proves no other code holds a
-/// borrow into any window, and a shared `&UiGuard` proves none is held mutably.
+/// takes its own with [`enter`](Self::enter). While gneiss calls into the firmware from a callback,
+/// it lends its guard, so callbacks the firmware fires synchronously can take their own; the lent
+/// guard can't be used until they return. So a `&mut UiGuard` proves no other code holds a borrow
+/// into any window, and a shared `&UiGuard` proves none is held mutably.
 ///
 /// Some window-related actions can cause reentrant firing of handlers if they're caused from within
 /// one. This causes `&mut` aliasing UB if it happens, so this type is used as a proof of "good
@@ -183,11 +189,16 @@ impl UiGuard {
 
 	/// Release the guard while `f` calls into the firmware, so window callbacks it fires
 	/// synchronously can take their own.
+	///
+	/// # Safety
+	/// The `&mut` borrow only rules out borrows made through the guard. Those callbacks borrow
+	/// window state through raw pointers, so no reference into a window that one of them could also
+	/// borrow may be used once `f` starts: the caller's must be dead, and `f` must make none.
 	#[expect(
 		clippy::unused_self,
 		reason = "the &mut borrow is the proof of exclusivity"
 	)]
-	pub(crate) fn os_lend<R>(&mut self, f: impl FnOnce() -> R) -> R {
+	pub(crate) unsafe fn os_lend<R>(&mut self, f: impl FnOnce() -> R) -> R {
 		UI_HELD.set(false);
 		UI_LENT.set(UI_LENT.get() + 1);
 		let result = f();
@@ -332,7 +343,7 @@ impl<'n> UiQueue<'n> {
 impl Drop for UiQueue<'_> {
 	fn drop(&mut self) {
 		let actions = &self.actions;
-		self.ui.os_lend(|| {
+		let run = || {
 			for &action in actions.iter().flatten() {
 				// SAFETY: every AnyWindow borrows a Window that outlives 'n, and no layout can own a
 				// Window (NoWindow), so no earlier action can have destroyed a later target
@@ -354,6 +365,10 @@ impl Drop for UiQueue<'_> {
 					}
 				}
 			}
-		});
+		};
+		// SAFETY: in a callback, the queue drops once the handler it was handed to has returned, and
+		// the trampoline doesn't use the handler's borrows again. Outside one, borrows into windows go
+		// through the guard, which the queue holds
+		unsafe { self.ui.os_lend(run) };
 	}
 }

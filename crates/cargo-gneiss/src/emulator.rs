@@ -288,6 +288,8 @@ fn qemu_args(
 		Platform::Gabbro => ("pebble-gabbro", "cortex-m33", Flash::Mtd, false),
 	};
 	args.extend(["-machine", machine, "-cpu", cpu].map(str::to_owned));
+	// Titles the window `QEMU (<platform>-0)`, for window managers to place it by
+	args.extend(["-name".to_owned(), platform.to_string()]);
 	let flash = option_path(flash)?;
 	args.extend(match kind {
 		Flash::Spi => [

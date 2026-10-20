@@ -1,7 +1,7 @@
 //! Fonts: the firmware's system fonts, and font resources.
 use core::ffi::CStr;
 
-use crate::{resource::FontKey, sys};
+use crate::{log, resource::FontKey, sys};
 
 /// A font, for a [`TextLayer`](crate::ui::TextLayer) or
 /// [`GContext::draw_text`](crate::ui::graphics::GContext::draw_text). A font resource is unloaded
@@ -25,6 +25,7 @@ impl Font {
 	/// Load the font resource `key`. If it can't be loaded, the firmware logs a warning and hands
 	/// back its Gothic 14 system font instead; there is no error to check.
 	pub fn load(key: FontKey) -> Self {
+		log::gneiss_log!(Debug, "Loading font resource {}", key.0.get());
 		// SAFETY: key names one of this app's resources
 		let ptr = unsafe { sys::fonts_load_custom_font(sys::resource_get_handle(key.0.get())) };
 		Self { ptr, custom: true }

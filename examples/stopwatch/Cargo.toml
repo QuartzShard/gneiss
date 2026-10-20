@@ -8,8 +8,22 @@ edition = "2024"
 [package.metadata.pebble]
 uuid = "851ee71f-c26d-45e1-bea9-94b2beddfb90"
 watchface = false
-# No resources, but the table must still be present.
-resources = {}
+
+# The action bar's icons: white on transparent, which the bar draws over its black background
+[package.metadata.pebble.resources.ICON_PLAY]
+type = "png"
+file = "play.png"
+target_platforms = ["emery", "basalt"]
+
+[package.metadata.pebble.resources.ICON_PAUSE]
+type = "png"
+file = "pause.png"
+target_platforms = ["emery", "basalt"]
+
+[package.metadata.pebble.resources.ICON_RESET]
+type = "png"
+file = "reset.png"
+target_platforms = ["emery", "basalt"]
 
 [dependencies.gneiss]
 path = "../../crates/gneiss"

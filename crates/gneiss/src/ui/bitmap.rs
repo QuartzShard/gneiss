@@ -25,8 +25,10 @@ pub enum Align {
 	BottomLeft  = sys::GAlign_GAlignBottomLeft,
 }
 
-/// A layer that draws a bitmap it owns. `B` can be a [`GBitMap`], or a shared handle to one
-/// (`Rc<GBitMap>`, `&'static GBitMap`) to show the same bitmap on several layers.
+/// A layer that draws a bitmap it owns. `B` is a [`GBitMap`], or `&'static GBitMap` for one that
+/// lives as long as the app, or an `Rc<GBitMap>` to share one between windows that come and go.
+/// [`replace_bitmap`](Self::replace_bitmap) hands the old bitmap back, to swap between bitmaps
+/// without loading them again.
 pub struct BitmapLayer<B: Borrow<GBitMap> = GBitMap> {
 	ptr:    *mut sys::BitmapLayer,
 	bitmap: Option<B>,
@@ -40,13 +42,18 @@ impl<B: Borrow<GBitMap>> BitmapLayer<B> {
 		Some(Self { ptr, bitmap: None })
 	}
 
-	/// Replace the bitmap, dropping the old one once the layer no longer points at it.
+	/// Draw `bitmap`, dropping the old one.
 	pub fn set_bitmap(&mut self, bitmap: B) -> &mut Self {
+		self.replace_bitmap(bitmap);
+		self
+	}
+
+	/// Draw `bitmap`. Returns the old bitmap, if it had one, which the layer no longer points at.
+	pub fn replace_bitmap(&mut self, bitmap: B) -> Option<B> {
 		// SAFETY: the firmware bitmap lives as long as the GBitMap, which self.bitmap keeps alive;
 		// moving the handle doesn't move it
 		unsafe { sys::bitmap_layer_set_bitmap(self.ptr, bitmap.borrow().as_ptr()) };
-		self.bitmap = Some(bitmap);
-		self
+		self.bitmap.replace(bitmap)
 	}
 
 	/// The current bitmap, if any.

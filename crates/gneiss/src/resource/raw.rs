@@ -3,7 +3,7 @@ extern crate alloc;
 use alloc::{boxed::Box, vec::Vec};
 use core::{alloc::Allocator, ops::Deref};
 
-use crate::{fail::PblUnwrap, resource::RawBytesKey, sys};
+use crate::{fail::PblUnwrap, log, resource::RawBytesKey, sys};
 
 #[derive(Clone, Copy)]
 /// A raw bytes resource, opened for reading.
@@ -112,6 +112,12 @@ pub fn load_all<A: Allocator>(key: RawBytesKey, alloc: A) -> Option<Box<[u8], A>
 	if len == 0 {
 		return None;
 	}
+	log::gneiss_log!(
+		Debug,
+		"Loading raw resource {} ({} bytes)",
+		key.0.get(),
+		len
+	);
 
 	let mut buf = Vec::with_capacity_in(len, alloc);
 

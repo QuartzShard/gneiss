@@ -63,8 +63,8 @@ fn build_elf(
 
 fn bytes_readable(val: usize) -> String {
 	match val {
-		1_000_000.. => format!("{}.{}MB", val / 1_000_000, (val % 1_000_000) / 1000),
-		1000..1_000_000 => format!("{}.{}KB", val / 1000, val % 1000),
+		1_000_000.. => format!("{}.{:03}MB", val / 1_000_000, (val % 1_000_000) / 1000),
+		1000..1_000_000 => format!("{}.{:03}KB", val / 1000, val % 1000),
 		_ => format!("{val} B"),
 	}
 }

@@ -3,19 +3,25 @@
 //! The firmware's clock measures the time. A repeating [`Timer`] only redraws the display while it
 //! runs, so a late frame never skews the reading. A [`StatusBarLayer`] along the top shows the time
 //! of day, which the firmware keeps current itself.
+//!
+//! It's an [`ActionWindow`], so its action bar shows what Select and Down do. Its click handlers
+//! get the bar, and Select's swaps play for pause: it keeps whichever icon isn't showing, and
+//! [`replace_icon_animated`](gneiss::ui::ActionBar::replace_icon_animated) hands the other back, so
+//! each icon is loaded once.
 #![no_std]
 #![no_main]
 extern crate alloc;
 
 use gneiss::{
 	prelude::*,
-	resource::font::Font,
+	resource::{font::Font, image::GBitMap},
 	sys,
 	time::{self, TimeDelta, Timestamp},
 	timer::Timer,
 	ui::{
-		Button, ClickKinds, HeapText, Layer, Layout, STATUS_BAR_HEIGHT, Separator, StaticWindow,
-		StatusBarLayer, TextAlignment, TextLayer, UiGuard, UiQueue, Window, WindowCtx,
+		ACTION_BAR_WIDTH, ActionButton, ActionClickKinds, ActionWindow, Button, HeapText, Layer,
+		Layout, STATUS_BAR_HEIGHT, Separator, StaticWindow, StatusBarLayer, TextAlignment,
+		TextLayer, UiGuard, UiQueue, WindowCtx,
 		graphics::{Point, Rectangle, Size},
 	},
 };
@@ -39,16 +45,23 @@ impl Layout for Stopwatch {
 	fn load(ctx: &mut WindowCtx<'_>) -> Self {
 		let mut root = ctx.root();
 		let bounds = root.bounds();
+		// What the action bar leaves of the screen
+		let width = bounds.size.width - ACTION_BAR_WIDTH;
 
 		let mut status = StatusBarLayer::new().pbl_expect(c"status bar");
-		status.set_separator(Separator::Dotted);
+		status
+			.set_separator(Separator::Dotted)
+			.set_frame(Rectangle::new(
+				Point::zero(),
+				Size::new(width, STATUS_BAR_HEIGHT),
+			));
 		root.add_child(&mut status);
 
 		// Centred in the space below the status bar
 		let below = (bounds.size.height + STATUS_BAR_HEIGHT) as i32 / 2;
 		let mut display = TextLayer::new(Rectangle::new(
 			Point::new(0, below - 20),
-			Size::new(bounds.size.width, 40),
+			Size::new(width, 40),
 		))
 		.pbl_expect(c"display layer");
 		display
@@ -69,8 +82,12 @@ impl Layout for Stopwatch {
 }
 
 impl Stopwatch {
+	fn running(&self) -> bool {
+		self.since.is_some()
+	}
+
 	fn toggle(&mut self) {
-		if self.since.is_some() {
+		if self.running() {
 			self.stop();
 		} else {
 			self.start();
@@ -100,7 +117,7 @@ impl Stopwatch {
 
 	fn reset(&mut self) {
 		self.banked = TimeDelta::ZERO;
-		if self.since.is_some() {
+		if self.running() {
 			self.since = Some(time::now());
 		}
 		self.show();
@@ -120,20 +137,31 @@ impl Stopwatch {
 
 #[gneiss::entry]
 fn main(ui: &mut UiGuard) {
-	let mut window = Window::<Stopwatch>::new(None).pbl_expect(c"window");
+	let icon = |key| GBitMap::load(key).pbl_expect(c"icon");
+
+	let mut window = ActionWindow::<Stopwatch>::new(None).pbl_expect(c"window");
+	window
+		.action_bar(ui)
+		.set_icon(ActionButton::Select, icon(resources::ICON_PLAY))
+		.set_icon(ActionButton::Down, icon(resources::ICON_RESET));
+	// The Select icon that isn't showing: pause while stopped, play while running
+	let mut spare = Some(icon(resources::ICON_PAUSE));
 	window.set_click_handler(
 		ui,
 		Button::Select,
-		ClickKinds::SINGLE,
-		|stopwatch, _, _, _| {
+		ActionClickKinds::SINGLE,
+		move |stopwatch, _, bar, _, _| {
 			stopwatch.toggle();
+			if let Some(icon) = spare.take() {
+				spare = bar.replace_icon_animated(ActionButton::Select, icon);
+			}
 		},
 	);
 	window.set_click_handler(
 		ui,
 		Button::Down,
-		ClickKinds::SINGLE,
-		|stopwatch, _, _, _| {
+		ActionClickKinds::SINGLE,
+		|stopwatch, _, _, _, _| {
 			stopwatch.reset();
 		},
 	);

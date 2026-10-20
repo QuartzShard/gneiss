@@ -256,8 +256,9 @@ impl<const N: usize> fmt::Write for StackText<N> {
 /// A layer that draws text it owns, in a font it holds. The firmware keeps pointers to both and
 /// reads them at render time; the text is boxed so moving the layer doesn't move it.
 ///
-/// `F` holds the font: a [`Font`], or e.g. an `Rc<Font>` to share one font resource between
-/// layers.
+/// `F` holds the font: a [`Font`], or `&'static Font` for one that lives as long as the app, or an
+/// `Rc<Font>` to share one between windows that come and go. [`replace_font`](Self::replace_font)
+/// hands the old font back, to swap between fonts without loading them again.
 pub struct TextLayer<S: Deref<Target = CStr> = &'static CStr, F: Borrow<Font> = Font> {
 	ptr:  *mut sys::TextLayer,
 	text: Option<Box<S, PebbleAlloc>>,
@@ -302,13 +303,19 @@ impl<S: Deref<Target = CStr>, F: Borrow<Font>> TextLayer<S, F> {
 		}
 	}
 
-	/// Draw the text in `font`, dropping the old font once the layer no longer points at it.
+	/// Draw the text in `font`, dropping the old one.
 	pub fn set_font(&mut self, font: F) -> &mut Self {
+		self.replace_font(font);
+		self
+	}
+
+	/// Draw the text in `font`. Returns the old font, if it had one, which the layer no longer
+	/// points at.
+	pub fn replace_font(&mut self, font: F) -> Option<F> {
 		// SAFETY: the font lives as long as the Font, which self.font keeps alive; moving the
 		// handle doesn't move it
 		unsafe { sys::text_layer_set_font(self.ptr, font.borrow().as_ptr()) };
-		self.font = Some(font);
-		self
+		self.font.replace(font)
 	}
 
 	/// Set the text's colour.
