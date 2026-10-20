@@ -1,7 +1,8 @@
 //! A stopwatch: Select starts and stops it, Down resets it.
 //!
 //! The firmware's clock measures the time. A repeating [`Timer`] only redraws the display while it
-//! runs, so a late frame never skews the reading.
+//! runs, so a late frame never skews the reading. A [`StatusBarLayer`] along the top shows the time
+//! of day, which the firmware keeps current itself.
 #![no_std]
 #![no_main]
 extern crate alloc;
@@ -13,8 +14,8 @@ use gneiss::{
 	time::{self, TimeDelta, Timestamp},
 	timer::Timer,
 	ui::{
-		Button, ClickKinds, HeapText, Layer, Layout, StaticWindow, TextAlignment, TextLayer,
-		UiGuard, UiQueue, Window, WindowCtx,
+		Button, ClickKinds, HeapText, Layer, Layout, STATUS_BAR_HEIGHT, Separator, StaticWindow,
+		StatusBarLayer, TextAlignment, TextLayer, UiGuard, UiQueue, Window, WindowCtx,
 		graphics::{Point, Rectangle, Size},
 	},
 };
@@ -24,6 +25,7 @@ static STOPWATCH: StaticWindow<Stopwatch> = StaticWindow::new();
 const FRAME_MS: u32 = 30;
 
 struct Stopwatch {
+	_status: StatusBarLayer,
 	display: TextLayer<HeapText>,
 	/// Time from earlier runs.
 	banked:  TimeDelta,
@@ -37,8 +39,15 @@ impl Layout for Stopwatch {
 	fn load(ctx: &mut WindowCtx<'_>) -> Self {
 		let mut root = ctx.root();
 		let bounds = root.bounds();
+
+		let mut status = StatusBarLayer::new().pbl_expect(c"status bar");
+		status.set_separator(Separator::Dotted);
+		root.add_child(&mut status);
+
+		// Centred in the space below the status bar
+		let below = (bounds.size.height + STATUS_BAR_HEIGHT) as i32 / 2;
 		let mut display = TextLayer::new(Rectangle::new(
-			Point::new(0, bounds.size.height as i32 / 2 - 20),
+			Point::new(0, below - 20),
 			Size::new(bounds.size.width, 40),
 		))
 		.pbl_expect(c"display layer");
@@ -48,6 +57,7 @@ impl Layout for Stopwatch {
 		root.add_child(&mut display);
 
 		let mut stopwatch = Self {
+			_status: status,
 			display,
 			banked: TimeDelta::ZERO,
 			since: None,

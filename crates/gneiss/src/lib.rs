@@ -39,8 +39,8 @@
 //! # Features
 //!
 //! - One per platform, as above. Exactly one is enabled in each build.
-//! - `logs`: [`log`]'s macros log. Without it they compile to nothing, gneiss's own included;
-//!   panics still log.
+//! - `logs`: [`log`](mod@log)'s macros log. Without it they compile to nothing, gneiss's own
+//!   included; panics still log.
 //! - `debug-logs` (default, implies `logs`): [`debug!`](log::debug) and [`verbose!`](log::verbose)
 //!   log. Without it they compile to nothing, gneiss's own included.
 //! - `trace-ui` (implies `logs`): every window logs its `load`, `appear`, `disappear` and `unload`, the drop of its

@@ -96,6 +96,7 @@ pub mod graphics;
 mod layer;
 mod menu;
 mod simple_menu;
+mod status_bar;
 mod text;
 mod window;
 
@@ -109,6 +110,7 @@ pub use menu::{Menu, MenuAlign, MenuCanvas, MenuIndex, MenuRef, MenuWindow};
 pub use simple_menu::{
 	MenuItem, MenuList, MenuListFill, MenuSection, Sections, SimpleMenuData, SimpleMenuWindow,
 };
+pub use status_bar::{STATUS_BAR_HEIGHT, Separator, StatusBarLayer};
 pub use text::{HeapText, StackText, TextAlignment, TextLayer};
 pub use window::{
 	AnyWindow, Layout, LeakWindow, NoLayout, NoWindow, StaticWindow, TypedWindow, Window,
