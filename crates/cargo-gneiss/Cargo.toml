@@ -43,6 +43,7 @@ tar = "0.4.46"
 sha2 = "0.10"
 flate2 = "1"
 addr2line = { version = "0.27.1", default-features = false, features = ["std", "rustc-demangle", "fallible-iterator", "smallvec"] }
+rustc-demangle = "0.1.28"
 object = "0.40"
 
 [target.'cfg(unix)'.dependencies]

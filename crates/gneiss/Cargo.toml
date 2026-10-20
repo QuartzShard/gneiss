@@ -34,10 +34,12 @@ gneiss-types = { workspace = true, features = ["std"] }
 
 [features]
 default    = ["debug-logs"]
+# Without it, no logs (including gneiss's own) compile in, but panics still log
+logs       = []
 # Without it, `debug!`/`verbose!` (including gneiss's own) compile to nothing
-debug-logs = []
+debug-logs = ["logs"]
 # Log every window's load, appear, disappear, unload, handle drop and destroy, for tests
-trace-ui   = []
+trace-ui   = ["logs"]
 # The app brings its own #[panic_handler], and needn't build with -Cpanic=immediate-abort
 user-panic-handler = []
 # Platform selection forwards to gneiss-sys, where the mutually-exclusive check

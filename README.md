@@ -64,7 +64,7 @@ Coming soon™:
 A resource can ship a different file per watch: name a sibling of the declared `file` `<stem>~<tag>.<ext>` and it is used on the platforms carrying that tag. The tags are upstream's: the platform name, `color`/`bw`, `rect`/`round`, dimensions like `200w`, and capabilities like `touch`. A file may carry several (`image~color~rect.png`). A sibling naming the platform wins, then the one matching the most tags, then the untagged `file`. `examples/resources` demos it.
 
 ### Logging, panics and size
-`gneiss::log`'s macros write to the app log, which `cargo gneiss install --logs` prints. The `debug-logs` feature (on by default) keeps `debug!`/`verbose!`; turn it off to strip them from release builds.
+`gneiss::log`'s macros write to the app log, which `cargo gneiss install --logs` prints. The `debug-logs` feature (on by default) keeps `debug!`/`verbose!`; turn it off to strip them from release builds. With only `logs`, `info!`/`warn!`/`error!` stay; without either, no logs compile in at all, though panics still log.
 Apps build with `-Cpanic=immediate-abort`, which leaves the panic and `core::fmt` machinery out of the binary: a panic closes the app and prints no diagnostics. Format text with `gneiss::pbl_fmt_write!`, which formats through the firmware's `snprintf`. An app that wants a formatting panic handler can enable gneiss's `user-panic-handler` feature and bring its own at the cost of 1-2KiB of `core::fmt`. For deliberate panics/expect, use `pbl_panic!`/`.pbl_expect()` to log via the system `snprintf` formatting before the panic.
 
 ## Thanks for reading

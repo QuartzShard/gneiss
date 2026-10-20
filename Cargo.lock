@@ -441,6 +441,7 @@ dependencies = [
  "object 0.40.0",
  "prettyplease",
  "proc-macro2",
+ "rustc-demangle",
  "serde",
  "serde_json",
  "sha2",

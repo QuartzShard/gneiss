@@ -39,8 +39,12 @@ fn address(text: &str) -> Option<u64> {
 	u64::from_str_radix(text.trim().trim_start_matches("0x"), 16).ok()
 }
 
+/// Where gneiss halts the app after logging a panic, so a fault there has its line already.
+const PANIC_HALT: &str = "gneiss::fail::log_and_halt";
+
 /// Lines naming the function and source line of `fault`'s registers, from `elf`. Each address's
-/// frames run from the code it's in, out through the functions that code was inlined into.
+/// frames run from the code it's in, out through the functions that code was inlined into. None if
+/// the fault is gneiss halting after a panic.
 pub fn blame(elf: &Path, fault: &Fault) -> Vec<String> {
 	let symbols = std::fs::read(elf)
 		.map_err(|e| e.to_string())
@@ -48,6 +52,9 @@ pub fn blame(elf: &Path, fault: &Fault) -> Vec<String> {
 			let symbols = Symbols::new(&data)?;
 			let mut lines = Vec::new();
 			if let Some(pc) = fault.pc {
+				if symbols.function(pc).as_deref() == Some(PANIC_HALT) {
+					return Ok(lines);
+				}
 				lines.extend(symbols.describe("PC", pc, pc));
 			}
 			// LR is the return address, with the Thumb bit set: the call is just before it
@@ -89,6 +96,12 @@ impl<'a> Symbols<'a> {
 			context: addr2line::Context::from_dwarf(dwarf).map_err(|e| e.to_string())?,
 			map:     file.symbol_map(),
 		})
+	}
+
+	/// The function `address` is in, by the symbol table, without its crates' hashes.
+	fn function(&self, address: u64) -> Option<String> {
+		let symbol = self.map.before(address)?;
+		Some(format!("{:#}", rustc_demangle::demangle(symbol.name())))
 	}
 
 	/// `register`'s frames at `probe`.
