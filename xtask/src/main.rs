@@ -244,6 +244,8 @@ fn regen_sys() -> Result<()> {
 		clang_args.extend_from_slice(&["-I", &plat_vendor_arg].map(String::from));
 		clang_args.extend(platforms.clang_args(platform)?);
 
+		let macro_fallback = workspace_root().join(format!("target/xtask/macro-fallback/{platform}"));
+		std::fs::create_dir_all(&macro_fallback)?;
 		let bindings = bindgen::builder()
 			.header(plat_vendor.join("pebble.h").display().to_string())
 			// We're not interested in JS FFI
@@ -251,6 +253,15 @@ fn regen_sys() -> Result<()> {
 			.use_core()
 			.generate_cstr(true)
 			.clang_args(clang_args)
+			// Evaluates macros cexpr can't, such as STATUS_BAR_LAYER_HEIGHT's platform switch
+			.clang_macro_fallback()
+			.clang_macro_fallback_build_dir(&macro_fallback)
+			// The fallback only keeps integers, as i64: it gets the 64-bit limits wrong, and a struct
+			// literal's first field
+			.blocklist_item(
+				"(__)?(U?INT|SIZE|PTRDIFF|WCHAR|WINT|SIG_ATOMIC|U?INTPTR|U?INTMAX)\\w*_(MIN|MAX)",
+			)
+			.blocklist_item("MENU_INDEX_NOT_FOUND")
 			.parse_callbacks(Box::new(doxygen::DoxygenComments))
 			.generate()?;
 

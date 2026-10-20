@@ -633,6 +633,9 @@ See `cos_lookup`*/
 pub const TRIG_MAX_ANGLE: u32 = 65536;
 /// The maximum length for a timezone full name (e.g. America/Chicago)
 pub const TIMEZONE_NAME_LENGTH: u32 = 32;
+pub const PBL_PLATFORM_TYPE_CURRENT: u32 = 6;
+/// A mask value representing all available activities
+pub const HealthActivityMaskAll: u32 = 31;
 /// Size of a UUID, in bytes.
 pub const UUID_SIZE: u32 = 16;
 /// The minimum required length of a string used to hold a uuid (including null).
@@ -667,18 +670,127 @@ pub const kModdableCreationFlagDebug: u32 = 2;
 pub const PERSIST_DATA_MAX_LENGTH: u32 = 256;
 /// The maximum size of a persist string in bytes including the NULL terminator
 pub const PERSIST_STRING_MAX_LENGTH: u32 = 256;
+/// Can be used for the expiration_time of an `AppGlanceSlice` so that the slice never expires.
+pub const APP_GLANCE_SLICE_NO_EXPIRATION: u32 = 0;
+/** Can be used for the icon of an `AppGlanceSlice` so that the slice displays the app's default
+icon.*/
+pub const APP_GLANCE_SLICE_DEFAULT_ICON: u32 = 0;
+/** A list of all of the named colors available with links to the color map on the Pebble Developer
+website.*/
+pub const GColorBlackARGB8: u32 = 192;
+pub const GColorOxfordBlueARGB8: u32 = 193;
+pub const GColorDukeBlueARGB8: u32 = 194;
+pub const GColorBlueARGB8: u32 = 195;
+pub const GColorDarkGreenARGB8: u32 = 196;
+pub const GColorMidnightGreenARGB8: u32 = 197;
+pub const GColorCobaltBlueARGB8: u32 = 198;
+pub const GColorBlueMoonARGB8: u32 = 199;
+pub const GColorIslamicGreenARGB8: u32 = 200;
+pub const GColorJaegerGreenARGB8: u32 = 201;
+pub const GColorTiffanyBlueARGB8: u32 = 202;
+pub const GColorVividCeruleanARGB8: u32 = 203;
+pub const GColorGreenARGB8: u32 = 204;
+pub const GColorMalachiteARGB8: u32 = 205;
+pub const GColorMediumSpringGreenARGB8: u32 = 206;
+pub const GColorCyanARGB8: u32 = 207;
+pub const GColorBulgarianRoseARGB8: u32 = 208;
+pub const GColorImperialPurpleARGB8: u32 = 209;
+pub const GColorIndigoARGB8: u32 = 210;
+pub const GColorElectricUltramarineARGB8: u32 = 211;
+pub const GColorArmyGreenARGB8: u32 = 212;
+pub const GColorDarkGrayARGB8: u32 = 213;
+pub const GColorLibertyARGB8: u32 = 214;
+pub const GColorVeryLightBlueARGB8: u32 = 215;
+pub const GColorKellyGreenARGB8: u32 = 216;
+pub const GColorMayGreenARGB8: u32 = 217;
+pub const GColorCadetBlueARGB8: u32 = 218;
+pub const GColorPictonBlueARGB8: u32 = 219;
+pub const GColorBrightGreenARGB8: u32 = 220;
+pub const GColorScreaminGreenARGB8: u32 = 221;
+pub const GColorMediumAquamarineARGB8: u32 = 222;
+pub const GColorElectricBlueARGB8: u32 = 223;
+pub const GColorDarkCandyAppleRedARGB8: u32 = 224;
+pub const GColorJazzberryJamARGB8: u32 = 225;
+pub const GColorPurpleARGB8: u32 = 226;
+pub const GColorVividVioletARGB8: u32 = 227;
+pub const GColorWindsorTanARGB8: u32 = 228;
+pub const GColorRoseValeARGB8: u32 = 229;
+pub const GColorPurpureusARGB8: u32 = 230;
+pub const GColorLavenderIndigoARGB8: u32 = 231;
+pub const GColorLimerickARGB8: u32 = 232;
+pub const GColorBrassARGB8: u32 = 233;
+pub const GColorLightGrayARGB8: u32 = 234;
+pub const GColorBabyBlueEyesARGB8: u32 = 235;
+pub const GColorSpringBudARGB8: u32 = 236;
+pub const GColorInchwormARGB8: u32 = 237;
+pub const GColorMintGreenARGB8: u32 = 238;
+pub const GColorCelesteARGB8: u32 = 239;
+pub const GColorRedARGB8: u32 = 240;
+pub const GColorFollyARGB8: u32 = 241;
+pub const GColorFashionMagentaARGB8: u32 = 242;
+pub const GColorMagentaARGB8: u32 = 243;
+pub const GColorOrangeARGB8: u32 = 244;
+pub const GColorSunsetOrangeARGB8: u32 = 245;
+pub const GColorBrilliantRoseARGB8: u32 = 246;
+pub const GColorShockingPinkARGB8: u32 = 247;
+pub const GColorChromeYellowARGB8: u32 = 248;
+pub const GColorRajahARGB8: u32 = 249;
+pub const GColorMelonARGB8: u32 = 250;
+pub const GColorRichBrilliantLavenderARGB8: u32 = 251;
+pub const GColorYellowARGB8: u32 = 252;
+pub const GColorIcterineARGB8: u32 = 253;
+pub const GColorPastelYellowARGB8: u32 = 254;
+pub const GColorWhiteARGB8: u32 = 255;
+pub const GColorClearARGB8: u32 = 0;
+/// Repeat Sequence or animation indefinitely.
+pub const PLAY_COUNT_INFINITE: u32 = 4294967295;
+/// Duration of Sequence or animation is infinite.
+pub const PLAY_DURATION_INFINITE: u32 = 4294967295;
 /// The default request timeout in milliseconds (see `smartstrap_set_timeout`).
 pub const SMARTSTRAP_TIMEOUT_DEFAULT: u32 = 250;
 /// The service_id to specify in order to read/write raw data to the smartstrap.
 pub const SMARTSTRAP_RAW_DATA_SERVICE_ID: u32 = 0;
 /// The attribute_id to specify in order to read/write raw data to the smartstrap.
 pub const SMARTSTRAP_RAW_DATA_ATTRIBUTE_ID: u32 = 0;
+/** Constant to indicate "infinite" duration.
+This can be used with `animation_set_duration()` to indicate that the animation
+should run indefinitely. This is useful when implementing for example a frame-by-frame
+simulation that does not have a clear ending (e.g. a game).
+
+Note: Note that `distance_normalized` parameter that is passed
+into the `.update` implementation is meaningless in when an infinite duration is used.
+
+Note: This can be returned by animation_get_duration (if the play count is infinite)*/
+pub const ANIMATION_DURATION_INFINITE: u32 = 4294967295;
+/** Constant to indicate infinite play count.
+Can be passed to `animation_set_play_count()` to repeat indefinitely.
+
+Note: This can be returned by `animation_get_play_count()`.*/
+pub const ANIMATION_PLAY_COUNT_INFINITE: u32 = 4294967295;
 /// The normalized distance at the start of the animation.
 pub const ANIMATION_NORMALIZED_MIN: u32 = 0;
 /// The normalized distance at the end of the animation.
 pub const ANIMATION_NORMALIZED_MAX: u32 = 65535;
+/// Default section header height in pixels
+pub const MENU_CELL_BASIC_HEADER_HEIGHT: u32 = 16;
+/** Constant value representing `MenuLayer` short cell height when this item is
+the selected item on a round display.*/
+pub const MENU_CELL_ROUND_FOCUSED_SHORT_CELL_HEIGHT: u32 = 68;
+/** Constant value representing `MenuLayer` short cell height when this item is
+not the selected item on a round display.*/
+pub const MENU_CELL_ROUND_UNFOCUSED_SHORT_CELL_HEIGHT: u32 = 24;
+/** Constant value representing `MenuLayer` tall cell height when this item is
+the selected item on a round display.*/
+pub const MENU_CELL_ROUND_FOCUSED_TALL_CELL_HEIGHT: u32 = 84;
+/** Constant value representing `MenuLayer` tall cell height when this item is
+not the selected item on a round display.*/
+pub const MENU_CELL_ROUND_UNFOCUSED_TALL_CELL_HEIGHT: u32 = 32;
+/// The width of the action bar in pixels.
+pub const ACTION_BAR_WIDTH: u32 = 40;
 /// The maximum number of action bar items.
 pub const NUM_ACTION_BAR_ITEMS: u32 = 3;
+/// The fixed height of the status bar, including separator height
+pub const STATUS_BAR_LAYER_HEIGHT: u32 = 20;
 /// Maximum number of notes in a single speaker_play_notes() call.
 pub const SPEAKER_MAX_NOTES: u32 = 256;
 /// Maximum number of parallel tracks in a single speaker_play_tracks() call.

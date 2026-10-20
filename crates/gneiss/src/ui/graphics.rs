@@ -111,6 +111,15 @@ impl From<Colour> for sys::GColor {
 	}
 }
 
+impl From<sys::GColor> for Colour {
+	fn from(colour: sys::GColor) -> Self {
+		// SAFETY: both of the union's fields are the same byte
+		Self {
+			argb: unsafe { colour.argb },
+		}
+	}
+}
+
 impl Colour {
 	/// From 2-bit channels, `0..=3`. Higher bits are dropped.
 	pub const fn argb(a: u8, r: u8, g: u8, b: u8) -> Self {
@@ -546,4 +555,88 @@ impl Drop for Framebuffer<'_> {
 		// SAFETY: captured from this ctx in with_framebuffer, released exactly once
 		unsafe { sys::graphics_release_frame_buffer(self.ctx, self.bitmap) };
 	}
+}
+
+/// Adds the firmware's named colours to [`Colour`], from their `GColor<Name>ARGB8` constants.
+macro_rules! named_colours {
+	($($name: ident $(| $mirror: ident)? = $argb8: ident,)*) => {
+		impl Colour {
+			$(
+				pub const $name: Self = Self { argb: sys::$argb8 as u8 };
+				$(
+					#[doc = concat!("[`Colour::", stringify!($name), "`], spelt the wrong way.")]
+					pub const $mirror: Self = Self::$name;
+				)?
+			)*
+		}
+	};
+}
+
+// The named colours, as on the color map at developer.repebble.com
+named_colours! {
+	BLACK                   = GColorBlackARGB8,
+	OXFORD_BLUE             = GColorOxfordBlueARGB8,
+	DUKE_BLUE               = GColorDukeBlueARGB8,
+	BLUE                    = GColorBlueARGB8,
+	DARK_GREEN              = GColorDarkGreenARGB8,
+	MIDNIGHT_GREEN          = GColorMidnightGreenARGB8,
+	COBALT_BLUE             = GColorCobaltBlueARGB8,
+	BLUE_MOON               = GColorBlueMoonARGB8,
+	ISLAMIC_GREEN           = GColorIslamicGreenARGB8,
+	JAEGER_GREEN            = GColorJaegerGreenARGB8,
+	TIFFANY_BLUE            = GColorTiffanyBlueARGB8,
+	VIVID_CERULEAN          = GColorVividCeruleanARGB8,
+	GREEN                   = GColorGreenARGB8,
+	MALACHITE               = GColorMalachiteARGB8,
+	MEDIUM_SPRING_GREEN     = GColorMediumSpringGreenARGB8,
+	CYAN                    = GColorCyanARGB8,
+	BULGARIAN_ROSE          = GColorBulgarianRoseARGB8,
+	IMPERIAL_PURPLE         = GColorImperialPurpleARGB8,
+	INDIGO                  = GColorIndigoARGB8,
+	ELECTRIC_ULTRAMARINE    = GColorElectricUltramarineARGB8,
+	ARMY_GREEN              = GColorArmyGreenARGB8,
+	DARK_GREY | DARK_GRAY = GColorDarkGrayARGB8,
+	LIBERTY                 = GColorLibertyARGB8,
+	VERY_LIGHT_BLUE         = GColorVeryLightBlueARGB8,
+	KELLY_GREEN             = GColorKellyGreenARGB8,
+	MAY_GREEN               = GColorMayGreenARGB8,
+	CADET_BLUE              = GColorCadetBlueARGB8,
+	PICTON_BLUE             = GColorPictonBlueARGB8,
+	BRIGHT_GREEN            = GColorBrightGreenARGB8,
+	SCREAMIN_GREEN          = GColorScreaminGreenARGB8,
+	MEDIUM_AQUAMARINE       = GColorMediumAquamarineARGB8,
+	ELECTRIC_BLUE           = GColorElectricBlueARGB8,
+	DARK_CANDY_APPLE_RED    = GColorDarkCandyAppleRedARGB8,
+	JAZZBERRY_JAM           = GColorJazzberryJamARGB8,
+	PURPLE                  = GColorPurpleARGB8,
+	VIVID_VIOLET            = GColorVividVioletARGB8,
+	WINDSOR_TAN             = GColorWindsorTanARGB8,
+	ROSE_VALE               = GColorRoseValeARGB8,
+	PURPUREUS               = GColorPurpureusARGB8,
+	LAVENDER_INDIGO         = GColorLavenderIndigoARGB8,
+	LIMERICK                = GColorLimerickARGB8,
+	BRASS                   = GColorBrassARGB8,
+	LIGHT_GREY | LIGHT_GRAY = GColorLightGrayARGB8,
+	BABY_BLUE_EYES          = GColorBabyBlueEyesARGB8,
+	SPRING_BUD              = GColorSpringBudARGB8,
+	INCHWORM                = GColorInchwormARGB8,
+	MINT_GREEN              = GColorMintGreenARGB8,
+	CELESTE                 = GColorCelesteARGB8,
+	RED                     = GColorRedARGB8,
+	FOLLY                   = GColorFollyARGB8,
+	FASHION_MAGENTA         = GColorFashionMagentaARGB8,
+	MAGENTA                 = GColorMagentaARGB8,
+	ORANGE                  = GColorOrangeARGB8,
+	SUNSET_ORANGE           = GColorSunsetOrangeARGB8,
+	BRILLIANT_ROSE          = GColorBrilliantRoseARGB8,
+	SHOCKING_PINK           = GColorShockingPinkARGB8,
+	CHROME_YELLOW           = GColorChromeYellowARGB8,
+	RAJAH                   = GColorRajahARGB8,
+	MELON                   = GColorMelonARGB8,
+	RICH_BRILLIANT_LAVENDER = GColorRichBrilliantLavenderARGB8,
+	YELLOW                  = GColorYellowARGB8,
+	ICTERINE                = GColorIcterineARGB8,
+	PASTEL_YELLOW           = GColorPastelYellowARGB8,
+	WHITE                   = GColorWhiteARGB8,
+	CLEAR                   = GColorClearARGB8,
 }
