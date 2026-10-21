@@ -4,10 +4,10 @@
 //! runs, so a late frame never skews the reading. A [`StatusBarLayer`] along the top shows the time
 //! of day, which the firmware keeps current itself.
 //!
-//! It's an [`ActionWindow`], so its action bar shows what Select and Down do. Its click handlers
-//! get the bar, and Select's swaps play for pause: it keeps whichever icon isn't showing, and
-//! [`replace_icon_animated`](gneiss::ui::ActionBar::replace_icon_animated) hands the other back, so
-//! each icon is loaded once.
+//! It's an [`ActionWindow`], so its action bar shows what Select and Down do. Click handlers get
+//! the bar. Select's handler swaps the play and pause icons: it keeps the one that isn't showing,
+//! and [`replace_icon_animated`](gneiss::ui::ActionBar::replace_icon_animated) hands back the one
+//! it replaces. Each icon is loaded only once.
 #![no_std]
 #![no_main]
 extern crate alloc;

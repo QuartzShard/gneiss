@@ -80,7 +80,8 @@ pub type DrawFn<T> = fn(&T, Rectangle, &mut GContext<'_>);
 // A DrawFn<T> with its data pointer erased
 type ErasedDrawFn = fn(*const (), Rectangle, &mut GContext<'_>);
 
-/// A window's root layer.
+/// A layer to add children to, owned by something else: a window's root layer, or a
+/// [`ScrollLayer`](super::ScrollLayer)'s content.
 pub struct RootLayer {
 	ptr: *mut sys::Layer,
 }
@@ -104,6 +105,10 @@ impl RootLayer {
 	/// The root layer of `win`.
 	pub fn from_ctx<D>(win: &mut WindowCtx<'_, D>) -> Self {
 		let ptr = unsafe { sys::window_get_root_layer(win.ptr()) };
+		RootLayer { ptr }
+	}
+
+	pub(super) fn from_ptr(ptr: *mut sys::Layer) -> Self {
 		RootLayer { ptr }
 	}
 }

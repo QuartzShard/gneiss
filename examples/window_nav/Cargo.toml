@@ -1,14 +1,14 @@
 [package]
-name = "navigation"
+name = "window_nav"
 # authors[0] used as the watch-menu "company"
 authors = ["quartzshard"]
 version = "0.1.0"
 edition = "2024"
 
 [package.metadata.pebble]
-uuid = "205e0e7d-c5c4-4c4f-86fe-5881e1b3041d"
+uuid = "25261b4f-4732-4984-a242-e97e4f24ff96"
 watchface = false
-# This demo exercises windows and navigation, not resources; the table must
+# This demo exercises windows, not resources; the table must
 # still be present, just empty.
 resources = {}
 
@@ -24,7 +24,9 @@ default = ["emery"]
 emery = ["gneiss/emery"]
 flint = ["gneiss/flint"]
 chalk = ["gneiss/chalk"]
+gabbro = ["gneiss/gabbro"]
 basalt = ["gneiss/basalt"]
+diorite = ["gneiss/diorite"]
 aplite = ["gneiss/aplite"]
 
 [profile.release]

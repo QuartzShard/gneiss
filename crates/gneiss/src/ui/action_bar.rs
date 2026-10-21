@@ -314,8 +314,8 @@ impl<L: Layout, B: Borrow<GBitMap> + 'static> ActionWindow<L, B> {
 
 	/// Puts the bar on the window after its layout loads, so the bar draws on top.
 	unsafe extern "C" fn __load(window: *mut sys::Window) {
-		// SAFETY: the firmware fires this on a live ActionWindow<L, B>. No guard is held, so the
-		// click config provider that attaching reruns can take its own
+		// SAFETY: the firmware fires this on a live ActionWindow<L, B>. Attaching the bar can run
+		// the click config provider, and no guard is held here, so the provider can take its own
 		unsafe {
 			Window::<L>::__load(window);
 			let layer = (*Self::action_data(window)).bar.ptr.as_ptr();

@@ -340,6 +340,27 @@ impl<S: Deref<Target = CStr>, F: Borrow<Font>> TextLayer<S, F> {
 	pub fn content_size(&self) -> Size {
 		size(unsafe { sys::text_layer_get_content_size(self.ptr) })
 	}
+
+	/// Wrap lines along the edge of a round screen, `inset` pixels in from it. Inside a
+	/// [`ScrollLayer`](super::ScrollLayer), it also lays the text out in pages, for
+	/// [paged](super::ScrollLayer::set_paging) scrolling.
+	///
+	/// By convention, text flow and paging go together on round screens only: use
+	/// `#[cfg(pbl_round)]`. A [`ScrollWindow`](super::ScrollWindow) already pages there.
+	///
+	/// Call it after adding the layer to a window. Before that, it does nothing. Measure
+	/// [`content_size`](Self::content_size) afterwards.
+	pub fn enable_screen_text_flow(&mut self, inset: u8) -> &mut Self {
+		unsafe { sys::text_layer_enable_screen_text_flow_and_paging(self.ptr, inset) };
+		self
+	}
+
+	/// Wrap lines to the layer again, undoing
+	/// [`enable_screen_text_flow`](Self::enable_screen_text_flow).
+	pub fn restore_default_text_flow(&mut self) -> &mut Self {
+		unsafe { sys::text_layer_restore_default_text_flow_and_paging(self.ptr) };
+		self
+	}
 }
 
 impl<S: Deref<Target = CStr> + Default, F: Borrow<Font>> TextLayer<S, F> {

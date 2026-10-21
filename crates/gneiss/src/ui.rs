@@ -96,6 +96,7 @@ mod click;
 pub mod graphics;
 mod layer;
 mod menu;
+mod scroll;
 mod simple_menu;
 mod status_bar;
 mod text;
@@ -111,6 +112,7 @@ pub use layer::{AsLayer, DataLayer, DrawFn, Layer, RootLayer};
 #[doc(hidden)]
 pub use menu::__trampolines as __menu;
 pub use menu::{Menu, MenuAlign, MenuCanvas, MenuIndex, MenuRef, MenuWindow};
+pub use scroll::{ScrollLayer, ScrollWindow};
 pub use simple_menu::{
 	MenuItem, MenuList, MenuListFill, MenuSection, Sections, SimpleMenuData, SimpleMenuWindow,
 };

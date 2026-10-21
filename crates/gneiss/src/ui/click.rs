@@ -90,8 +90,8 @@ bitflags::bitflags! {
 		const LONG_RELEASE = 1 << 3;
 		const RAW_DOWN     = 1 << 4;
 		const RAW_UP       = 1 << 5;
-		/// `SINGLE`, repeated every 100 ms while the button is held. Ignored on Back, and holding
-		/// doesn't repeat while `LONG` or `LONG_RELEASE` is subscribed too.
+		/// `SINGLE`, repeated every 100 ms while the button is held. Ignored on Back. Holding
+		/// doesn't repeat if `LONG` or `LONG_RELEASE` is also subscribed.
 		const REPEATING    = 1 << 6 | Self::SINGLE.bits();
 	}
 }

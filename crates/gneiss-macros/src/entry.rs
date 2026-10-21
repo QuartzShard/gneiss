@@ -63,6 +63,14 @@ pub fn entry(attr: TokenStream, item: TokenStream) -> TokenStream {
 			#[unsafe(export_name = "main")]
 			#[doc = " Exported entry point, calls registration routines for `#[service]`s and other init chores"]
 			pub extern "C" fn __gneiss_entry() {
+				__gneiss_init();
+                ::gneiss::log::debug!("gneiss init complete, starting event loop...");
+				unsafe { ::gneiss::sys::app_event_loop() };
+			}
+
+			#[doc = " Setup, out of line so its stack frame is gone before the event loop runs"]
+			#[inline(never)]
+			fn __gneiss_init() {
                 ::gneiss::log::debug!("Constructing UI...");
 
                 ::gneiss::log::verbose!("If handlers fail to register next, check your main() returns.");
@@ -78,9 +86,6 @@ pub fn entry(attr: TokenStream, item: TokenStream) -> TokenStream {
                 for launch_hook in GNEISS_LAUNCH_HOOKS {
                     launch_hook()
                 }
-
-                ::gneiss::log::debug!("gneiss init complete, starting event loop...");
-				unsafe { ::gneiss::sys::app_event_loop() };
 			}
 
             #[::gneiss::linkme::distributed_slice]

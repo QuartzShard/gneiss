@@ -8,7 +8,7 @@ use crate::{
 	alloc::PebbleAlloc,
 	fail::PblUnwrap,
 	sys,
-	ui::{ClickHandlers, UiGuard, layer::RootLayer},
+	ui::{ClickHandlers, ScrollLayer, UiGuard, layer::RootLayer},
 };
 
 /// A window. One is displayed at a time: whichever is on top of the window stack.
@@ -28,10 +28,12 @@ pub struct Window<C: Layout + 'static> {
 /// A window's context inside its own callbacks: everything but the layout, which is lent alongside
 /// it.
 pub struct WindowCtx<'w, D = ()> {
-	ptr:   *mut sys::Window,
+	ptr:    *mut sys::Window,
 	// Raw, not &mut: firmware calls made through the ctx can fire callbacks that read the data
-	data:  *mut Option<D>,
-	_data: PhantomData<&'w mut Option<D>>,
+	data:   *mut Option<D>,
+	// A ScrollWindow's scroll layer, null for other windows
+	scroll: *mut ScrollLayer,
+	_data:  PhantomData<&'w mut Option<D>>,
 }
 
 /// Shared access to a loaded window's layout and data, from [`AnyWindow::downcast`] or
@@ -401,6 +403,24 @@ fn trace(event: &str, window: *mut sys::Window, layout: &str) {
 // once per call; UiGuard rules out reentrancy
 impl<C: Layout> Window<C> {
 	pub(super) unsafe extern "C" fn __load(window: *mut sys::Window) {
+		unsafe { Self::load_with(window, core::ptr::null_mut()) }
+	}
+
+	unsafe extern "C" fn __appear(window: *mut sys::Window) {
+		unsafe { Self::appear_with(window, core::ptr::null_mut()) }
+	}
+
+	unsafe extern "C" fn __disappear(window: *mut sys::Window) {
+		unsafe { Self::disappear_with(window, core::ptr::null_mut()) }
+	}
+
+	pub(super) unsafe extern "C" fn __unload(window: *mut sys::Window) {
+		unsafe { Self::unload_with(window, core::ptr::null_mut()) }
+	}
+
+	/// The load handler. The layout's ctx gets `scroll` as its scroll layer, or none if it's null.
+	#[inline]
+	pub(super) unsafe fn load_with(window: *mut sys::Window, scroll: *mut ScrollLayer) {
 		let _ui = UiGuard::enter_internal();
 		trace_ui!("load", window, C);
 		let (layout, data) = unsafe {
@@ -408,10 +428,12 @@ impl<C: Layout> Window<C> {
 			(&mut (*w).layout, &raw mut (*w).data)
 		};
 		debug_assert!(layout.is_none());
-		layout.get_or_insert_with(|| C::load(&mut unsafe { WindowCtx::new(window, data) }));
+		layout.get_or_insert_with(|| C::load(&mut unsafe { Self::ctx(window, data, scroll) }));
 	}
 
-	unsafe extern "C" fn __appear(window: *mut sys::Window) {
+	/// As [`load_with`](Self::load_with), for appear.
+	#[inline]
+	pub(super) unsafe fn appear_with(window: *mut sys::Window, scroll: *mut ScrollLayer) {
 		let _ui = UiGuard::enter_internal();
 		trace_ui!("appear", window, C);
 		let (layout, data, pending) = unsafe {
@@ -419,11 +441,16 @@ impl<C: Layout> Window<C> {
 			(&mut (*w).layout, &raw mut (*w).data, &mut (*w).pending)
 		};
 		if let Some(layout) = layout {
-			layout.appear(&mut unsafe { WindowCtx::new(window, data) }, pending.take());
+			layout.appear(
+				&mut unsafe { Self::ctx(window, data, scroll) },
+				pending.take(),
+			);
 		}
 	}
 
-	unsafe extern "C" fn __disappear(window: *mut sys::Window) {
+	/// As [`load_with`](Self::load_with), for disappear.
+	#[inline]
+	pub(super) unsafe fn disappear_with(window: *mut sys::Window, scroll: *mut ScrollLayer) {
 		let _ui = UiGuard::enter_internal();
 		trace_ui!("disappear", window, C);
 		let (layout, data) = unsafe {
@@ -431,11 +458,13 @@ impl<C: Layout> Window<C> {
 			(&mut (*w).layout, &raw mut (*w).data)
 		};
 		if let Some(layout) = layout {
-			layout.disappear(&mut unsafe { WindowCtx::new(window, data) });
+			layout.disappear(&mut unsafe { Self::ctx(window, data, scroll) });
 		}
 	}
 
-	pub(super) unsafe extern "C" fn __unload(window: *mut sys::Window) {
+	/// As [`load_with`](Self::load_with), for unload.
+	#[inline]
+	pub(super) unsafe fn unload_with(window: *mut sys::Window, scroll: *mut ScrollLayer) {
 		let _ui = UiGuard::enter_internal();
 		trace_ui!("unload", window, C);
 		let (layout, data) = unsafe {
@@ -443,8 +472,19 @@ impl<C: Layout> Window<C> {
 			(&mut (*w).layout, &raw mut (*w).data)
 		};
 		if let Some(layout) = layout.take() {
-			layout.unload(&mut unsafe { WindowCtx::new(window, data) });
+			layout.unload(&mut unsafe { Self::ctx(window, data, scroll) });
 		}
+	}
+
+	/// # Safety
+	/// As [`WindowCtx::new`] and [`WindowCtx::with_scroll`]; `scroll` may be null.
+	#[inline]
+	unsafe fn ctx<'w>(
+		window: *mut sys::Window,
+		data: *mut Option<C::Data>,
+		scroll: *mut ScrollLayer,
+	) -> WindowCtx<'w, C::Data> {
+		unsafe { WindowCtx::new(window, data).with_scroll(scroll) }
 	}
 }
 
@@ -473,8 +513,18 @@ impl<D> WindowCtx<'_, D> {
 		Self {
 			ptr,
 			data,
+			scroll: core::ptr::null_mut(),
 			_data: PhantomData,
 		}
+	}
+
+	/// This ctx, for a [`ScrollWindow`](super::ScrollWindow) with the scroll layer `scroll`.
+	///
+	/// # Safety
+	/// `scroll` must be valid for the ctx's lifetime. While the ctx lives, nothing may reference
+	/// the scroll layer except through the ctx.
+	pub(super) unsafe fn with_scroll(self, scroll: *mut ScrollLayer) -> Self {
+		Self { scroll, ..self }
 	}
 
 	/// The window's persistent data, if it has any.
@@ -488,9 +538,26 @@ impl<D> WindowCtx<'_, D> {
 		self.ptr
 	}
 
-	/// The window's root layer, to add layers to.
+	/// The layer to add the layout's layers to: the window's root, or a
+	/// [`ScrollWindow`](super::ScrollWindow)'s scrolling content.
 	pub fn root(&mut self) -> RootLayer {
+		match self.scroll() {
+			Some(scroll) => scroll.content(),
+			None => RootLayer::from_ctx(self),
+		}
+	}
+
+	/// The window's own root layer. In a [`ScrollWindow`](super::ScrollWindow), put layers that
+	/// shouldn't scroll here.
+	pub fn window_root(&mut self) -> RootLayer {
 		RootLayer::from_ctx(self)
+	}
+
+	/// A [`ScrollWindow`](super::ScrollWindow)'s scroll layer. `None` for other windows.
+	pub fn scroll(&mut self) -> Option<&mut ScrollLayer> {
+		// SAFETY: valid for 'w, per with_scroll(); &mut self makes this the only reference handed
+		// out
+		unsafe { self.scroll.as_mut() }
 	}
 }
 
