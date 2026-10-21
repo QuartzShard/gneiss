@@ -75,6 +75,8 @@ impl Button {
 	}
 }
 
+const REPEAT_MS: u16 = 100;
+
 bitflags::bitflags! {
 	/// Click recognizer slots to subscribe a button's handler to. Each flag delivers the
 	/// matching [`Click`] variant.
@@ -88,6 +90,9 @@ bitflags::bitflags! {
 		const LONG_RELEASE = 1 << 3;
 		const RAW_DOWN     = 1 << 4;
 		const RAW_UP       = 1 << 5;
+		/// `SINGLE`, repeated every 100 ms while the button is held. Ignored on Back, and holding
+		/// doesn't repeat while `LONG` or `LONG_RELEASE` is subscribed too.
+		const REPEATING    = 1 << 6 | Self::SINGLE.bits();
 	}
 }
 
@@ -233,11 +238,11 @@ pub(super) unsafe extern "C" fn click_config(context: *mut ffi::c_void) {
 			|kind: ClickKinds, f: sys::ClickHandler| kinds.contains(kind).then_some(f).flatten();
 		// SAFETY: subscriptions are only valid inside the click config provider, which is here
 		unsafe {
-			if kinds.contains(ClickKinds::SINGLE) {
-				sys::window_single_click_subscribe(
-					id,
-					Some(click::<{ ClickKinds::SINGLE.bits() }>),
-				);
+			let single: sys::ClickHandler = Some(click::<{ ClickKinds::SINGLE.bits() }>);
+			if kinds.contains(ClickKinds::REPEATING) && !matches!(button, Button::Back) {
+				sys::window_single_repeating_click_subscribe(id, REPEAT_MS, single);
+			} else if kinds.contains(ClickKinds::SINGLE) {
+				sys::window_single_click_subscribe(id, single);
 			}
 			if kinds.contains(ClickKinds::MULTI) {
 				sys::window_multi_click_subscribe(

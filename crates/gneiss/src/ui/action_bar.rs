@@ -63,6 +63,8 @@ bitflags::bitflags! {
 		const MULTI        = ClickKinds::MULTI.bits();
 		const LONG         = ClickKinds::LONG.bits();
 		const LONG_RELEASE = ClickKinds::LONG_RELEASE.bits();
+		/// As [`ClickKinds::REPEATING`].
+		const REPEATING    = ClickKinds::REPEATING.bits();
 	}
 }
 
