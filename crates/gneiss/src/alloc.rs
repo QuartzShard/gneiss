@@ -7,11 +7,13 @@
 //! ```ignore
 //! extern crate alloc;
 //! use alloc::vec::Vec;
+//! use gneiss::ui::{UiGuard, UiQueue};
 //!
 //! #[gneiss::entry]
-//! fn main() {
+//! fn main(ui: &mut UiGuard) -> UiQueue<'_> {
 //!     let mut vector = Vec::new();
 //!     // ..
+//!     UiQueue::new(ui)
 //! }
 //! ```
 //! To register a different global allocator instead, name it:

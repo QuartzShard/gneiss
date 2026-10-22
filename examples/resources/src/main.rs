@@ -167,9 +167,11 @@ impl Layout for Resources {
 }
 
 #[gneiss::entry]
-fn main(ui: &mut UiGuard) {
+fn main(ui: &mut UiGuard) -> UiQueue<'_> {
 	ROOT.set(Window::new(None).pbl_expect(c"window created"));
-	UiQueue::new(ui).push(&ROOT, false);
+	let mut queue = UiQueue::new(ui);
+	queue.push(&ROOT, false);
+	queue
 }
 
 fn draw_ferris(image: &DrawCommand, _bounds: Rectangle, ctx: &mut GContext<'_>) {

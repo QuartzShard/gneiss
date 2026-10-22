@@ -18,8 +18,15 @@ pub fn entry(attr: TokenStream, item: TokenStream) -> TokenStream {
 		)
 		.unwrap_or_default();
 
-	let mut out = item.clone();
-	let input: Option<syn::ItemFn> = errs.handle(syn::parse2(item).map_err(darling::Error::from));
+	let input: Option<syn::ItemFn> =
+		errs.handle(syn::parse2(item.clone()).map_err(darling::Error::from));
+	let mut out = match &input {
+		Some(input) => quote! {
+			#[inline(never)]
+			#input
+		},
+		None => item,
+	};
 
 	let allocator = args.global_alloc.unwrap_or_else(|| {
 		parse_quote! {
@@ -49,52 +56,48 @@ pub fn entry(attr: TokenStream, item: TokenStream) -> TokenStream {
 	if let Some(input) = input {
 		validate_entry(&input, &mut errs);
 		let fn_name = input.sig.ident;
-		// The guard drops before services register: their handlers can fire synchronously
-		let call = if input.sig.inputs.is_empty() {
-			quote! { #fn_name(); }
-		} else {
-			quote! {
-				let mut ui = ::gneiss::ui::UiGuard::enter();
-				#fn_name(&mut ui);
-			}
-		};
 
 		out.extend(quote! {
 			#[unsafe(export_name = "main")]
-			#[doc = " Exported entry point, calls registration routines for `#[service]`s and other init chores"]
 			pub extern "C" fn __gneiss_entry() {
-				__gneiss_init();
-                ::gneiss::log::debug!("gneiss init complete, starting event loop...");
+				__gneiss_setup();
+				__gneiss_register();
+				::gneiss::log::debug!("gneiss init complete, starting event loop...");
 				unsafe { ::gneiss::sys::app_event_loop() };
+				::gneiss::stack::report();
 			}
 
-			#[doc = " Setup, out of line so its stack frame is gone before the event loop runs"]
+			#[doc = " Out of line, so its frame is gone before the event loop starts"]
 			#[inline(never)]
-			fn __gneiss_init() {
-                ::gneiss::log::debug!("Constructing UI...");
-
-                ::gneiss::log::verbose!("If handlers fail to register next, check your main() returns.");
-                ::gneiss::log::verbose!("Don't call `app_event_loop()`, that's handled by gneiss");
-                // User code constructs UI and state
-				{ #call }
-
-                ::gneiss::log::debug!("Registering handlers...");
-                // Handlers may run sync when hardware missing - require UI/State exists.
-                for service_init in GNEISS_SERVICES {
-                    service_init()
-                }
-                for launch_hook in GNEISS_LAUNCH_HOOKS {
-                    launch_hook()
-                }
+			fn __gneiss_setup() {
+				::gneiss::log::debug!("Constructing UI...");
+				::gneiss::log::verbose!("If handlers fail to register next, check your main() returns.");
+				::gneiss::log::verbose!("Don't call `app_event_loop()`, that's handled by gneiss");
+				let mut ui = ::gneiss::ui::UiGuard::enter();
+				let queue = #fn_name(&mut ui);
+				drop(queue);
 			}
 
-            #[::gneiss::linkme::distributed_slice]
-			#[linkme(crate = ::gneiss::linkme)]
-            pub static GNEISS_SERVICES: [fn()];
+			#[doc = " Service handlers can fire synchronously on subscribe, so this runs once the first"]
+			#[doc = " windows are loaded and the guard is released"]
+			#[inline(never)]
+			fn __gneiss_register() {
+				::gneiss::log::debug!("Registering handlers...");
+				for service_init in GNEISS_SERVICES {
+					service_init()
+				}
+				for launch_hook in GNEISS_LAUNCH_HOOKS {
+					launch_hook()
+				}
+			}
 
-            #[::gneiss::linkme::distributed_slice]
+			#[::gneiss::linkme::distributed_slice]
 			#[linkme(crate = ::gneiss::linkme)]
-            pub static GNEISS_LAUNCH_HOOKS: [fn()];
+			pub static GNEISS_SERVICES: [fn()];
+
+			#[::gneiss::linkme::distributed_slice]
+			#[linkme(crate = ::gneiss::linkme)]
+			pub static GNEISS_LAUNCH_HOOKS: [fn()];
 		});
 	}
 
@@ -105,8 +108,8 @@ pub fn entry(attr: TokenStream, item: TokenStream) -> TokenStream {
 }
 
 /// Push a spanned error for every way `func` fails to qualify as an entry fn:
-/// must be safe, non-async, non-variadic, non-generic, take no arguments or a
-/// single `&mut UiGuard`, return `()`, and carry no symbol-export attributes.
+/// must be safe, non-async, non-variadic, non-generic, take a single `&mut UiGuard`, return a
+/// `UiQueue`, and carry no symbol-export attributes.
 fn validate_entry(func: &syn::ItemFn, errs: &mut darling::error::Accumulator) {
 	let sig = &func.sig;
 	if let syn::Safety::Unsafe(unsafety) = &sig.safety {
@@ -116,7 +119,7 @@ fn validate_entry(func: &syn::ItemFn, errs: &mut darling::error::Accumulator) {
 	}
 	if let Some(asyncness) = &sig.asyncness {
 		errs.push(
-			darling::Error::custom("entry fn cannot be async — there is no executor")
+			darling::Error::custom("entry fn cannot be async: there is no executor")
 				.with_span(asyncness),
 		);
 	}
@@ -129,22 +132,24 @@ fn validate_entry(func: &syn::ItemFn, errs: &mut darling::error::Accumulator) {
 				.with_span(&sig.generics),
 		);
 	}
-	if sig.inputs.len() > 1 {
+	if sig.inputs.len() != 1 {
 		errs.push(
-			darling::Error::custom("entry fn takes no arguments, or a single `&mut UiGuard`")
-				.with_span(&sig.inputs),
+			darling::Error::custom("entry fn takes a single `&mut UiGuard`").with_span(&sig.ident),
 		);
 	}
-	if let syn::ReturnType::Type(_, ty) = &sig.output {
-		let is_unit = matches!(&**ty, syn::Type::Tuple(t) if t.elems.is_empty());
-		if !is_unit {
-			errs.push(
-				darling::Error::custom(
-					"entry fn must return `()` — the runtime continues after it",
-				)
-				.with_span(ty),
-			);
+	let returns_unit = match &sig.output {
+		syn::ReturnType::Default => true,
+		syn::ReturnType::Type(_, ty) => {
+			matches!(&**ty, syn::Type::Tuple(t) if t.elems.is_empty())
 		}
+	};
+	if returns_unit {
+		errs.push(
+			darling::Error::custom(
+				"entry fn returns the `UiQueue` gneiss runs once it's done: `-> UiQueue<'_>`",
+			)
+			.with_span(&sig.ident),
+		);
 	}
 	for attr in &func.attrs {
 		// `#[unsafe(no_mangle)]` parses as a list with path `unsafe`; unwrap it
@@ -159,7 +164,7 @@ fn validate_entry(func: &syn::ItemFn, errs: &mut darling::error::Accumulator) {
 		if path.is_ident("no_mangle") || path.is_ident("export_name") {
 			errs.push(
 				darling::Error::custom(
-					"#[entry] exports the entry symbol itself — remove this attribute",
+					"#[entry] exports the entry symbol itself, remove this attribute",
 				)
 				.with_span(attr),
 			);
@@ -170,28 +175,31 @@ fn validate_entry(func: &syn::ItemFn, errs: &mut darling::error::Accumulator) {
 #[cfg(test)]
 mod test {
 	use super::*;
-	#[test]
-	fn expands_main_with_ui() {
-		let out = entry(
-			quote!(),
-			quote!(
-				fn main(ui: &mut ::gneiss::ui::UiGuard) {}
-			),
-		);
-		let out = out.to_string();
-		assert!(out.contains("UiGuard :: enter ()"), "{out}");
-		assert!(out.contains("main (& mut ui)"), "{out}");
+
+	fn expand(item: TokenStream) -> String {
+		entry(quote!(), item).to_string()
 	}
 
 	#[test]
-	fn expands_trivial_main() {
-		let out = entry(
+	fn expands_main() {
+		let out = expand(quote!(
+			fn main(ui: &mut ::gneiss::ui::UiGuard) -> ::gneiss::ui::UiQueue<'_> {
+				::gneiss::ui::UiQueue::new(ui)
+			}
+		));
+		assert!(out.contains("UiGuard :: enter ()"), "{out}");
+		assert!(out.contains("let queue = main (& mut ui)"), "{out}");
+		assert!(out.contains("# [inline (never)] fn main"), "{out}");
+		assert!(!out.contains("compile_error"), "{out}");
+		let file: syn::File = syn::parse2(entry(
 			quote!(),
 			quote!(
-				fn main() {}
+				fn main(ui: &mut UiGuard) -> UiQueue<'_> {
+					UiQueue::new(ui)
+				}
 			),
-		);
-		let file: syn::File = syn::parse2(out.clone()).unwrap_or_else(|e| panic!("{e}\n{out}"));
+		))
+		.unwrap();
 		// prettyplease can't print the initializer-less `distributed_slice` statics, which syn
 		// only parses as verbatim tokens
 		for item in file.items {
@@ -201,5 +209,21 @@ mod test {
 				println!("{}", prettyplease::unparse(&parse_quote!(#item)));
 			}
 		}
+	}
+
+	#[test]
+	fn rejects_no_guard() {
+		let out = expand(quote!(
+			fn main() -> UiQueue<'static> {}
+		));
+		assert!(out.contains("takes a single"), "{out}");
+	}
+
+	#[test]
+	fn rejects_unit_return() {
+		let out = expand(quote!(
+			fn main(ui: &mut UiGuard) {}
+		));
+		assert!(out.contains("returns the `UiQueue`"), "{out}");
 	}
 }

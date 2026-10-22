@@ -371,7 +371,7 @@ fn lap_row(list: &mut MenuListFill<'_>, lap: usize, ms: u32) {
 }
 
 #[gneiss::entry]
-fn main(ui: &mut UiGuard) {
+fn main(ui: &mut UiGuard) -> UiQueue<'_> {
 	// Set up handlers before storing the windows away. Afterwards, only their own callbacks can
 	// reach them mutably.
 	let mut reader = ScrollWindow::<Reader>::new(None).pbl_expect(c"reader");
@@ -412,5 +412,7 @@ fn main(ui: &mut UiGuard) {
 		})
 		.pbl_expect(c"root menu"),
 	);
-	UiQueue::new(ui).push(&ROOT, false);
+	let mut queue = UiQueue::new(ui);
+	queue.push(&ROOT, false);
+	queue
 }

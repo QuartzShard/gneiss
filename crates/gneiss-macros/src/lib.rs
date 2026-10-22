@@ -12,10 +12,12 @@ mod service;
 use proc_macro::TokenStream;
 use syn::Token;
 #[proc_macro_attribute]
-/// Takes a `fn main() {}` or `fn main(&mut UiGuard) {}` and wraps it in the required ceremony to be a valid entry for the watch.
+/// Makes `fn main(ui: &mut UiGuard) -> UiQueue<'_>` the app's entry point.
 ///
-/// Your main fn MUST return or the `sys::app_event_loop` call after it in init is unreachable. You build
-/// your UI and state here, you don't drive execution.
+/// `main` gets the guard to set up windows and state with, and returns a `UiQueue` of what to do
+/// once setup is done, such as pushing the first window. gneiss runs the queue after `main` has
+/// returned, so the pushes don't sit on top of `main`'s stack frame, then registers services and
+/// runs the event loop. `main` must return; the event loop drives the app from there.
 ///
 /// Takes the following optional arguments:
 /// - `global_alloc`: path to a unit-struct `GlobalAlloc` to register as the global allocator,

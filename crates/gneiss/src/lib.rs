@@ -19,14 +19,17 @@
 //! static HOME: StaticWindow<Home> = StaticWindow::new();
 //!
 //! #[gneiss::entry]
-//! fn main(ui: &mut UiGuard) {
+//! fn main(ui: &mut UiGuard) -> UiQueue<'_> {
 //!     HOME.set(Window::new(None).expect("home window"));
-//!     UiQueue::new(ui).push(&HOME, false);
+//!     let mut queue = UiQueue::new(ui);
+//!     queue.push(&HOME, false);
+//!     queue
 //! }
 //! ```
 //!
-//! `main` builds the first window and returns; the macro then subscribes your services and hands
-//! over to the event loop. An app with no window on the stack exits.
+//! `main` builds the first window, and returns a queue that pushes it. Once `main` has returned,
+//! the macro runs the queue, subscribes your services and hands over to the event loop. An app
+//! with no window on the stack exits.
 //!
 //! # Platforms
 //!
@@ -46,6 +49,8 @@
 //! - `trace-ui` (implies `logs`): every window logs its `load`, `appear`, `disappear` and `unload`, the drop of its
 //!   handle and its destruction, as `ui <event> <window> <layout type>`, for tests to follow the UI
 //!   from the log. Without it, none of this is compiled in.
+//! - `trace-stack` (implies `logs`): logs the app stack's high-water mark at exit, as
+//!   `stack peak <used>/<size>`.
 //! - `user-panic-handler`: gneiss defines no `#[panic_handler]` and doesn't require
 //!   `-Cpanic=immediate-abort`, for an app that brings its own.
 //!
@@ -106,6 +111,8 @@ pub mod prelude {
 pub mod light;
 pub mod log;
 pub mod service;
+#[doc(hidden)]
+pub mod stack;
 pub mod timer;
 pub mod ui;
 pub mod vibes;

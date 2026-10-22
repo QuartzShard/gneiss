@@ -136,7 +136,7 @@ impl Stopwatch {
 }
 
 #[gneiss::entry]
-fn main(ui: &mut UiGuard) {
+fn main(ui: &mut UiGuard) -> UiQueue<'_> {
 	let icon = |key| GBitMap::load(key).pbl_expect(c"icon");
 
 	let mut window = ActionWindow::<Stopwatch>::new(None).pbl_expect(c"window");
@@ -166,5 +166,7 @@ fn main(ui: &mut UiGuard) {
 		},
 	);
 	STOPWATCH.set(window);
-	UiQueue::new(ui).push(&STOPWATCH, false);
+	let mut queue = UiQueue::new(ui);
+	queue.push(&STOPWATCH, false);
+	queue
 }

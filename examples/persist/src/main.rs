@@ -83,8 +83,10 @@ fn on_tick(_time: DateTime, _changed: TimeUnits) {
 }
 
 #[gneiss::entry]
-fn main(ui: &mut UiGuard) {
+fn main(ui: &mut UiGuard) -> UiQueue<'_> {
 	TOTAL.set(i32::recover_or_default(SECONDS));
 	ROOT.set(Window::new(None).pbl_expect(c"window"));
-	UiQueue::new(ui).push(&ROOT, false);
+	let mut queue = UiQueue::new(ui);
+	queue.push(&ROOT, false);
+	queue
 }

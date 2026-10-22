@@ -40,6 +40,8 @@ logs       = []
 debug-logs = ["logs"]
 # Log every window's load, appear, disappear, unload, handle drop and destroy, for tests
 trace-ui   = ["logs"]
+# Log the app stack's high-water mark at exit
+trace-stack = ["logs"]
 # The app brings its own #[panic_handler], and needn't build with -Cpanic=immediate-abort
 user-panic-handler = []
 # Platform selection forwards to gneiss-sys, where the mutually-exclusive check

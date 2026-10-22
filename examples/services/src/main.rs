@@ -77,7 +77,7 @@ static CONTROLS: SyncCell<Controls> = SyncCell::new(Controls {
 });
 
 #[gneiss::entry]
-fn main(ui: &mut UiGuard) {
+fn main(ui: &mut UiGuard) -> UiQueue<'_> {
 	BOARD.init_with(|board| {
 		board.set_click_handler(
 			ui,
@@ -122,7 +122,9 @@ fn main(ui: &mut UiGuard) {
 		}
 	});
 	BOARD.set_line(ui, Slot::Controls as usize, CONTROLS.get().line());
-	UiQueue::new(ui).push(&BOARD, false);
+	let mut queue = UiQueue::new(ui);
+	queue.push(&BOARD, false);
+	queue
 }
 
 fn show(board: &mut BoardLayout<SLOTS>, lines: &mut BoardLines<SLOTS>, controls: Controls) {

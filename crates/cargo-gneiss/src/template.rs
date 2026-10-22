@@ -242,9 +242,11 @@ impl NewProject {
 			}
 
 			#[gneiss::entry]
-			fn main(ui: &mut UiGuard) {
+			fn main(ui: &mut UiGuard) -> UiQueue<'_> {
 				MAIN.set(Window::new(None).pbl_expect(c"main window"));
-				UiQueue::new(ui).push(&MAIN, false);
+				let mut queue = UiQueue::new(ui);
+				queue.push(&MAIN, false);
+				queue
 			}
 		};
 		// prettyplease drops the blank lines between items

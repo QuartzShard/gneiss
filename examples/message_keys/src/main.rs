@@ -33,10 +33,12 @@ struct MsgCtx {
 }
 
 #[gneiss::entry]
-fn main(ui: &mut UiGuard) {
+fn main(ui: &mut UiGuard) -> UiQueue<'_> {
 	BOARD.init();
 	BOARD.set_line(ui, 0, "messageKeys demo");
-	UiQueue::new(ui).push(&BOARD, false);
+	let mut queue = UiQueue::new(ui);
+	queue.push(&BOARD, false);
+	queue
 }
 
 // --- read side: keys drive get / get_array_slot / iter on the inbox handle ---
