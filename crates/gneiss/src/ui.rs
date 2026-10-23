@@ -86,10 +86,11 @@ use crate::{
 	SyncCell,
 	fail::PblUnwrap,
 	sys,
-	ui::window::{WindowData, header},
+	ui::window::header,
 };
 
 mod action_bar;
+mod action_menu;
 mod bitmap;
 mod board;
 mod click;
@@ -104,6 +105,10 @@ mod window;
 
 pub use action_bar::{
 	ACTION_BAR_WIDTH, ActionBar, ActionButton, ActionClickKinds, ActionWindow, PressAnimation,
+};
+pub use action_menu::{
+	ActionFn, ActionItem, ActionMenu, ActionMenuAlign, ActionMenuStyle, LevelMode, Reply,
+	ResultWindow,
 };
 pub use bitmap::{Align, BitmapLayer};
 pub use board::{BoardLayout, BoardLines, StatusBoard};
@@ -232,6 +237,7 @@ pub enum UiAction<'n> {
 	Remove(AnyWindow<'n>, bool),
 	/// Reload a [`MenuWindow`](MenuWindow)'s menu.
 	Reload(NonNull<sys::MenuLayer>),
+	ActionMenu(NonNull<sys::ActionMenuConfig>),
 }
 
 /// UI actions deferred until the callback queuing them is done: navigation, and menu reloads.
@@ -292,16 +298,7 @@ impl<'n> UiQueue<'n> {
 		arg: <W::Layout as Layout>::Arg,
 		animated: bool,
 	) {
-		let window: AnyWindow<'n> = window.into();
-		// SAFETY: a TypedWindow is a live gneiss window of these types, so its user data is this
-		// WindowData. Only `pending` is touched, through a raw pointer: a running handler holds &mut
-		// to other fields only, and `pending` is read solely by the appear trampoline, which can't
-		// run until this queue drains
-		unsafe {
-			let data = sys::window_get_user_data(window.ptr).cast::<WindowData<W::Layout>>();
-			drop((&raw mut (*data).pending).replace(Some(arg)));
-		}
-		self.queue(UiAction::Push(window, animated));
+		self.queue(UiAction::Push(window::hand_arg(window, arg), animated));
 	}
 
 	/// Pop whichever window is on top of the stack when this action runs.
@@ -312,6 +309,50 @@ impl<'n> UiQueue<'n> {
 	/// Pop every window on the stack when this action runs.
 	pub fn pop_all(&mut self, animated: bool) {
 		self.queue(UiAction::PopAll(animated));
+	}
+
+	/// Open an action menu showing `root`. Picking an item runs its [`ActionFn`] on `data`, then the
+	/// menu closes onto the [`ResultWindow`] the action returns, if any. `data` drops once the menu has
+	/// closed.
+	///
+	/// Logs a warning instead if out of memory, over `u16::MAX` actions, or the queue is full.
+	pub fn action_menu<D: NoWindow + 'static>(
+		&mut self,
+		root: &ActionMenu<'_, D>,
+		data: D,
+		style: ActionMenuStyle,
+	) {
+		self.open_action_menu(root, data, style, None);
+	}
+
+	/// [`action_menu`](Self::action_menu), whose actions can also [`Reply::Arg`] to `target`, such
+	/// as the window opening it.
+	pub fn action_menu_to<W: TypedWindow<'static>, D: NoWindow + 'static>(
+		&mut self,
+		target: W,
+		root: &ActionMenu<'_, D, <W::Layout as Layout>::Arg>,
+		data: D,
+		style: ActionMenuStyle,
+	) {
+		let deliver = window::hand_arg_to::<W::Layout>;
+		self.open_action_menu(root, data, style, Some((target.into(), deliver)));
+	}
+
+	fn open_action_menu<D: NoWindow + 'static, A: 'static>(
+		&mut self,
+		root: &ActionMenu<'_, D, A>,
+		data: D,
+		style: ActionMenuStyle,
+		target: Option<action_menu::Target<A>>,
+	) {
+		if self.len == Self::CAPACITY {
+			crate::log::gneiss_log!(Warn, "queue full");
+			return;
+		}
+		match action_menu::build(root, data, style, target) {
+			Some(config) => self.queue(UiAction::ActionMenu(config)),
+			None => crate::log::gneiss_log!(Warn, "action menu not built"),
+		}
 	}
 
 	/// Remove `window` from the window stack, wherever it is when this action runs.
@@ -364,6 +405,10 @@ impl Drop for UiQueue<'_> {
 						// Fires the menu's callbacks, which read its window's data: the handler that
 						// queued this has returned, so nothing borrows it
 						UiAction::Reload(menu) => sys::menu_layer_reload_data(menu.as_ptr()),
+						// Freed when the menu closes
+						UiAction::ActionMenu(config) => {
+							sys::action_menu_open(config.as_ptr());
+						}
 					}
 				}
 			}

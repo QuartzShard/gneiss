@@ -23,6 +23,9 @@
 //! - "Scroll window" pushes `READER`, a `ScrollWindow`, with this description. Its layout sizes
 //!   the content to fit the text, and Select scrolls back to the top. On round screens, the text
 //!   flows around the screen's edge, and Up and Down scroll a page at a time.
+//! - "Action menu" opens an action menu, whose tree is built in locals each time. Fruit and Faces
+//!   are submenus, Faces laid out `Thin`. Each action finds its text by its index in its level, and
+//!   returns `READER` with it for the menu to close onto.
 //! - Back pops any window. Menus don't override it.
 extern crate alloc;
 
@@ -33,9 +36,10 @@ use gneiss::{
 	resource::font::Font,
 	sys,
 	ui::{
-		Button, ClickKinds, HeapText, Layer, Layout, Menu, MenuCanvas, MenuIndex, MenuItem,
-		MenuList, MenuListFill, MenuSection, MenuWindow, ScrollWindow, SimpleMenuWindow, StackText,
-		StaticWindow, TextAlignment, TextLayer, UiGuard, UiQueue, Window, WindowCtx,
+		ActionItem, ActionMenu, ActionMenuStyle, Button, ClickKinds, HeapText, Layer, Layout,
+		LevelMode, Menu, MenuCanvas, MenuIndex, MenuItem, MenuList, MenuListFill, MenuSection,
+		MenuWindow, Reply, ResultWindow, ScrollWindow, SimpleMenuWindow, StackText, StaticWindow,
+		TextAlignment, TextLayer, UiGuard, UiQueue, Window, WindowCtx,
 		graphics::{GContext, Point, Rectangle, Size},
 	},
 };
@@ -47,8 +51,9 @@ const ABOUT: &CStr =
 	c"Every kind of window gneiss has, opened from a menu of them.\n\nWindow: a plain \
 	window, with click handlers of its own.\n\nSimple menu: a menu the firmware draws from a \
 	table.\n\nMenu list: the same, built at runtime.\n\nMenu: a menu that draws its own rows, \
-	and opens more of itself.\n\nScroll window: this text, which scrolls.\n\nThe stopwatch \
-	example has the last kind, a window with an action bar.";
+	and opens more of itself.\n\nScroll window: this text, which scrolls.\n\nAction menu: the \
+	list that slides in from the right, drawn by the firmware.\n\nThe stopwatch example has the \
+	last kind, a window with an action bar.";
 
 /// The space above and below a window's text. It's larger on round screens, which cut off the
 /// corners.
@@ -160,26 +165,36 @@ struct RootData {
 
 /// Its own layout. It has no layers, but frees level 1 once level 1 is popped.
 impl Layout for Root {
+	type Arg = RootArg;
 	type Data = RootData;
 
 	fn load(_ctx: &mut WindowCtx<'_, RootData>) -> Self {
 		Self
 	}
 
-	fn appear(&mut self, ctx: &mut WindowCtx<'_, RootData>, _arg: Option<()>) {
+	fn appear(&mut self, ctx: &mut WindowCtx<'_, RootData>, arg: Option<RootArg>) {
 		if let Some(data) = ctx.data() {
 			data.nested = None;
+			if let Some(RootArg::ResetCount) = arg {
+				data.opened = 0;
+			}
 		}
 	}
 }
 
+/// What the action menu tells the root once it has closed.
+enum RootArg {
+	ResetCount,
+}
+
 /// Each row's title and subtitle. The first row draws a count in place of its subtitle.
-const ROOT_ROWS: [(&CStr, &CStr); 5] = [
+const ROOT_ROWS: [(&CStr, &CStr); 6] = [
 	(c"Window", c""),
 	(c"Simple menu", c"Sections from a table"),
 	(c"Menu list", c"Built at runtime"),
 	(c"Menu", c"Menus all the way down"),
 	(c"Scroll window", c"About this example"),
+	(c"Action menu", c"Slides in from the right"),
 ];
 
 #[gneiss::menu]
@@ -220,7 +235,8 @@ impl Menu for Root {
 					queue.push(level, true);
 				}
 			}
-			_ => queue.push_with(&READER, ABOUT, true),
+			4 => queue.push_with(&READER, ABOUT, true),
+			_ => open_actions(queue),
 		}
 	}
 
@@ -335,6 +351,61 @@ const ABOUT_FRUIT: [&[&CStr]; 2] = [
 		c"Raspberry\n\nNot a berry either: a cluster of tiny stone fruits.",
 	],
 ];
+
+const FACES: [&CStr; 3] = [c":)\n\nHappy.", c":|\n\nUnsure.", c":(\n\nSad."];
+
+const ABOUT_ACTIONS: &CStr = c"Action menu\n\nThe firmware draws it, and closes it once an action \
+	has run. Its tree was built in locals when it opened, and freed when it closed.";
+
+fn open_actions(queue: &mut UiQueue<'_>) {
+	let fruit = [
+		ActionItem::Action(c"Plum", show_fruit),
+		ActionItem::Action(c"Cherry", show_fruit),
+		ActionItem::Action(c"Strawberry", show_fruit),
+		ActionItem::Action(c"Blueberry", show_fruit),
+		ActionItem::Action(c"Raspberry", show_fruit),
+	];
+	let faces = [
+		ActionItem::Action(c":)", show_face),
+		ActionItem::Action(c":|", show_face),
+		ActionItem::Action(c":(", show_face),
+	];
+	let fruit = ActionMenu::new(&fruit);
+	let mut faces = ActionMenu::new(&faces);
+	faces.mode = LevelMode::Thin;
+	let root = [
+		ActionItem::Level(c"Fruit", &fruit),
+		ActionItem::Level(c"Faces", &faces),
+		ActionItem::Action(c"About", |_, _, _| {
+			Some(Reply::Window(ResultWindow::new(&READER, ABOUT_ACTIONS)))
+		}),
+		ActionItem::Action(c"Reset count", |_, _, _| {
+			Some(Reply::Arg(RootArg::ResetCount))
+		}),
+	];
+	queue.action_menu_to(
+		&ROOT,
+		&ActionMenu::new(&root),
+		(),
+		ActionMenuStyle::default(),
+	);
+}
+
+/// The fruit are in `ABOUT_FRUIT`'s order, across its sections.
+fn show_fruit(_: &mut (), index: u16, _: &UiGuard) -> Option<Reply<RootArg>> {
+	let about = ABOUT_FRUIT
+		.iter()
+		.flat_map(|section| section.iter())
+		.nth(index.into())?;
+	Some(Reply::Window(ResultWindow::new(&READER, about)))
+}
+
+fn show_face(_: &mut (), index: u16, _: &UiGuard) -> Option<Reply<RootArg>> {
+	Some(Reply::Window(ResultWindow::new(
+		&READER,
+		FACES[usize::from(index)],
+	)))
+}
 
 /// Lap times in milliseconds, as if recorded while the app ran.
 const LAPS_MS: [u32; 5] = [83_450, 81_920, 85_010, 80_770, 82_305];

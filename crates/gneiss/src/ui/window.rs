@@ -738,6 +738,31 @@ pub trait TypedWindow<'w>: Into<AnyWindow<'w>> + Copy {
 	type Layout: Layout + 'static;
 }
 
+/// Hand `arg` to `window`'s next [`appear`](Layout::appear), replacing one not yet handed over.
+pub(super) fn hand_arg<'w, W: TypedWindow<'w>>(
+	window: W,
+	arg: <W::Layout as Layout>::Arg,
+) -> AnyWindow<'w> {
+	let window: AnyWindow<'w> = window.into();
+	// SAFETY: a TypedWindow is a live gneiss window of these types
+	unsafe { hand_arg_to::<W::Layout>(window, arg) };
+	window
+}
+
+/// [`hand_arg`] for a window known only by its handle.
+///
+/// # Safety
+/// `window` is a live gneiss window with layout `C`.
+pub(super) unsafe fn hand_arg_to<C: Layout + 'static>(window: AnyWindow<'_>, arg: C::Arg) {
+	// SAFETY: the window's user data is this WindowData. Only `pending` is touched, through a raw
+	// pointer: a running handler holds &mut to other fields only, and the appear trampoline takes
+	// `pending` out before it calls appear
+	unsafe {
+		let data = sys::window_get_user_data(window.ptr).cast::<WindowData<C>>();
+		drop((&raw mut (*data).pending).replace(Some(arg)));
+	}
+}
+
 impl<'w, C: Layout> TypedWindow<'w> for &'w Window<C> {
 	type Layout = C;
 }
