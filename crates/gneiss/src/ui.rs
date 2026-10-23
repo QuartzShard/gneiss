@@ -306,6 +306,19 @@ impl<'n> UiQueue<'n> {
 		self.queue(UiAction::Pop(animated));
 	}
 
+	/// Pop whichever window is on top of the stack when this action runs, handing `arg` to
+	/// `window`'s next [`appear`](Layout::appear): straight after this pop if `window` is under the
+	/// top. As for [`push_with`](Self::push_with), a newer `arg` replaces one not yet handed over.
+	pub fn pop_with<W: TypedWindow<'n>>(
+		&mut self,
+		window: W,
+		arg: <W::Layout as Layout>::Arg,
+		animated: bool,
+	) {
+		window::hand_arg(window, arg);
+		self.queue(UiAction::Pop(animated));
+	}
+
 	/// Pop every window on the stack when this action runs.
 	pub fn pop_all(&mut self, animated: bool) {
 		self.queue(UiAction::PopAll(animated));
