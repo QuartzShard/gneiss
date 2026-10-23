@@ -1,6 +1,6 @@
 [package]
 name = "gneiss-build"
-version = "0.5.0"
+version = "0.6.0"
 description = "Build-time resource compiling and bundling for gneiss apps"
 edition.workspace = true
 license.workspace = true

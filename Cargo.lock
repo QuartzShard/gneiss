@@ -423,7 +423,7 @@ dependencies = [
 
 [[package]]
 name = "cargo-gneiss"
-version = "0.2.2"
+version = "0.3.0"
 dependencies = [
  "addr2line 0.27.1",
  "bytemuck",
@@ -1156,7 +1156,7 @@ checksum = "e4eba85ea1d0a966a983acd07deee566e67395d2d96b6fb39e62b5a833f1eb0b"
 
 [[package]]
 name = "gneiss"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "bitflags 2.13.2",
  "bytemuck",
@@ -1169,7 +1169,7 @@ dependencies = [
 
 [[package]]
 name = "gneiss-build"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "bytemuck",
  "cargo_metadata",
@@ -1197,7 +1197,7 @@ dependencies = [
 
 [[package]]
 name = "gneiss-macros"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "darling",
  "prettyplease",
@@ -1210,7 +1210,7 @@ dependencies = [
 
 [[package]]
 name = "gneiss-sys"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "gneiss-types",
  "mutually_exclusive_features",
@@ -1218,7 +1218,7 @@ dependencies = [
 
 [[package]]
 name = "gneiss-types"
-version = "0.5.1"
+version = "0.6.0"
 dependencies = [
  "bytemuck",
  "clap",
