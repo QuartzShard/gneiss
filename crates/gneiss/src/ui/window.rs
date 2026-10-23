@@ -8,7 +8,7 @@ use crate::{
 	alloc::PebbleAlloc,
 	fail::PblUnwrap,
 	sys,
-	ui::{ClickHandlers, ScrollLayer, UiGuard, layer::RootLayer},
+	ui::{ClickHandlers, ScrollLayer, UiGuard, graphics::Colour, layer::RootLayer},
 };
 
 /// A window. One is displayed at a time: whichever is on top of the window stack.
@@ -538,6 +538,11 @@ impl<D> WindowCtx<'_, D> {
 		self.ptr
 	}
 
+	/// The colour the window fills behind its layers.
+	pub fn set_background_colour(&mut self, colour: Colour) {
+		unsafe { sys::window_set_background_color(self.ptr, colour.into()) };
+	}
+
 	/// The layer to add the layout's layers to: the window's root, or a
 	/// [`ScrollWindow`](super::ScrollWindow)'s scrolling content.
 	pub fn root(&mut self) -> RootLayer {
@@ -592,6 +597,19 @@ impl<'w> AnyWindow<'w> {
 	/// The raw window.
 	pub fn as_ptr(self) -> *mut sys::Window {
 		self.ptr
+	}
+
+	/// Whether the window is loaded, from its `load` until its `unload`.
+	pub fn is_loaded(self) -> bool {
+		unsafe { sys::window_is_loaded(self.ptr) }
+	}
+
+	pub fn is_on_stack(self) -> bool {
+		unsafe { sys::window_stack_contains_window(self.ptr) }
+	}
+
+	pub fn is_on_top(self) -> bool {
+		unsafe { sys::window_stack_get_top_window() == self.ptr }
 	}
 
 	/// Shared access to the window's layout and data. `None` unless it is a loaded `Window<C>`.
@@ -749,7 +767,7 @@ pub(super) fn hand_arg<'w, W: TypedWindow<'w>>(
 	window
 }
 
-/// [`hand_arg`] for a window known only by its handle.
+/// Does what [`hand_arg`] does, for a window known only by its handle.
 ///
 /// # Safety
 /// `window` is a live gneiss window with layout `C`.

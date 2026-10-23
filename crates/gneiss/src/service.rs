@@ -63,13 +63,15 @@ use core::{ffi, marker::PhantomData, mem::MaybeUninit, ptr};
 
 #[cfg(any(pbl_touch, pbl_health))]
 use crate::SyncCell;
+#[cfg(pbl_compass)]
+use crate::compass;
 #[cfg(pbl_health)]
 use crate::health;
 #[cfg(pbl_touch)]
 use crate::touch;
 #[cfg(not(pbl_platform_aplite))]
 use crate::unobstructed;
-use crate::{accel, battery, compass, connection, focus, link, sys, time, wakeup};
+use crate::{accel, battery, connection, focus, link, sys, time, wakeup};
 
 /// The context of a service that carries none.
 pub struct NoneT;

@@ -110,7 +110,7 @@ pub use action_menu::{
 	ActionFn, ActionItem, ActionMenu, ActionMenuAlign, ActionMenuStyle, LevelMode, Reply,
 	ResultWindow,
 };
-pub use bitmap::{Align, BitmapLayer};
+pub use bitmap::{Align, BitmapLayer, RotBitmapLayer};
 pub use board::{BoardLayout, BoardLines, StatusBoard};
 pub use click::{Button, Click, ClickHandler, ClickHandlers, ClickKinds};
 pub use layer::{AsLayer, DataLayer, DrawFn, Layer, RootLayer};
@@ -235,7 +235,7 @@ pub enum UiAction<'n> {
 	Pop(bool),
 	PopAll(bool),
 	Remove(AnyWindow<'n>, bool),
-	/// Reload a [`MenuWindow`](MenuWindow)'s menu.
+	/// Reload a [`MenuWindow`]'s menu.
 	Reload(NonNull<sys::MenuLayer>),
 	ActionMenu(NonNull<sys::ActionMenuConfig>),
 }
@@ -338,8 +338,8 @@ impl<'n> UiQueue<'n> {
 		self.open_action_menu(root, data, style, None);
 	}
 
-	/// [`action_menu`](Self::action_menu), whose actions can also [`Reply::Arg`] to `target`, such
-	/// as the window opening it.
+	/// Like [`action_menu`](Self::action_menu), but actions can also [`Reply::Arg`] to `target`,
+	/// such as the window opening it.
 	pub fn action_menu_to<W: TypedWindow<'static>, D: NoWindow + 'static>(
 		&mut self,
 		target: W,
@@ -385,7 +385,7 @@ impl<'n> UiQueue<'n> {
 	}
 
 	/// Reload `window`'s menu after changing its data. Does nothing unless `window` is a
-	/// [`MenuWindow`](MenuWindow).
+	/// [`MenuWindow`].
 	pub fn reload_menu(&mut self, window: impl Into<AnyWindow<'n>>) {
 		let window = window.into();
 		// SAFETY: every AnyWindow is a live gneiss window. Only its menu is read, which nothing

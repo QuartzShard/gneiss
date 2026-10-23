@@ -9,7 +9,7 @@ use crate::{
 	sys,
 	ui::{
 		AsLayer,
-		graphics::{Colour, Rectangle, Size, grect, size},
+		graphics::{Colour, Rectangle, Size, TextOverflow, grect, gsize, size},
 	},
 };
 
@@ -333,6 +333,18 @@ impl<S: Deref<Target = CStr>, F: Borrow<Font>> TextLayer<S, F> {
 	/// Set how lines align within the layer.
 	pub fn set_alignment(&mut self, alignment: TextAlignment) -> &mut Self {
 		unsafe { sys::text_layer_set_text_alignment(self.ptr, alignment as u8) };
+		self
+	}
+
+	/// What happens to text that doesn't fit the layer.
+	pub fn set_overflow(&mut self, overflow: TextOverflow) -> &mut Self {
+		unsafe { sys::text_layer_set_overflow_mode(self.ptr, overflow as u8) };
+		self
+	}
+
+	/// Resize the layer, keeping its origin.
+	pub fn set_size(&mut self, size: Size) -> &mut Self {
+		unsafe { sys::text_layer_set_size(self.ptr, gsize(size)) };
 		self
 	}
 

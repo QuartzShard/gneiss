@@ -35,7 +35,7 @@ pub struct ScrollLayer {
 	ptr:     NonNull<sys::ScrollLayer>,
 	// A plain layer filling the scroll layer's content, to hand out as its root
 	content: NonNull<sys::Layer>,
-	// The strips the up and down arrows draw in, over the content
+	// The strips the up and down arrows draw in, beside the scroll layer in its parent
 	arrows:  Option<[NonNull<sys::Layer>; 2]>,
 }
 
@@ -138,6 +138,10 @@ impl ScrollLayer {
 		self
 	}
 
+	pub fn is_paging(&self) -> bool {
+		unsafe { sys::scroll_layer_get_paging(self.ptr.as_ptr()) }
+	}
+
 	/// Hide or show the shadow at the top and bottom edges, where content scrolls out of view.
 	/// Paging hides it.
 	pub fn set_shadow_hidden(&mut self, hidden: bool) -> &mut Self {
@@ -145,11 +149,15 @@ impl ScrollLayer {
 		self
 	}
 
+	pub fn is_shadow_hidden(&self) -> bool {
+		unsafe { sys::scroll_layer_get_shadow_hidden(self.ptr.as_ptr()) }
+	}
+
 	/// Move or resize the scroll layer within its parent. The arrows move with it.
 	pub fn set_frame(&mut self, frame: Rectangle) -> &mut Self {
-		unsafe { sys::layer_set_frame(self.as_ptr(), grect(frame)) };
+		unsafe { sys::scroll_layer_set_frame(self.ptr.as_ptr(), grect(frame)) };
 		if let Some(arrows) = self.arrows {
-			for (arrow, frame) in arrows.into_iter().zip(Self::arrow_frames(frame.size)) {
+			for (arrow, frame) in arrows.into_iter().zip(Self::arrow_frames(frame)) {
 				unsafe { sys::layer_set_frame(arrow.as_ptr(), grect(frame)) };
 			}
 		}
@@ -159,6 +167,10 @@ impl ScrollLayer {
 	/// Show an arrow at the top or bottom edge while there's more content that way. Each arrow is
 	/// `foreground` on a strip of `background`. Call it again to change the colours. `None` if the
 	/// firmware is out of memory.
+	///
+	/// The arrows go in the scroll layer's parent, so add it to one first. On round screens the up
+	/// arrow sits just above the scroll layer, clear of the first line of each page: leave room for
+	/// it there, as a [`ScrollWindow`] does.
 	pub fn show_arrows(&mut self, foreground: Colour, background: Colour) -> Option<&mut Self> {
 		let scroll = self.ptr.as_ptr();
 		// SAFETY: the scroll layer is live; NULL if the firmware's indicators are used up
@@ -232,7 +244,7 @@ impl ScrollLayer {
 	}
 
 	fn create_arrows(&mut self) -> Option<[NonNull<sys::Layer>; 2]> {
-		let [up, down] = Self::arrow_frames(self.frame().size);
+		let [up, down] = Self::arrow_frames(self.frame());
 		// SAFETY: NULL on OOM, and the scroll layer is live
 		unsafe {
 			let up = NonNull::new(sys::layer_create(grect(up)))?;
@@ -240,18 +252,25 @@ impl ScrollLayer {
 				sys::layer_destroy(up.as_ptr());
 				return None;
 			};
-			sys::layer_add_child(self.as_ptr(), up.as_ptr());
-			sys::layer_add_child(self.as_ptr(), down.as_ptr());
+			sys::layer_insert_above_sibling(up.as_ptr(), self.as_ptr());
+			sys::layer_insert_above_sibling(down.as_ptr(), self.as_ptr());
 			Some([up, down])
 		}
 	}
 
-	fn arrow_frames(size: Size) -> [Rectangle; 2] {
-		let strip = Size::new(size.width, ARROW_HEIGHT);
-		let bottom = size.height as i32 - ARROW_HEIGHT as i32;
+	// The strips for a scroll layer at `frame`, in its parent
+	fn arrow_frames(frame: Rectangle) -> [Rectangle; 2] {
+		let strip = Size::new(frame.size.width, ARROW_HEIGHT);
+		let top = frame.top_left.y
+			- if cfg!(pbl_round) {
+				ARROW_HEIGHT as i32
+			} else {
+				0
+			};
+		let bottom = frame.top_left.y + frame.size.height as i32 - ARROW_HEIGHT as i32;
 		[
-			Rectangle::new(Point::zero(), strip),
-			Rectangle::new(Point::new(0, bottom), strip),
+			Rectangle::new(Point::new(frame.top_left.x, top), strip),
+			Rectangle::new(Point::new(frame.top_left.x, bottom), strip),
 		]
 	}
 
@@ -435,8 +454,12 @@ impl<L: Layout> ScrollWindow<L> {
 		// provider can run it, and no guard is held here, so the provider can take its own
 		unsafe {
 			let root = sys::window_get_root_layer(window);
-			let mut scroll =
-				ScrollLayer::new(rect(sys::layer_get_bounds(root))).pbl_expect(c"scroll layer");
+			let mut frame = rect(sys::layer_get_bounds(root));
+			if cfg!(pbl_round) {
+				frame.top_left.y += ARROW_HEIGHT as i32;
+				frame.size.height -= ARROW_HEIGHT;
+			}
+			let mut scroll = ScrollLayer::new(frame).pbl_expect(c"scroll layer");
 			sys::layer_add_child(root, scroll.as_ptr());
 			let _ = scroll.show_arrows(Colour::BLACK, Colour::WHITE);
 			if cfg!(pbl_round) {

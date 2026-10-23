@@ -37,8 +37,23 @@ pub trait Layer: AsLayer {
 	fn frame(&self) -> Rectangle;
 	/// Move or resize the layer within its parent.
 	fn set_frame(&mut self, frame: Rectangle) -> &mut Self;
+	/// Move or resize the layer's own coordinate space within its frame, such as to shift what it
+	/// draws.
+	fn set_bounds(&mut self, bounds: Rectangle) -> &mut Self;
+	/// Converts `rect` from this layer's coordinates to the screen's.
+	fn to_screen(&self, rect: Rectangle) -> Rectangle;
 	/// Hide or show the layer and its children.
 	fn set_hidden(&mut self, hidden: bool) -> &mut Self;
+	fn is_hidden(&self) -> bool;
+	/// Clip drawing to the layer's frame, which layers do by default.
+	fn set_clips(&mut self, clips: bool) -> &mut Self;
+	fn clips(&self) -> bool;
+	/// Add `layer` to this layer's parent, just below this layer.
+	fn insert_below(&mut self, layer: &mut impl AsLayer);
+	/// Add `layer` to this layer's parent, just above this layer.
+	fn insert_above(&mut self, layer: &mut impl AsLayer);
+	/// Take the layer, and its children, off screen. [`add_child`](Self::add_child) puts it back.
+	fn remove_from_parent(&mut self);
 }
 
 impl<T: AsLayer> Layer for T {
@@ -68,9 +83,43 @@ impl<T: AsLayer> Layer for T {
 		self
 	}
 
+	fn set_bounds(&mut self, bounds: Rectangle) -> &mut Self {
+		unsafe { sys::layer_set_bounds(self.as_ptr(), grect(bounds)) };
+		self
+	}
+
+	fn to_screen(&self, rect: Rectangle) -> Rectangle {
+		self::rect(unsafe { sys::layer_convert_rect_to_screen(self.as_ptr(), grect(rect)) })
+	}
+
 	fn set_hidden(&mut self, hidden: bool) -> &mut Self {
 		unsafe { sys::layer_set_hidden(self.as_ptr(), hidden) };
 		self
+	}
+
+	fn is_hidden(&self) -> bool {
+		unsafe { sys::layer_get_hidden(self.as_ptr()) }
+	}
+
+	fn set_clips(&mut self, clips: bool) -> &mut Self {
+		unsafe { sys::layer_set_clips(self.as_ptr(), clips) };
+		self
+	}
+
+	fn clips(&self) -> bool {
+		unsafe { sys::layer_get_clips(self.as_ptr()) }
+	}
+
+	fn insert_below(&mut self, layer: &mut impl AsLayer) {
+		unsafe { sys::layer_insert_below_sibling(layer.as_ptr(), self.as_ptr()) };
+	}
+
+	fn insert_above(&mut self, layer: &mut impl AsLayer) {
+		unsafe { sys::layer_insert_above_sibling(layer.as_ptr(), self.as_ptr()) };
+	}
+
+	fn remove_from_parent(&mut self) {
+		unsafe { sys::layer_remove_from_parent(self.as_ptr()) };
 	}
 }
 

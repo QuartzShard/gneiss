@@ -180,7 +180,7 @@ fn on_compass(heading: compass::HeadingData) {
 	};
 	let line = match heading.status() {
 		compass::CompassStatus::Calibrated | compass::CompassStatus::Calibrating => {
-			let deg = heading.heading().as_degrees_cw();
+			let deg = heading.heading().heading_degrees_cw();
 			let dir = match deg {
 				0..45 | 315..360 => "N",
 				45..135 => "E",

@@ -71,6 +71,12 @@ impl MenuCanvas<'_> {
 		}
 	}
 
+	/// Draw a row of just `title`, in large bold text.
+	pub fn draw_title(&self, ctx: &mut GContext<'_>, title: &CStr) {
+		// SAFETY: as for draw_basic
+		unsafe { sys::menu_cell_title_draw(ctx.as_ptr(), self.ptr, title.as_ptr()) };
+	}
+
 	/// Draw a standard section header: `title` in small bold text.
 	pub fn draw_basic_header(&self, ctx: &mut GContext<'_>, title: &CStr) {
 		// SAFETY: as for draw_basic
@@ -603,6 +609,22 @@ impl MenuRef<'_> {
 				animated,
 			);
 		}
+	}
+
+	/// Keep the selected row in the middle, scrolling the rows past it. Round watches do this by
+	/// default.
+	pub fn set_center_focused(&mut self, centred: bool) {
+		unsafe { sys::menu_layer_set_center_focused(self.ptr.as_ptr(), centred) };
+	}
+
+	pub fn is_center_focused(&self) -> bool {
+		unsafe { sys::menu_layer_get_center_focused(self.ptr.as_ptr()) }
+	}
+
+	/// Leave space below the last row, so it doesn't sit against the bottom of the screen. On by
+	/// default.
+	pub fn set_bottom_padding(&mut self, padded: bool) {
+		unsafe { sys::menu_layer_pad_bottom_enable(self.ptr.as_ptr(), padded) };
 	}
 
 	/// The colours of rows that aren't selected.
